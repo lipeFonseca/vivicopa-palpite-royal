@@ -39,12 +39,15 @@ function placar(j: any, lado: "home" | "away") {
 function mapear(j: any) {
   return {
     id: String(j.id),
-    time_a: j.homeTeam?.name ?? "Mandante indefinido",
-    time_b: j.awayTeam?.name ?? "Visitante indefinido",
+    time_a: j.homeTeam?.name || "A definir",
+    time_b: j.awayTeam?.name || "A definir",
     placar_a: placar(j, "home"),
     placar_b: placar(j, "away"),
     status: mapearStatus(j.status),
     inicia_em: j.utcDate,
+    fase: j.stage ?? null,
+    grupo: j.group ?? null,
+    rodada: j.matchday ?? null,
   };
 }
 

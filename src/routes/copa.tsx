@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -23,6 +24,9 @@ type Partida = {
   placar_b: number;
   status: string;
   inicia_em: string | null;
+  fase: string | null;
+  grupo: string | null;
+  rodada: number | null;
 };
 
 type Palpite = {
@@ -40,6 +44,39 @@ type RankingRow = {
 };
 
 const AO_VIVO = new Set(["1H", "HT", "2H", "ET", "BT", "P", "LIVE"]);
+const FASES_ORDEM = [
+  "GROUP_STAGE",
+  "LAST_32",
+  "LAST_16",
+  "QUARTER_FINALS",
+  "SEMI_FINALS",
+  "THIRD_PLACE",
+  "FINAL",
+];
+const FASES_LABEL: Record<string, string> = {
+  GROUP_STAGE: "Fase de grupos",
+  LAST_32: "16 avos de final",
+  LAST_16: "Oitavas de final",
+  QUARTER_FINALS: "Quartas de final",
+  SEMI_FINALS: "Semifinais",
+  THIRD_PLACE: "Disputa do 3º lugar",
+  FINAL: "Final",
+};
+
+function faseLabel(fase?: string | null) {
+  if (!fase) return "Fase indefinida";
+  return FASES_LABEL[fase] ?? fase.replaceAll("_", " ").toLowerCase();
+}
+
+function grupoLabel(grupo?: string | null) {
+  if (!grupo) return null;
+  return grupo.replace("GROUP_", "Grupo ");
+}
+
+function ordemFase(fase?: string | null) {
+  const idx = FASES_ORDEM.indexOf(fase ?? "");
+  return idx === -1 ? FASES_ORDEM.length : idx;
+}
 
 function CopaPage() {
   const [userId, setUserId] = useState<string | null>(null);
@@ -64,7 +101,7 @@ function CopaPage() {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-3xl p-4">
+    <div className="mx-auto min-h-screen max-w-5xl p-4">
       <h1 className="mb-4 text-2xl font-extrabold">Copa 2026 — Palpites em família</h1>
       <Tabs defaultValue="jogos">
         <TabsList className="w-full">
@@ -86,6 +123,9 @@ function CopaPage() {
 function Jogos({ userId }: { userId: string }) {
   const [partidas, setPartidas] = useState<Partida[]>([]);
   const [palpites, setPalpites] = useState<Record<string, Palpite>>({});
+  const [filtroFase, setFiltroFase] = useState("todas");
+  const [filtroGrupo, setFiltroGrupo] = useState("todos");
+  const [busca, setBusca] = useState("");
 
   const recarregar = async () => {
     const [{ data: p }, { data: pal }] = await Promise.all([
@@ -125,6 +165,42 @@ function Jogos({ userId }: { userId: string }) {
     };
   }, [userId]);
 
+  const fasesDisponiveis = useMemo(() => {
+    const fases = Array.from(new Set(partidas.map((p) => p.fase).filter(Boolean))) as string[];
+    return fases.sort((a, b) => ordemFase(a) - ordemFase(b));
+  }, [partidas]);
+
+  const gruposDisponiveis = useMemo(() => {
+    const grupos = Array.from(new Set(partidas.map((p) => p.grupo).filter(Boolean))) as string[];
+    return grupos.sort((a, b) => a.localeCompare(b));
+  }, [partidas]);
+
+  const partidasFiltradas = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    return partidas.filter((p) => {
+      if (filtroFase !== "todas" && p.fase !== filtroFase) return false;
+      if (filtroGrupo !== "todos" && p.grupo !== filtroGrupo) return false;
+      if (termo && !`${p.time_a} ${p.time_b}`.toLowerCase().includes(termo)) return false;
+      return true;
+    });
+  }, [busca, filtroFase, filtroGrupo, partidas]);
+
+  const partidasPorFase = useMemo(() => {
+    const map = new Map<string, Partida[]>();
+    partidasFiltradas.forEach((p) => {
+      const fase = p.fase ?? "INDEFINIDA";
+      const lista = map.get(fase) ?? [];
+      lista.push(p);
+      map.set(fase, lista);
+    });
+    return Array.from(map.entries())
+      .sort(([a], [b]) => ordemFase(a) - ordemFase(b))
+      .map(([fase, lista]) => [
+        fase,
+        lista.sort((a, b) => (a.inicia_em ?? "").localeCompare(b.inicia_em ?? "")),
+      ] as const);
+  }, [partidasFiltradas]);
+
   if (!partidas.length) {
     return (
       <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground">
@@ -134,16 +210,83 @@ function Jogos({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="space-y-3">
-      {partidas.map((p) => (
-        <PartidaCard
-          key={p.id}
-          partida={p}
-          palpite={palpites[p.id]}
-          onSalvo={recarregar}
-          userId={userId}
+    <div className="space-y-5">
+      <div className="grid gap-3 rounded-xl border bg-card p-3 shadow-sm md:grid-cols-[1fr_1fr_1.4fr]">
+        <Select value={filtroFase} onValueChange={setFiltroFase}>
+          <SelectTrigger>
+            <SelectValue placeholder="Fase" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Todas as fases</SelectItem>
+            {fasesDisponiveis.map((fase) => (
+              <SelectItem key={fase} value={fase}>{faseLabel(fase)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filtroGrupo} onValueChange={setFiltroGrupo}>
+          <SelectTrigger>
+            <SelectValue placeholder="Grupo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos os grupos</SelectItem>
+            {gruposDisponiveis.map((grupo) => (
+              <SelectItem key={grupo} value={grupo}>{grupoLabel(grupo) ?? grupo}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar seleção"
         />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Resumo label="Partidas" value={partidas.length} />
+        <Resumo label="Fases" value={fasesDisponiveis.length} />
+        <Resumo label="Filtradas" value={partidasFiltradas.length} />
+        <Resumo label="Palpites" value={Object.keys(palpites).length} />
+      </div>
+
+      {partidasPorFase.map(([fase, lista]) => (
+        <section key={fase} className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted px-3 py-2">
+            <div>
+              <h2 className="text-sm font-bold">{faseLabel(fase)}</h2>
+              <p className="text-xs text-muted-foreground">
+                {lista.length} {lista.length === 1 ? "partida" : "partidas"}
+              </p>
+            </div>
+            {fase === "GROUP_STAGE" && <Badge variant="outline">Grupos A-L</Badge>}
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {lista.map((p) => (
+              <PartidaCard
+                key={p.id}
+                partida={p}
+                palpite={palpites[p.id]}
+                onSalvo={recarregar}
+                userId={userId}
+              />
+            ))}
+          </div>
+        </section>
       ))}
+
+      {!partidasFiltradas.length && (
+        <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground">
+          Nenhuma partida encontrada com esses filtros.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Resumo({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border bg-card p-3 shadow-sm">
+      <div className="text-2xl font-extrabold tabular-nums">{value}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
     </div>
   );
 }
@@ -208,9 +351,11 @@ function PartidaCard({
       className={`rounded-xl border bg-card p-4 shadow-sm ${aoVivo ? "border-destructive ring-2 ring-destructive/30" : ""}`}
     >
       <div className="mb-2 flex items-center justify-between text-xs">
-        <span className="text-muted-foreground">
-          {partida.inicia_em ? new Date(partida.inicia_em).toLocaleString("pt-BR") : "—"}
-        </span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant="outline">{faseLabel(partida.fase)}</Badge>
+          {grupoLabel(partida.grupo) && <Badge variant="secondary">{grupoLabel(partida.grupo)}</Badge>}
+          {partida.rodada && <span className="text-muted-foreground">Rodada {partida.rodada}</span>}
+        </div>
         {aoVivo ? (
           <Badge variant="destructive" className="animate-pulse">AO VIVO · {partida.status}</Badge>
         ) : finalizado ? (
@@ -218,6 +363,9 @@ function PartidaCard({
         ) : (
           <Badge variant="outline">Aguardando</Badge>
         )}
+      </div>
+      <div className="mb-3 text-xs text-muted-foreground">
+        {partida.inicia_em ? new Date(partida.inicia_em).toLocaleString("pt-BR") : "Data a definir"}
       </div>
 
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
