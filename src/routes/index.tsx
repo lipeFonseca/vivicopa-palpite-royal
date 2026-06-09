@@ -18,7 +18,6 @@ import { selecoes, jogos, grupos, getSelecao, type Jogo, type Selecao } from "@/
 import { getStats } from "@/data/selecaoStats";
 import { carregarPalpites, excluirPalpite, type Palpite } from "@/lib/storage";
 import { flagUrl, flagAlt } from "@/lib/flags";
-import { supabase } from "@/integrations/supabase/client";
 
 const PAISES_SEDE = [
   { id: "usa", nome: "Estados Unidos" },
@@ -801,25 +800,53 @@ function formatarDataLonga(d: string) {
 function ChaveamentoTab() {
   const [partidas, setPartidas] = useState<PartidaCopa[]>([]);
   const [carregando, setCarregando] = useState(true);
-
-  const carregar = async () => {
-    const { data } = await supabase
-      .from("partidas")
-      .select("id,time_a,time_b,placar_a,placar_b,status,inicia_em,fase")
-      .in("fase", [...FASES_MATA_MATA, "THIRD_PLACE"])
-      .order("inicia_em", { ascending: true });
-    setPartidas((data ?? []) as PartidaCopa[]);
-    setCarregando(false);
-  };
+  const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
-    carregar();
-    const ch = supabase
-      .channel("home-chaveamento")
-      .on("postgres_changes", { event: "*", schema: "public", table: "partidas" }, carregar)
-      .subscribe();
+    let ativo = true;
+    let ch: { unsubscribe: () => unknown } | null = null;
+
+    const carregar = async () => {
+      try {
+        const { supabase } = await import("@/integrations/supabase/client");
+        const { data, error } = await supabase
+          .from("partidas")
+          .select("id,time_a,time_b,placar_a,placar_b,status,inicia_em,fase")
+          .in("fase", [...FASES_MATA_MATA, "THIRD_PLACE"])
+          .order("inicia_em", { ascending: true });
+        if (error) throw error;
+        if (ativo) {
+          setPartidas((data ?? []) as PartidaCopa[]);
+          setErro(null);
+          setCarregando(false);
+        }
+      } catch (e) {
+        if (ativo) {
+          setErro(e instanceof Error ? e.message : "Não foi possível carregar o chaveamento.");
+          setCarregando(false);
+        }
+      }
+    };
+
+    const iniciar = async () => {
+      const { supabase } = await import("@/integrations/supabase/client");
+      await carregar();
+      ch = supabase
+        .channel("home-chaveamento")
+        .on("postgres_changes", { event: "*", schema: "public", table: "partidas" }, carregar)
+        .subscribe();
+    };
+
+    iniciar().catch((e) => {
+      if (ativo) {
+        setErro(e instanceof Error ? e.message : "Não foi possível iniciar o chaveamento.");
+        setCarregando(false);
+      }
+    });
+
     return () => {
-      supabase.removeChannel(ch);
+      ativo = false;
+      ch?.unsubscribe();
     };
   }, []);
 
@@ -852,6 +879,11 @@ function ChaveamentoTab() {
             {partidas.length}/31 jogos
           </Badge>
         </div>
+        {erro && (
+          <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+            {erro}
+          </div>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-border bg-card p-4 shadow-card">
