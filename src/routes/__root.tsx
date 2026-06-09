@@ -77,14 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "ViViCopa" },
+      { name: "description", content: "um sistema para diverção livre entre a familia que visa dar palpites sobre os jogos da copa de 2026" },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "ViViCopa" },
+      { property: "og:description", content: "um sistema para diverção livre entre a familia que visa dar palpites sobre os jogos da copa de 2026" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "ViViCopa" },
+      { name: "twitter:description", content: "um sistema para diverção livre entre a familia que visa dar palpites sobre os jogos da copa de 2026" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/2af06ee4-fdce-40b0-ad89-332bc70386c2" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/2af06ee4-fdce-40b0-ad89-332bc70386c2" },
     ],
     links: [
       {
