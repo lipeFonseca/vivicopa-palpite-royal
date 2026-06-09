@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
   const temJogo = (cand ?? []).some((p) => {
     if (!p.inicia_em) return false;
     const ini = new Date(p.inicia_em).getTime();
-    return agora >= ini - 5 * 60_000 && agora <= ini + 150 * 60_000;
+    return agora >= ini - 10 * 60_000 && agora <= ini + 240 * 60_000;
   });
   if (!temJogo) return Response.json({ ok: true, msg: "sem jogo na janela" });
 
