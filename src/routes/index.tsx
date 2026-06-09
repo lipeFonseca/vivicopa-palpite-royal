@@ -804,17 +804,27 @@ function ChaveamentoTab() {
 
   useEffect(() => {
     let ativo = true;
-    let ch: { unsubscribe: () => unknown } | null = null;
 
     const carregar = async () => {
       try {
-        const { supabase } = await import("@/integrations/supabase/client");
-        const { data, error } = await supabase
-          .from("partidas")
-          .select("id,time_a,time_b,placar_a,placar_b,status,inicia_em,fase")
-          .in("fase", [...FASES_MATA_MATA, "THIRD_PLACE"])
-          .order("inicia_em", { ascending: true });
-        if (error) throw error;
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        if (!supabaseUrl || !supabaseKey) {
+          throw new Error("Supabase não configurado no preview.");
+        }
+        const fases = [...FASES_MATA_MATA, "THIRD_PLACE"].map((fase) => `"${fase}"`).join(",");
+        const url =
+          `${supabaseUrl}/rest/v1/partidas` +
+          `?select=id,time_a,time_b,placar_a,placar_b,status,inicia_em,fase` +
+          `&fase=in.(${fases})&order=inicia_em.asc`;
+        const res = await fetch(url, {
+          headers: {
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`,
+          },
+        });
+        if (!res.ok) throw new Error("Não foi possível carregar o chaveamento.");
+        const data = await res.json();
         if (ativo) {
           setPartidas((data ?? []) as PartidaCopa[]);
           setErro(null);
@@ -828,25 +838,10 @@ function ChaveamentoTab() {
       }
     };
 
-    const iniciar = async () => {
-      const { supabase } = await import("@/integrations/supabase/client");
-      await carregar();
-      ch = supabase
-        .channel("home-chaveamento")
-        .on("postgres_changes", { event: "*", schema: "public", table: "partidas" }, carregar)
-        .subscribe();
-    };
-
-    iniciar().catch((e) => {
-      if (ativo) {
-        setErro(e instanceof Error ? e.message : "Não foi possível iniciar o chaveamento.");
-        setCarregando(false);
-      }
-    });
+    carregar();
 
     return () => {
       ativo = false;
-      ch?.unsubscribe();
     };
   }, []);
 
