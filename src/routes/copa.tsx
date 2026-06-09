@@ -106,10 +106,14 @@ function CopaPage() {
       <Tabs defaultValue="jogos">
         <TabsList className="w-full">
           <TabsTrigger value="jogos" className="flex-1">Jogos</TabsTrigger>
+          <TabsTrigger value="chaveamento" className="flex-1">Chaveamento</TabsTrigger>
           <TabsTrigger value="ranking" className="flex-1">Ranking</TabsTrigger>
         </TabsList>
         <TabsContent value="jogos" className="mt-4">
           <Jogos userId={userId} />
+        </TabsContent>
+        <TabsContent value="chaveamento" className="mt-4">
+          <Chaveamento />
         </TabsContent>
         <TabsContent value="ranking" className="mt-4">
           <Ranking />
@@ -408,6 +412,162 @@ function PartidaCard({
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+const MATA_MATA_FASES = ["LAST_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", "FINAL"];
+
+function Chaveamento() {
+  const [partidas, setPartidas] = useState<Partida[]>([]);
+
+  const carregar = async () => {
+    const { data } = await supabase
+      .from("partidas")
+      .select("*")
+      .in("fase", [...MATA_MATA_FASES, "THIRD_PLACE"])
+      .order("inicia_em", { ascending: true });
+    setPartidas((data ?? []) as Partida[]);
+  };
+
+  useEffect(() => {
+    carregar();
+    const ch = supabase
+      .channel("partidas-chaveamento")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "partidas" },
+        (payload) => {
+          const n = payload.new as Partida;
+          const old = payload.old as Partial<Partida>;
+          const fase = n?.fase ?? old?.fase;
+          if (fase && ![...MATA_MATA_FASES, "THIRD_PLACE"].includes(fase)) return;
+          carregar();
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, []);
+
+  const porFase = useMemo(() => {
+    const map = new Map<string, Partida[]>();
+    partidas.forEach((p) => {
+      const fase = p.fase ?? "INDEFINIDA";
+      const lista = map.get(fase) ?? [];
+      lista.push(p);
+      map.set(fase, lista);
+    });
+    MATA_MATA_FASES.forEach((fase) => {
+      if (!map.has(fase)) map.set(fase, []);
+    });
+    return map;
+  }, [partidas]);
+
+  const terceiroLugar = porFase.get("THIRD_PLACE")?.[0];
+  const totalMataMata = MATA_MATA_FASES.reduce((acc, fase) => acc + (porFase.get(fase)?.length ?? 0), 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border bg-card p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-extrabold">Chaveamento da Copa 2026</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A árvore é preenchida automaticamente conforme os classificados e confrontos forem atualizados.
+            </p>
+          </div>
+          <Badge variant="outline">{totalMataMata}/31 jogos</Badge>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border bg-card p-4 shadow-sm">
+        <div className="grid min-w-[1120px] grid-cols-[1.4fr_1fr_1fr_1fr_1.15fr] gap-4">
+          {MATA_MATA_FASES.map((fase) => {
+            const lista = [...(porFase.get(fase) ?? [])].sort((a, b) =>
+              (a.inicia_em ?? "").localeCompare(b.inicia_em ?? ""),
+            );
+            return (
+              <div key={fase} className="flex flex-col">
+                <div className="mb-3 text-center">
+                  <div className="text-sm font-bold">{faseLabel(fase)}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {lista.length} {lista.length === 1 ? "jogo" : "jogos"}
+                  </div>
+                </div>
+                <div className={`flex flex-1 flex-col justify-around gap-3 ${fase === "FINAL" ? "py-20" : ""}`}>
+                  {lista.length ? (
+                    lista.map((p) => <ChaveCard key={p.id} partida={p} destaque={fase === "FINAL"} />)
+                  ) : (
+                    <ChaveVazia fase={fase} />
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold">Disputa do 3º lugar</h3>
+              <p className="text-xs text-muted-foreground">Atualizada automaticamente pela API</p>
+            </div>
+            <Badge variant="secondary">Extra</Badge>
+          </div>
+          {terceiroLugar ? <ChaveCard partida={terceiroLugar} /> : <ChaveVazia fase="THIRD_PLACE" />}
+        </div>
+        <div className="rounded-xl border bg-muted/40 p-4">
+          <h3 className="text-sm font-bold">Como funciona</h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Enquanto os classificados não forem definidos, os cards aparecem como “A definir”.
+            Quando a football-data.org atualizar os confrontos, o cron sincroniza a tabela
+            `partidas` e o chaveamento muda sozinho.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChaveVazia({ fase }: { fase: string }) {
+  return (
+    <div className="rounded-lg border border-dashed bg-background/70 p-3 text-center text-xs text-muted-foreground">
+      {faseLabel(fase)}
+      <div className="mt-1 font-semibold">A definir</div>
+    </div>
+  );
+}
+
+function ChaveCard({ partida, destaque = false }: { partida: Partida; destaque?: boolean }) {
+  const finalizado = ["FT", "AET", "PEN"].includes(partida.status);
+  const vencedorA = finalizado && partida.placar_a > partida.placar_b;
+  const vencedorB = finalizado && partida.placar_b > partida.placar_a;
+
+  return (
+    <div className={`relative rounded-lg border bg-background p-2 shadow-sm ${destaque ? "ring-2 ring-primary/20" : ""}`}>
+      {!destaque && <div className="absolute -right-3 top-1/2 hidden h-px w-3 bg-border md:block" />}
+      <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+        <span>{partida.inicia_em ? new Date(partida.inicia_em).toLocaleDateString("pt-BR") : "Data a definir"}</span>
+        <Badge variant={AO_VIVO.has(partida.status) ? "destructive" : "outline"} className="h-5 px-1.5 text-[10px]">
+          {partida.status}
+        </Badge>
+      </div>
+      <EquipeLinha nome={partida.time_a} placar={partida.placar_a} vencedor={vencedorA} />
+      <EquipeLinha nome={partida.time_b} placar={partida.placar_b} vencedor={vencedorB} />
+    </div>
+  );
+}
+
+function EquipeLinha({ nome, placar, vencedor }: { nome: string; placar: number; vencedor: boolean }) {
+  const indefinido = !nome || nome === "A definir";
+  return (
+    <div className={`mt-1 flex items-center justify-between rounded-md px-2 py-1.5 text-sm ${vencedor ? "bg-green-500/10 font-bold text-green-700" : "bg-muted/60"}`}>
+      <span className={indefinido ? "text-muted-foreground" : ""}>{indefinido ? "A definir" : nome}</span>
+      <span className="font-extrabold tabular-nums">{placar}</span>
     </div>
   );
 }
