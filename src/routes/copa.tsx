@@ -418,16 +418,23 @@ function PartidaCard({
 
 const MATA_MATA_FASES = ["LAST_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", "FINAL"];
 
-function Chaveamento() {
+function Chaveamento({ userId }: { userId: string }) {
   const [partidas, setPartidas] = useState<Partida[]>([]);
+  const [palpites, setPalpites] = useState<Record<string, Palpite>>({});
 
   const carregar = async () => {
-    const { data } = await supabase
-      .from("partidas")
-      .select("*")
-      .in("fase", [...MATA_MATA_FASES, "THIRD_PLACE"])
-      .order("inicia_em", { ascending: true });
+    const [{ data }, { data: pal }] = await Promise.all([
+      supabase
+        .from("partidas")
+        .select("*")
+        .in("fase", [...MATA_MATA_FASES, "THIRD_PLACE"])
+        .order("inicia_em", { ascending: true }),
+      supabase.from("palpites").select("*").eq("usuario_id", userId),
+    ]);
     setPartidas((data ?? []) as Partida[]);
+    const map: Record<string, Palpite> = {};
+    (pal ?? []).forEach((x: any) => (map[x.partida_id] = x));
+    setPalpites(map);
   };
 
   useEffect(() => {
@@ -497,9 +504,18 @@ function Chaveamento() {
                   </div>
                 </div>
                 <div className={`flex flex-1 flex-col justify-around gap-3 ${fase === "FINAL" ? "py-20" : ""}`}>
-                  {lista.length ? (
-                    lista.map((p) => <ChaveCard key={p.id} partida={p} destaque={fase === "FINAL"} />)
-                  ) : (
+                   {lista.length ? (
+                     lista.map((p) => (
+                       <ChaveCard
+                         key={p.id}
+                         partida={p}
+                         destaque={fase === "FINAL"}
+                         palpite={palpites[p.id]}
+                         userId={userId}
+                         onSalvo={carregar}
+                       />
+                     ))
+                   ) : (
                     <ChaveVazia fase={fase} />
                   )}
                 </div>
@@ -518,7 +534,16 @@ function Chaveamento() {
             </div>
             <Badge variant="secondary">Extra</Badge>
           </div>
-          {terceiroLugar ? <ChaveCard partida={terceiroLugar} /> : <ChaveVazia fase="THIRD_PLACE" />}
+          {terceiroLugar ? (
+            <ChaveCard
+              partida={terceiroLugar}
+              palpite={palpites[terceiroLugar.id]}
+              userId={userId}
+              onSalvo={carregar}
+            />
+          ) : (
+            <ChaveVazia fase="THIRD_PLACE" />
+          )}
         </div>
         <div className="rounded-xl border bg-muted/40 p-4">
           <h3 className="text-sm font-bold">Como funciona</h3>
