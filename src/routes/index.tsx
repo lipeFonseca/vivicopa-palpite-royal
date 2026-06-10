@@ -8,12 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/sonner";
-import { Trophy, Flag, Users, MessageSquare, Calendar, ListChecks, Table as TableIcon, Home as HomeIcon, CalendarDays, MapPin, Award } from "lucide-react";
+import { Trophy, Flag, Users, MessageSquare, Calendar, ListChecks, Table as TableIcon, Home as HomeIcon, CalendarDays, MapPin, Award, GitBranch } from "lucide-react";
 
 import { Header } from "@/components/vivicopa/Header";
 import { Footer } from "@/components/vivicopa/Footer";
 import { GameCard } from "@/components/vivicopa/GameCard";
 import { PredictionModal } from "@/components/vivicopa/PredictionModal";
+import { Chaveamento } from "@/components/vivicopa/Chaveamento";
 import { selecoes, jogos, grupos, getSelecao, type Jogo, type Selecao } from "@/data/worldcup2026";
 import { getStats } from "@/data/selecaoStats";
 import { carregarPalpites, excluirPalpite, type Palpite } from "@/lib/storage";
@@ -70,6 +71,7 @@ function Vivicopa() {
             <TabTrigger value="calendario" icon={<CalendarDays className="h-4 w-4" />}>Calendário</TabTrigger>
             <TabTrigger value="selecoes" icon={<Flag className="h-4 w-4" />}>Seleções</TabTrigger>
             <TabTrigger value="grupos" icon={<Users className="h-4 w-4" />}>Grupos</TabTrigger>
+            <TabTrigger value="chaveamento" icon={<GitBranch className="h-4 w-4" />}>Chaveamento</TabTrigger>
             <TabTrigger value="titulos" icon={<Award className="h-4 w-4" />}>Títulos</TabTrigger>
             <TabTrigger value="meus" icon={<ListChecks className="h-4 w-4" />}>Meus Palpites</TabTrigger>
             <TabTrigger value="tabela" icon={<TableIcon className="h-4 w-4" />}>Tabela</TabTrigger>
@@ -100,6 +102,10 @@ function Vivicopa() {
 
           <TabsContent value="grupos" className="mt-6">
             <GruposTab onVerJogos={(g) => { setFiltroGrupoInicial(g); setAba("jogos"); }} />
+          </TabsContent>
+
+          <TabsContent value="chaveamento" className="mt-6">
+            <Chaveamento />
           </TabsContent>
 
           <TabsContent value="titulos" className="mt-6">
