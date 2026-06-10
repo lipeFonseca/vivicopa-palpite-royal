@@ -113,7 +113,7 @@ function CopaPage() {
           <Jogos userId={userId} />
         </TabsContent>
         <TabsContent value="chaveamento" className="mt-4">
-          <Chaveamento />
+          <Chaveamento userId={userId} />
         </TabsContent>
         <TabsContent value="ranking" className="mt-4">
           <Ranking />
