@@ -51,28 +51,37 @@ export type Database = {
       }
       partidas: {
         Row: {
+          fase: string | null
+          grupo: string | null
           id: string
           inicia_em: string | null
           placar_a: number
           placar_b: number
+          rodada: number | null
           status: string
           time_a: string
           time_b: string
         }
         Insert: {
+          fase?: string | null
+          grupo?: string | null
           id: string
           inicia_em?: string | null
           placar_a?: number
           placar_b?: number
+          rodada?: number | null
           status?: string
           time_a: string
           time_b: string
         }
         Update: {
+          fase?: string | null
+          grupo?: string | null
           id?: string
           inicia_em?: string | null
           placar_a?: number
           placar_b?: number
+          rodada?: number | null
           status?: string
           time_a?: string
           time_b?: string
