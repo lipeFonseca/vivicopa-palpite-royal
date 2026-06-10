@@ -212,7 +212,7 @@ function SlotLinha({
   return (
     <div className="flex items-center gap-1.5">
       {idAtual ? (
-        <img src={flagUrl(idAtual, 40)} alt="" className="h-4 w-6 rounded-sm object-cover ring-1 ring-border" />
+        <img src={flagUrl(idAtual, 80)} alt="" className="h-4 w-6 rounded-sm object-cover ring-1 ring-border" />
       ) : (
         <div className="h-4 w-6 rounded-sm bg-muted ring-1 ring-border" />
       )}
