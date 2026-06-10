@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          role?: string
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
       palpites: {
         Row: {
           criado_em: string | null

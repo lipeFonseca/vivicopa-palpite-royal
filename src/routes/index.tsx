@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,15 +8,18 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/sonner";
-import { Trophy, Flag, Users, MessageSquare, Calendar, ListChecks, Table as TableIcon, Home as HomeIcon, CalendarDays, MapPin, Award, GitBranch } from "lucide-react";
+import { toast } from "sonner";
+import { Trophy, Flag, Users, MessageSquare, Calendar, ListChecks, Table as TableIcon, Home as HomeIcon, CalendarDays, MapPin, Award, GitBranch, Shield, LogOut, KeyRound, UserPlus } from "lucide-react";
 
 import { Header } from "@/components/vivicopa/Header";
 import { Footer } from "@/components/vivicopa/Footer";
 import { GameCard } from "@/components/vivicopa/GameCard";
 import { PredictionModal } from "@/components/vivicopa/PredictionModal";
 import { Chaveamento } from "@/components/vivicopa/Chaveamento";
+import { supabase } from "@/integrations/supabase/client";
 import { selecoes, jogos, grupos, getSelecao, type Jogo, type Selecao } from "@/data/worldcup2026";
 import { getStats } from "@/data/selecaoStats";
+import { isValidUsername, normalizeUsername, usernameToEmail } from "@/lib/auth";
 import { carregarPalpites, excluirPalpite, type Palpite } from "@/lib/storage";
 import { flagUrl, flagAlt } from "@/lib/flags";
 
@@ -25,6 +28,12 @@ const PAISES_SEDE = [
   { id: "can", nome: "Canadá" },
   { id: "mex", nome: "México" },
 ];
+
+type AuthProfile = {
+  id: string;
+  username: string;
+  role: "admin" | "user";
+};
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -39,6 +48,8 @@ export const Route = createFileRoute("/")({
 });
 
 function Vivicopa() {
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authProfile, setAuthProfile] = useState<AuthProfile | null>(null);
   const [aba, setAba] = useState("inicio");
   const [palpites, setPalpites] = useState<Palpite[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
@@ -47,6 +58,46 @@ function Vivicopa() {
   const [comentariosJogo, setComentariosJogo] = useState<Jogo | null>(null);
   const [selecaoModal, setSelecaoModal] = useState<Selecao | null>(null);
   const [filtroGrupoInicial, setFiltroGrupoInicial] = useState<string>("todos");
+
+  const carregarSessao = async () => {
+    setAuthLoading(true);
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+
+    if (!user) {
+      setAuthProfile(null);
+      setAuthLoading(false);
+      return;
+    }
+
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("id, username, role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      toast.error(error.message);
+      setAuthProfile(null);
+      setAuthLoading(false);
+      return;
+    }
+
+    setAuthProfile({
+      id: user.id,
+      username: profile?.username ?? user.email?.split("@")[0] ?? "usuario",
+      role: profile?.role === "admin" ? "admin" : "user",
+    });
+    setAuthLoading(false);
+  };
+
+  useEffect(() => {
+    carregarSessao();
+    const { data } = supabase.auth.onAuthStateChange(() => {
+      carregarSessao();
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
 
   const refresh = () => setPalpites(carregarPalpites());
   useEffect(() => { refresh(); }, []);
@@ -60,10 +111,44 @@ function Vivicopa() {
   const abrirPalpite = (j: Jogo, p?: Palpite) => { setJogoSel(j); setEditar(p ?? null); setModalOpen(true); };
   const abrirComentarios = (j: Jogo) => setComentariosJogo(j);
 
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-brand-soft px-4">
+        <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground shadow-card">
+          Carregando sessao...
+        </div>
+      </div>
+    );
+  }
+
+  if (!authProfile) {
+    return <LoginScreen onLoggedIn={carregarSessao} />;
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-brand-soft">
       <Header />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card p-3 shadow-card">
+          <div className="flex items-center gap-2 text-sm">
+            <Shield className="h-4 w-4 text-brand" />
+            <span className="font-semibold text-brand-dark">{authProfile.username}</span>
+            <Badge variant={authProfile.role === "admin" ? "default" : "secondary"}>
+              {authProfile.role === "admin" ? "Admin" : "Usuario"}
+            </Badge>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              setAuthProfile(null);
+              setAba("inicio");
+            }}
+          >
+            <LogOut className="mr-1 h-3.5 w-3.5" /> Sair
+          </Button>
+        </div>
         <Tabs value={aba} onValueChange={setAba} className="w-full">
           <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-white p-1 shadow-card">
             <TabTrigger value="inicio" icon={<HomeIcon className="h-4 w-4" />}>Início</TabTrigger>
@@ -76,6 +161,9 @@ function Vivicopa() {
             <TabTrigger value="meus" icon={<ListChecks className="h-4 w-4" />}>Meus Palpites</TabTrigger>
             <TabTrigger value="tabela" icon={<TableIcon className="h-4 w-4" />}>Tabela</TabTrigger>
             <TabTrigger value="comentarios" icon={<MessageSquare className="h-4 w-4" />}>Comentários</TabTrigger>
+            {authProfile.role === "admin" && (
+              <TabTrigger value="admin" icon={<Shield className="h-4 w-4" />}>Admin</TabTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="inicio" className="mt-6">
@@ -126,6 +214,12 @@ function Vivicopa() {
           <TabsContent value="comentarios" className="mt-6">
             <ComentariosTab palpites={palpites} />
           </TabsContent>
+
+          {authProfile.role === "admin" && (
+            <TabsContent value="admin" className="mt-6">
+              <AdminTab />
+            </TabsContent>
+          )}
         </Tabs>
       </main>
       <Footer />
@@ -181,6 +275,183 @@ function Vivicopa() {
       </Dialog>
 
       <Toaster />
+    </div>
+  );
+}
+
+function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("admin123");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    const normalized = normalizeUsername(username);
+    if (!isValidUsername(normalized)) {
+      toast.error("Usuario deve ter 3 a 32 caracteres.");
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: usernameToEmail(normalized),
+      password,
+    });
+    setLoading(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    onLoggedIn();
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-brand-soft px-4">
+      <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-brand">
+        <div className="mb-5 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-brand text-white">
+            <Shield className="h-6 w-6" />
+          </div>
+          <h1 className="text-2xl font-extrabold text-brand-dark">Login Vivicopa</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Entre com usuario e senha para acessar os palpites.</p>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <Label htmlFor="login-usuario">Usuario</Label>
+            <Input
+              id="login-usuario"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+            />
+          </div>
+          <div>
+            <Label htmlFor="login-senha">Senha</Label>
+            <Input
+              id="login-senha"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
+        </div>
+
+        <Button type="submit" className="mt-5 w-full bg-gradient-brand text-white hover:opacity-90" disabled={loading}>
+          {loading ? "Entrando..." : "Entrar"}
+        </Button>
+        <p className="mt-3 text-center text-xs text-muted-foreground">
+          Primeiro acesso: usuario admin e senha admin123. Troque a senha depois de entrar.
+        </p>
+        <Toaster />
+      </form>
+    </div>
+  );
+}
+
+function AdminTab() {
+  const [novaSenha, setNovaSenha] = useState("");
+  const [confirmarSenha, setConfirmarSenha] = useState("");
+  const [novoUsuario, setNovoUsuario] = useState("");
+  const [senhaUsuario, setSenhaUsuario] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
+
+  const trocarSenha = async (event: FormEvent) => {
+    event.preventDefault();
+    if (novaSenha.length < 6) {
+      toast.error("A nova senha precisa ter pelo menos 6 caracteres.");
+      return;
+    }
+    if (novaSenha !== confirmarSenha) {
+      toast.error("As senhas nao conferem.");
+      return;
+    }
+
+    setSavingPassword(true);
+    const { error } = await supabase.auth.updateUser({ password: novaSenha });
+    setSavingPassword(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    setNovaSenha("");
+    setConfirmarSenha("");
+    toast.success("Senha alterada.");
+  };
+
+  const criarUsuario = async (event: FormEvent) => {
+    event.preventDefault();
+    const username = normalizeUsername(novoUsuario);
+    if (!isValidUsername(username)) {
+      toast.error("Usuario deve ter 3 a 32 caracteres e usar apenas letras, numeros, ponto, hifen ou underline.");
+      return;
+    }
+    if (senhaUsuario.length < 6) {
+      toast.error("A senha precisa ter pelo menos 6 caracteres.");
+      return;
+    }
+
+    setCreatingUser(true);
+    try {
+      const { error } = await supabase.functions.invoke("create-managed-user", {
+        body: { username, password: senhaUsuario },
+      });
+      if (error) throw error;
+      setNovoUsuario("");
+      setSenhaUsuario("");
+      toast.success(`Usuario ${username} criado.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nao foi possivel criar o usuario.");
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <form onSubmit={trocarSenha} className="rounded-2xl border border-border bg-card p-5 shadow-card">
+        <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
+          <KeyRound className="h-3.5 w-3.5" /> Trocar minha senha
+        </div>
+        <div className="space-y-3">
+          <div>
+            <Label htmlFor="nova-senha">Nova senha</Label>
+            <Input id="nova-senha" type="password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} />
+          </div>
+          <div>
+            <Label htmlFor="confirmar-senha">Confirmar senha</Label>
+            <Input id="confirmar-senha" type="password" value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)} />
+          </div>
+        </div>
+        <Button type="submit" className="mt-4 w-full" disabled={savingPassword}>
+          {savingPassword ? "Salvando..." : "Alterar senha"}
+        </Button>
+      </form>
+
+      <form onSubmit={criarUsuario} className="rounded-2xl border border-border bg-card p-5 shadow-card">
+        <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
+          <UserPlus className="h-3.5 w-3.5" /> Criar usuario
+        </div>
+        <div className="space-y-3">
+          <div>
+            <Label htmlFor="novo-usuario">Usuario</Label>
+            <Input id="novo-usuario" value={novoUsuario} onChange={(e) => setNovoUsuario(e.target.value)} placeholder="ex: maria" />
+          </div>
+          <div>
+            <Label htmlFor="senha-usuario">Senha inicial</Label>
+            <Input id="senha-usuario" type="password" value={senhaUsuario} onChange={(e) => setSenhaUsuario(e.target.value)} />
+          </div>
+        </div>
+        <Button type="submit" className="mt-4 w-full" disabled={creatingUser}>
+          {creatingUser ? "Criando..." : "Criar usuario"}
+        </Button>
+      </form>
     </div>
   );
 }

@@ -1,0 +1,16 @@
+export const USERNAME_PATTERN = /^[a-zA-Z0-9_.-]{3,32}$/;
+export const INTERNAL_AUTH_DOMAIN = "vivicopa.internal";
+
+export type UserRole = "admin" | "user";
+
+export function normalizeUsername(username: string) {
+  return username.trim().toLowerCase();
+}
+
+export function isValidUsername(username: string) {
+  return USERNAME_PATTERN.test(username);
+}
+
+export function usernameToEmail(username: string) {
+  return `${normalizeUsername(username)}@${INTERNAL_AUTH_DOMAIN}`;
+}

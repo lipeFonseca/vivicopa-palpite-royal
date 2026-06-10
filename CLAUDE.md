@@ -13,7 +13,7 @@ Guia operacional para agentes trabalhando neste projeto Lovable/TanStack Start. 
   - `user.email=faugustogf@gmail.com`
 - Dependencias ainda nao instaladas localmente: `node_modules` nao existe.
 - Bun nao esta disponivel no PATH deste ambiente no momento da analise.
-- `.env` existe e esta rastreado pelo Git neste clone. Seus valores nao devem ser copiados para documentacao, logs ou mensagens. Antes de publicar alteracoes, revisar se os valores sao seguros para permanecer no historico remoto ou se precisam de rotacao/limpeza de historico. Variaveis vistas por nome:
+- `.env` existe e esta rastreado pelo Git neste clone. Seus valores nao devem ser copiados para documentacao, logs ou mensagens. Antes de publicar alteracoes, revisar se os valores sao seguros para permanecer no historico remoto ou se precisam de rotacao/limpeza de historico. A migracao atual usa `.env.local` ignorado pelo Git para apontar para o novo Supabase. Variaveis vistas por nome:
   - `SUPABASE_PROJECT_ID`
   - `SUPABASE_PUBLISHABLE_KEY`
   - `SUPABASE_URL`
@@ -63,6 +63,9 @@ Nao duplicar manualmente plugins que o Lovable ja injeta. O comentario em `vite.
   - Experiencia com Supabase.
   - Requer usuario autenticado via Supabase Auth.
   - Le `partidas`, grava `palpites`, acompanha Realtime em `partidas` e mostra `ranking`.
+- `.github/workflows/pages.yml`
+  - Publica o frontend estatico no GitHub Pages a partir de `dist/client`.
+  - Injeta apenas variaveis publicas do Supabase no build.
 - `src/router.tsx`
   - Cria router com `routeTree.gen` e contexto de `QueryClient`.
 - `src/start.ts`
@@ -152,6 +155,11 @@ Edge Function:
   - Usa `SUPABASE_SERVICE_ROLE_KEY` dentro da Edge Function.
   - `?seed=true` carrega todos os jogos da temporada.
   - Sem `seed`, so atualiza perto de janelas de jogos.
+- `supabase/functions/create-managed-user/index.ts`
+  - Cria usuarios via Supabase Auth Admin API.
+  - Exige usuario logado com perfil `admin`.
+  - Usa `SUPABASE_SERVICE_ROLE_KEY` dentro da Edge Function, nunca no frontend.
+  - Necessaria para GitHub Pages, pois Pages e hospedagem estatica e nao executa TanStack server functions.
 
 Cron:
 
@@ -227,6 +235,15 @@ bun run build
 ```
 
 Se usar npm/pnpm/yarn por necessidade, cuidado para nao gerar lockfile concorrente sem decisao explicita. O lockfile atual e `bun.lock`.
+
+## Deploy GitHub Pages
+
+- O deploy estatico usa `.github/workflows/pages.yml`.
+- O build de Pages define `GITHUB_PAGES=true`, o que muda o `base` do Vite para `/vivicopa-palpite-royal/`.
+- `src/router.tsx` usa `import.meta.env.BASE_URL` como `basepath`.
+- O artifact publicado e `dist/client`.
+- O workflow copia `dist/client/index.html` para `dist/client/404.html` para fallback de rotas.
+- GitHub Pages nao pode guardar `SUPABASE_SERVICE_ROLE_KEY`; operacoes admin precisam viver em Supabase Edge Functions.
 
 ## Checklist Antes De Alterar
 
