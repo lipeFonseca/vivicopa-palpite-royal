@@ -113,7 +113,7 @@ function CopaPage() {
           <Jogos userId={userId} />
         </TabsContent>
         <TabsContent value="chaveamento" className="mt-4">
-          <Chaveamento />
+          <Chaveamento userId={userId} />
         </TabsContent>
         <TabsContent value="ranking" className="mt-4">
           <Ranking />
@@ -418,16 +418,23 @@ function PartidaCard({
 
 const MATA_MATA_FASES = ["LAST_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", "FINAL"];
 
-function Chaveamento() {
+function Chaveamento({ userId }: { userId: string }) {
   const [partidas, setPartidas] = useState<Partida[]>([]);
+  const [palpites, setPalpites] = useState<Record<string, Palpite>>({});
 
   const carregar = async () => {
-    const { data } = await supabase
-      .from("partidas")
-      .select("*")
-      .in("fase", [...MATA_MATA_FASES, "THIRD_PLACE"])
-      .order("inicia_em", { ascending: true });
+    const [{ data }, { data: pal }] = await Promise.all([
+      supabase
+        .from("partidas")
+        .select("*")
+        .in("fase", [...MATA_MATA_FASES, "THIRD_PLACE"])
+        .order("inicia_em", { ascending: true }),
+      supabase.from("palpites").select("*").eq("usuario_id", userId),
+    ]);
     setPartidas((data ?? []) as Partida[]);
+    const map: Record<string, Palpite> = {};
+    (pal ?? []).forEach((x: any) => (map[x.partida_id] = x));
+    setPalpites(map);
   };
 
   useEffect(() => {
@@ -497,9 +504,18 @@ function Chaveamento() {
                   </div>
                 </div>
                 <div className={`flex flex-1 flex-col justify-around gap-3 ${fase === "FINAL" ? "py-20" : ""}`}>
-                  {lista.length ? (
-                    lista.map((p) => <ChaveCard key={p.id} partida={p} destaque={fase === "FINAL"} />)
-                  ) : (
+                   {lista.length ? (
+                     lista.map((p) => (
+                       <ChaveCard
+                         key={p.id}
+                         partida={p}
+                         destaque={fase === "FINAL"}
+                         palpite={palpites[p.id]}
+                         userId={userId}
+                         onSalvo={carregar}
+                       />
+                     ))
+                   ) : (
                     <ChaveVazia fase={fase} />
                   )}
                 </div>
@@ -518,7 +534,16 @@ function Chaveamento() {
             </div>
             <Badge variant="secondary">Extra</Badge>
           </div>
-          {terceiroLugar ? <ChaveCard partida={terceiroLugar} /> : <ChaveVazia fase="THIRD_PLACE" />}
+          {terceiroLugar ? (
+            <ChaveCard
+              partida={terceiroLugar}
+              palpite={palpites[terceiroLugar.id]}
+              userId={userId}
+              onSalvo={carregar}
+            />
+          ) : (
+            <ChaveVazia fase="THIRD_PLACE" />
+          )}
         </div>
         <div className="rounded-xl border bg-muted/40 p-4">
           <h3 className="text-sm font-bold">Como funciona</h3>
@@ -542,10 +567,50 @@ function ChaveVazia({ fase }: { fase: string }) {
   );
 }
 
-function ChaveCard({ partida, destaque = false }: { partida: Partida; destaque?: boolean }) {
+function ChaveCard({
+  partida,
+  destaque = false,
+  palpite,
+  userId,
+  onSalvo,
+}: {
+  partida: Partida;
+  destaque?: boolean;
+  palpite?: Palpite;
+  userId?: string;
+  onSalvo?: () => void;
+}) {
   const finalizado = ["FT", "AET", "PEN"].includes(partida.status);
   const vencedorA = finalizado && partida.placar_a > partida.placar_b;
   const vencedorB = finalizado && partida.placar_b > partida.placar_a;
+  const bloqueado = partida.status !== "NS";
+  const indefinido =
+    !partida.time_a || partida.time_a === "A definir" ||
+    !partida.time_b || partida.time_b === "A definir";
+
+  const [a, setA] = useState<number>(palpite?.palpite_a ?? 0);
+  const [b, setB] = useState<number>(palpite?.palpite_b ?? 0);
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    setA(palpite?.palpite_a ?? 0);
+    setB(palpite?.palpite_b ?? 0);
+  }, [palpite?.palpite_a, palpite?.palpite_b]);
+
+  const salvar = async () => {
+    if (!userId) return;
+    setSalvando(true);
+    const { error } = await supabase.from("palpites").upsert(
+      { usuario_id: userId, partida_id: partida.id, palpite_a: a, palpite_b: b },
+      { onConflict: "usuario_id,partida_id" },
+    );
+    setSalvando(false);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Palpite salvo!");
+      onSalvo?.();
+    }
+  };
 
   return (
     <div className={`relative rounded-lg border bg-background p-2 shadow-sm ${destaque ? "ring-2 ring-primary/20" : ""}`}>
@@ -558,6 +623,45 @@ function ChaveCard({ partida, destaque = false }: { partida: Partida; destaque?:
       </div>
       <EquipeLinha nome={partida.time_a} placar={partida.placar_a} vencedor={vencedorA} />
       <EquipeLinha nome={partida.time_b} placar={partida.placar_b} vencedor={vencedorB} />
+      {userId && (
+        <div className="mt-2 border-t pt-2">
+          {indefinido ? (
+            <div className="text-center text-[10px] text-muted-foreground">
+              Palpite disponível quando os classificados forem definidos
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="number"
+                min={0}
+                value={a}
+                disabled={bloqueado}
+                onChange={(e) => setA(Number(e.target.value))}
+                className="h-8 w-12 px-1 text-center text-sm"
+              />
+              <span className="text-[10px] text-muted-foreground">x</span>
+              <Input
+                type="number"
+                min={0}
+                value={b}
+                disabled={bloqueado}
+                onChange={(e) => setB(Number(e.target.value))}
+                className="h-8 w-12 px-1 text-center text-sm"
+              />
+              {!bloqueado && (
+                <Button size="sm" className="ml-auto h-7 px-2 text-xs" onClick={salvar} disabled={salvando}>
+                  {palpite ? "Atualizar" : "Salvar"}
+                </Button>
+              )}
+              {bloqueado && palpite && (
+                <span className="ml-auto text-[10px] text-muted-foreground">
+                  Seu: {palpite.palpite_a}-{palpite.palpite_b}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
