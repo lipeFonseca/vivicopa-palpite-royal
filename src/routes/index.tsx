@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
-import { Trophy, Flag, Users, MessageSquare, Calendar, ListChecks, Table as TableIcon, Home as HomeIcon, CalendarDays, MapPin, Award, GitBranch, Shield, LogOut, KeyRound, UserPlus } from "lucide-react";
+import { Trophy, Flag, Users, MessageSquare, Calendar, ListChecks, Table as TableIcon, Home as HomeIcon, CalendarDays, MapPin, Award, GitBranch, Shield, LogOut, KeyRound, UserPlus, ImageIcon } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
 
 import { Header } from "@/components/vivicopa/Header";
 import { Footer } from "@/components/vivicopa/Footer";
@@ -22,6 +23,9 @@ import { getStats } from "@/data/selecaoStats";
 import { isValidUsername, normalizeUsername, usernameToEmail } from "@/lib/auth";
 import { carregarPalpites, excluirPalpite, type Palpite } from "@/lib/storage";
 import { flagUrl, flagAlt } from "@/lib/flags";
+
+const LOGO_URL_KEY = "vivicopa:logo-url";
+const LOGO_SIZE_KEY = "vivicopa:logo-size";
 
 const PAISES_SEDE = [
   { id: "usa", nome: "Estados Unidos" },
@@ -283,6 +287,8 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("admin123");
   const [loading, setLoading] = useState(false);
+  const [logoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
+  const [logoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -311,8 +317,19 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
     <div className="flex min-h-screen items-center justify-center bg-brand-soft px-4">
       <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-brand">
         <div className="mb-5 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-brand text-white">
-            <Shield className="h-6 w-6" />
+          <div className="mx-auto mb-3 flex items-center justify-center">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="Logo Vivicopa"
+                style={{ width: logoSize, height: logoSize }}
+                className="object-contain"
+              />
+            ) : (
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-brand text-white">
+                <Shield className="h-6 w-6" />
+              </div>
+            )}
           </div>
           <h1 className="text-2xl font-extrabold text-brand-dark">Login Vivicopa</h1>
           <p className="mt-1 text-sm text-muted-foreground">Entre com usuario e senha para acessar os palpites.</p>
@@ -359,6 +376,32 @@ function AdminTab() {
   const [senhaUsuario, setSenhaUsuario] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
+
+  const [logoUrl, setLogoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
+  const [logoSize, setLogoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setLogoUrl((ev.target?.result as string) ?? "");
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const salvarLogo = () => {
+    if (logoUrl) localStorage.setItem(LOGO_URL_KEY, logoUrl);
+    else localStorage.removeItem(LOGO_URL_KEY);
+    localStorage.setItem(LOGO_SIZE_KEY, String(logoSize));
+    toast.success("Logo salva. Será exibida na próxima vez que a tela de login abrir.");
+  };
+
+  const removerLogo = () => {
+    localStorage.removeItem(LOGO_URL_KEY);
+    setLogoUrl("");
+    toast.success("Logo removida.");
+  };
 
   const trocarSenha = async (event: FormEvent) => {
     event.preventDefault();
@@ -414,6 +457,7 @@ function AdminTab() {
   };
 
   return (
+    <div className="space-y-4">
     <div className="grid gap-4 md:grid-cols-2">
       <form onSubmit={trocarSenha} className="rounded-2xl border border-border bg-card p-5 shadow-card">
         <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
@@ -452,6 +496,85 @@ function AdminTab() {
           {creatingUser ? "Criando..." : "Criar usuario"}
         </Button>
       </form>
+    </div>
+
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+      <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
+        <ImageIcon className="h-3.5 w-3.5" /> Personalizar logo da tela de login
+      </div>
+      <div className="grid gap-6 md:grid-cols-[1fr_180px]">
+        <div className="space-y-4">
+          <div>
+            <Label>Imagem (arquivo ou URL)</Label>
+            <div className="mt-1.5 flex gap-2">
+              <Input
+                value={logoUrl.startsWith("data:") ? "" : logoUrl}
+                onChange={(e) => setLogoUrl(e.target.value)}
+                placeholder="https://... ou carregue um arquivo"
+                className="flex-1"
+              />
+              <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                Carregar arquivo
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleLogoFile}
+              />
+            </div>
+            {logoUrl.startsWith("data:") && (
+              <p className="mt-1 text-xs text-muted-foreground">Arquivo carregado localmente.</p>
+            )}
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <Label>Tamanho na tela de login</Label>
+              <span className="text-sm font-bold text-brand">{logoSize}px</span>
+            </div>
+            <Slider
+              min={40}
+              max={500}
+              step={1}
+              value={[logoSize]}
+              onValueChange={([v]) => setLogoSize(v)}
+            />
+            <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+              <span>40px</span>
+              <span>500px</span>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button type="button" onClick={salvarLogo}>Salvar logo</Button>
+            {logoUrl && (
+              <Button type="button" variant="outline" onClick={removerLogo}>Remover logo</Button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-xs text-muted-foreground">Prévia</p>
+          <div className="flex min-h-[120px] w-full items-center justify-center rounded-xl border border-dashed border-border bg-brand-soft p-3">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="Prévia da logo"
+                style={{ width: Math.min(logoSize, 140), height: Math.min(logoSize, 140) }}
+                className="object-contain"
+              />
+            ) : (
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-brand text-white">
+                <Shield className="h-6 w-6" />
+              </div>
+            )}
+          </div>
+          <p className="text-center text-xs text-muted-foreground">Tamanho real aplicado na tela de login</p>
+        </div>
+      </div>
+    </div>
     </div>
   );
 }
