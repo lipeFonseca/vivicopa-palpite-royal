@@ -801,7 +801,7 @@ function TabTrigger({ value, icon, children }: { value: string; icon: React.Reac
   );
 }
 
-// ---------- HOOK: jogo em destaque (ao vivo ou próximo) via Supabase ----------
+// ---------- HOOK: jogos de hoje + ao vivo via Supabase ----------
 type PartidaDestaque = {
   id: string;
   time_a: string;
@@ -812,39 +812,45 @@ type PartidaDestaque = {
   inicia_em: string | null;
 };
 
-function usePartidaDestaque() {
-  const [partida, setPartida] = useState<PartidaDestaque | null>(null);
-  const [aoVivo, setAoVivo] = useState(false);
+function useJogosHoje() {
+  const [jogosHoje, setJogosHoje] = useState<PartidaDestaque[]>([]);
+  const [tituloSecao, setTituloSecao] = useState("Jogos de Hoje");
   const [flagMap, setFlagMap] = useState<Record<string, string>>({});
 
-  const fetchPartida = useCallback(async () => {
+  const fetchJogos = useCallback(async () => {
     try {
       const sb = supabase as any;
-      const { data: live } = await sb
+      // Janela "hoje" em horário de Brasília (UTC-3)
+      const brasiliaHoje = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const inicioHoje = new Date(brasiliaHoje + "T03:00:00.000Z");
+      const fimHoje = new Date(inicioHoje.getTime() + 24 * 60 * 60 * 1000);
+
+      const { data: hoje } = await sb
         .from("partidas")
         .select("id, time_a, time_b, placar_a, placar_b, status, inicia_em")
-        .in("status", ["LIVE", "HT"])
-        .order("inicia_em", { ascending: true })
-        .limit(1);
+        .gte("inicia_em", inicioHoje.toISOString())
+        .lt("inicia_em", fimHoje.toISOString())
+        .order("inicia_em", { ascending: true });
 
-      if (live && live.length > 0) {
-        setPartida(live[0] as PartidaDestaque);
-        setAoVivo(true);
+      if (hoje && hoje.length > 0) {
+        setJogosHoje(hoje as PartidaDestaque[]);
+        setTituloSecao("Jogos de Hoje");
         return;
       }
 
-      const { data: next } = await sb
+      // Sem jogos hoje: pega os próximos 3 jogos
+      const { data: proximos } = await sb
         .from("partidas")
         .select("id, time_a, time_b, placar_a, placar_b, status, inicia_em")
-        .eq("status", "NS")
+        .in("status", ["NS"])
         .gte("inicia_em", new Date().toISOString())
         .order("inicia_em", { ascending: true })
-        .limit(1);
+        .limit(3);
 
-      setPartida((next as PartidaDestaque[] | null)?.[0] ?? null);
-      setAoVivo(false);
+      setJogosHoje((proximos as PartidaDestaque[] | null) ?? []);
+      setTituloSecao("Próximos Jogos");
     } catch {
-      // sem Supabase configurado; fallback para dado local
+      setJogosHoje([]);
     }
   }, []);
 
@@ -860,17 +866,71 @@ function usePartidaDestaque() {
       })
       .catch(() => {});
 
-    fetchPartida();
+    fetchJogos();
 
     const ch = (supabase as any)
-      .channel("partida-destaque")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "partidas" }, fetchPartida)
+      .channel("jogos-hoje")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "partidas" }, fetchJogos)
       .subscribe();
 
     return () => { (supabase as any).removeChannel(ch); };
-  }, [fetchPartida]);
+  }, [fetchJogos]);
 
-  return { partida, aoVivo, flagMap };
+  return { jogosHoje, tituloSecao, flagMap };
+}
+
+function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<string, string> }) {
+  const isLive = jogo.status === "LIVE" || jogo.status === "HT";
+  const isFinished = ["FT", "AET", "PEN"].includes(jogo.status);
+  const hora = jogo.inicia_em
+    ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+    : "";
+
+  return (
+    <div className={`flex items-center gap-2 rounded-xl px-3 py-2.5 ${isLive ? "bg-red-50 ring-1 ring-red-200" : "bg-muted/40"}`}>
+      <div className="w-12 flex-shrink-0 text-center">
+        {isLive ? (
+          <div className="flex items-center justify-center gap-1">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
+            </span>
+            <span className="text-[10px] font-bold text-red-500">{jogo.status === "HT" ? "HT" : "LIVE"}</span>
+          </div>
+        ) : (
+          <span className={`text-xs font-medium ${isFinished ? "text-muted-foreground" : "text-brand"}`}>{hora}</span>
+        )}
+      </div>
+
+      <div className="flex flex-1 items-center justify-end gap-1.5">
+        <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_a}</span>
+        {flagMap[jogo.time_a] ? (
+          <img src={flagMap[jogo.time_a]} alt={jogo.time_a} className="h-5 w-7 flex-shrink-0 rounded-sm object-cover ring-1 ring-border" />
+        ) : (
+          <div className="h-5 w-7 flex-shrink-0 rounded-sm bg-brand-soft" />
+        )}
+      </div>
+
+      <div className="w-14 flex-shrink-0 text-center">
+        {isLive || isFinished ? (
+          <span className={`text-sm font-extrabold tabular-nums ${isLive ? "text-red-500" : "text-muted-foreground"}`}>
+            {jogo.placar_a} – {jogo.placar_b}
+          </span>
+        ) : (
+          <span className="text-xs font-bold text-muted-foreground">vs</span>
+        )}
+      </div>
+
+      <div className="flex flex-1 items-center gap-1.5">
+        {flagMap[jogo.time_b] ? (
+          <img src={flagMap[jogo.time_b]} alt={jogo.time_b} className="h-5 w-7 flex-shrink-0 rounded-sm object-cover ring-1 ring-border" />
+        ) : (
+          <div className="h-5 w-7 flex-shrink-0 rounded-sm bg-brand-soft" />
+        )}
+        <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_b}</span>
+      </div>
+    </div>
+  );
 }
 
 // ---------- INÍCIO ----------
@@ -885,7 +945,7 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
     return () => window.removeEventListener("vivicopa:logo-changed", sync);
   }, []);
 
-  const { partida: partidaDestaque, aoVivo, flagMap } = usePartidaDestaque();
+  const { jogosHoje, tituloSecao, flagMap } = useJogosHoje();
 
   const proximo = useMemo(() => {
     const hoje = new Date().toISOString().slice(0, 10);
@@ -966,93 +1026,39 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-        {aoVivo && partidaDestaque ? (
-          <>
-            <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-red-500">
-              <span className="relative flex h-2 w-2">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-brand">{tituloSecao}</span>
+          {jogosHoje.some((j) => j.status === "LIVE" || j.status === "HT") && (
+            <span className="flex items-center gap-1 text-[10px] font-bold text-red-500">
+              <span className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
               </span>
               Ao vivo
-              {partidaDestaque.status === "HT" && (
-                <span className="ml-1 font-normal normal-case text-muted-foreground">— Intervalo</span>
-              )}
-            </div>
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-              <div className="flex flex-col items-center text-center">
-                {flagMap[partidaDestaque.time_a] ? (
-                  <img src={flagMap[partidaDestaque.time_a]} alt={partidaDestaque.time_a} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
-                ) : (
-                  <div className="flex h-16 w-24 items-center justify-center rounded-md bg-brand-soft"><Shield className="h-8 w-8 text-brand-dark" /></div>
-                )}
-                <div className="mt-2 text-sm font-bold text-brand-dark">{partidaDestaque.time_a}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-extrabold tabular-nums text-brand">
-                  {partidaDestaque.placar_a} – {partidaDestaque.placar_b}
-                </div>
-              </div>
-              <div className="flex flex-col items-center text-center">
-                {flagMap[partidaDestaque.time_b] ? (
-                  <img src={flagMap[partidaDestaque.time_b]} alt={partidaDestaque.time_b} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
-                ) : (
-                  <div className="flex h-16 w-24 items-center justify-center rounded-md bg-brand-soft"><Shield className="h-8 w-8 text-brand-dark" /></div>
-                )}
-                <div className="mt-2 text-sm font-bold text-brand-dark">{partidaDestaque.time_b}</div>
-              </div>
-            </div>
-          </>
-        ) : partidaDestaque ? (
-          <>
-            <div className="mb-4 text-xs font-semibold uppercase tracking-wide text-brand">Próximo jogo</div>
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-              <div className="flex flex-col items-center text-center">
-                {flagMap[partidaDestaque.time_a] ? (
-                  <img src={flagMap[partidaDestaque.time_a]} alt={partidaDestaque.time_a} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
-                ) : (
-                  <div className="flex h-16 w-24 items-center justify-center rounded-md bg-brand-soft"><Shield className="h-8 w-8 text-brand-dark" /></div>
-                )}
-                <div className="mt-2 text-sm font-bold text-brand-dark">{partidaDestaque.time_a}</div>
-              </div>
-              <div className="text-center text-xs text-muted-foreground">
-                <div className="text-lg font-extrabold text-brand">vs</div>
-                {partidaDestaque.inicia_em && (
-                  <>
-                    <div className="mt-1">{new Date(partidaDestaque.inicia_em).toLocaleDateString("pt-BR")}</div>
-                    <div>{new Date(partidaDestaque.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</div>
-                  </>
-                )}
-              </div>
-              <div className="flex flex-col items-center text-center">
-                {flagMap[partidaDestaque.time_b] ? (
-                  <img src={flagMap[partidaDestaque.time_b]} alt={partidaDestaque.time_b} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
-                ) : (
-                  <div className="flex h-16 w-24 items-center justify-center rounded-md bg-brand-soft"><Shield className="h-8 w-8 text-brand-dark" /></div>
-                )}
-                <div className="mt-2 text-sm font-bold text-brand-dark">{partidaDestaque.time_b}</div>
-              </div>
-            </div>
-          </>
+            </span>
+          )}
+        </div>
+        {jogosHoje.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            {jogosHoje.map((j) => <JogoRow key={j.id} jogo={j} flagMap={flagMap} />)}
+          </div>
         ) : (
-          <>
-            <div className="mb-4 text-xs font-semibold uppercase tracking-wide text-brand">Próximo jogo</div>
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-              <div className="flex flex-col items-center text-center">
-                <img src={flagUrl(proximo.selecaoA, 160)} alt={flagAlt(proximo.selecaoA)} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
-                <div className="mt-2 text-sm font-bold text-brand-dark">{pa?.nome}</div>
-              </div>
-              <div className="text-center text-xs text-muted-foreground">
-                <div className="text-lg font-extrabold text-brand">vs</div>
-                <div className="mt-1">{proximo.data}</div>
-                <div>{proximo.hora}</div>
-                <div className="mt-1 max-w-[140px] text-[11px]">{proximo.estadio}</div>
-              </div>
-              <div className="flex flex-col items-center text-center">
-                <img src={flagUrl(proximo.selecaoB, 160)} alt={flagAlt(proximo.selecaoB)} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
-                <div className="mt-2 text-sm font-bold text-brand-dark">{pb?.nome}</div>
-              </div>
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+            <div className="flex flex-col items-center text-center">
+              <img src={flagUrl(proximo.selecaoA, 160)} alt={flagAlt(proximo.selecaoA)} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
+              <div className="mt-2 text-sm font-bold text-brand-dark">{pa?.nome}</div>
             </div>
-          </>
+            <div className="text-center text-xs text-muted-foreground">
+              <div className="text-lg font-extrabold text-brand">vs</div>
+              <div className="mt-1">{proximo.data}</div>
+              <div>{proximo.hora}</div>
+              <div className="mt-1 max-w-[140px] text-[11px]">{proximo.estadio}</div>
+            </div>
+            <div className="flex flex-col items-center text-center">
+              <img src={flagUrl(proximo.selecaoB, 160)} alt={flagAlt(proximo.selecaoB)} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
+              <div className="mt-2 text-sm font-bold text-brand-dark">{pb?.nome}</div>
+            </div>
+          </div>
         )}
       </div>
 
