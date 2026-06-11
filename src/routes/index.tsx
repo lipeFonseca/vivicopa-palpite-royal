@@ -15,7 +15,7 @@ import { Header } from "@/components/vivicopa/Header";
 import { Footer } from "@/components/vivicopa/Footer";
 import { GameCard } from "@/components/vivicopa/GameCard";
 import { PredictionModal } from "@/components/vivicopa/PredictionModal";
-import { Chaveamento } from "@/components/vivicopa/Chaveamento";
+import { ChaveamentoAutomatico } from "@/components/vivicopa/ChaveamentoAutomatico";
 import { supabase } from "@/integrations/supabase/client";
 import { selecoes, jogos, grupos, getSelecao, type Jogo, type Selecao } from "@/data/worldcup2026";
 import { getStats } from "@/data/selecaoStats";
@@ -193,7 +193,7 @@ function Vivicopa() {
           </TabsContent>
 
           <TabsContent value="chaveamento" className="mt-6">
-            <Chaveamento />
+            <ChaveamentoAutomatico />
           </TabsContent>
 
           <TabsContent value="titulos" className="mt-6">
@@ -754,15 +754,9 @@ function MeusPalpitesTab({ palpites, onEditar, onExcluir }: {
                   <span className="text-muted-foreground">{new Date(p.dataCriacao).toLocaleDateString("pt-BR")}</span>
                 </div>
                 <div className="flex items-center justify-around text-center">
-                  <div>
-                    <div className="text-2xl">{a?.bandeiraEmoji}</div>
-                    <div className="text-xs font-semibold">{a?.nome}</div>
-                  </div>
+                  <PalpiteTime selecaoId={p.selecaoA} nome={a?.nome} />
                   <div className="text-2xl font-extrabold text-brand">{p.placarA} x {p.placarB}</div>
-                  <div>
-                    <div className="text-2xl">{b?.bandeiraEmoji}</div>
-                    <div className="text-xs font-semibold">{b?.nome}</div>
-                  </div>
+                  <PalpiteTime selecaoId={p.selecaoB} nome={b?.nome} />
                 </div>
                 {p.comentario && <div className="mt-2 rounded-lg bg-brand-soft p-2 text-sm italic">"{p.comentario}"</div>}
                 <div className="mt-3 flex gap-2">
@@ -855,7 +849,13 @@ function TabelaTab({ palpites }: { palpites: Palpite[] }) {
                 <tr key={p.id} className="border-t border-border odd:bg-brand-soft/50">
                   <Td className="font-semibold">{p.usuario}</Td>
                   <Td>{j?.grupo}</Td>
-                  <Td>{a?.bandeiraEmoji} {a?.nome} x {b?.nome} {b?.bandeiraEmoji}</Td>
+                  <Td>
+                    <div className="flex min-w-[240px] flex-wrap items-center gap-1.5">
+                      <TabelaTime selecaoId={p.selecaoA} nome={a?.nome} />
+                      <span className="px-0.5 text-xs font-semibold text-muted-foreground">x</span>
+                      <TabelaTime selecaoId={p.selecaoB} nome={b?.nome} />
+                    </div>
+                  </Td>
                   <Td>{j?.data}</Td>
                   <Td className="font-bold text-brand">{p.placarA} x {p.placarB}</Td>
                   <Td className="max-w-[200px] truncate italic text-muted-foreground">{p.comentario || "—"}</Td>
@@ -873,9 +873,48 @@ function TabelaTab({ palpites }: { palpites: Palpite[] }) {
   );
 }
 
+function PalpiteTime({ selecaoId, nome }: { selecaoId: string; nome?: string }) {
+  const src = flagUrl(selecaoId, 160);
+
+  return (
+    <div className="flex w-24 flex-col items-center gap-1.5">
+      {src ? (
+        <img
+          src={src}
+          alt={flagAlt(selecaoId)}
+          className="h-8 w-11 rounded-[3px] border border-border object-cover shadow-sm"
+          loading="lazy"
+        />
+      ) : (
+        <div className="h-8 w-11 rounded-[3px] border border-dashed border-border bg-brand-soft" />
+      )}
+      <div className="max-w-full truncate text-xs font-semibold">{nome ?? selecaoId}</div>
+    </div>
+  );
+}
+
 function Th({ children }: { children: React.ReactNode }) {
   return <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide">{children}</th>;
 }
+
+function TabelaTime({ selecaoId, nome }: { selecaoId: string; nome?: string }) {
+  const src = flagUrl(selecaoId, 80);
+
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      {src && (
+        <img
+          src={src}
+          alt={flagAlt(selecaoId)}
+          className="h-3.5 w-5 rounded-[2px] border border-border object-cover shadow-sm"
+          loading="lazy"
+        />
+      )}
+      <span>{nome ?? selecaoId}</span>
+    </span>
+  );
+}
+
 function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <td className={`px-3 py-2 ${className}`}>{children}</td>;
 }

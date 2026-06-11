@@ -51,6 +51,33 @@ function mapear(j: any) {
   };
 }
 
+function mapearSelecao(s: any) {
+  return {
+    id: String(s.id),
+    nome: s.name,
+    nome_curto: s.shortName ?? null,
+    sigla: s.tla ?? null,
+    area_id: s.area?.id ?? null,
+    area_nome: s.area?.name ?? null,
+    area_codigo: s.area?.code ?? null,
+    area_bandeira: s.area?.flag ?? null,
+    escudo_url: s.crest ?? null,
+    endereco: s.address ?? null,
+    site: s.website ?? null,
+    fundada: s.founded ?? null,
+    cores: s.clubColors ?? null,
+    tecnico_nome: s.coach?.name ?? null,
+    tecnico_nacionalidade: s.coach?.nationality ?? null,
+    tecnico_data_nascimento: s.coach?.dateOfBirth ?? null,
+    elenco: s.squad ?? [],
+    staff: s.staff ?? [],
+    competicoes: s.runningCompetitions ?? [],
+    api_payload: s,
+    ultima_atualizacao: s.lastUpdated ?? null,
+    atualizado_em: new Date().toISOString(),
+  };
+}
+
 async function buscarPartidas(path: string, key: string) {
   const r = await fetch(`${API}${path}`, {
     headers: { "X-Auth-Token": key },
@@ -60,6 +87,17 @@ async function buscarPartidas(path: string, key: string) {
     throw new Error(json.message ?? `football-data.org retornou HTTP ${r.status}`);
   }
   return json.matches ?? [];
+}
+
+async function buscarSelecoes(path: string, key: string) {
+  const r = await fetch(`${API}${path}`, {
+    headers: { "X-Auth-Token": key },
+  });
+  const json = await r.json();
+  if (!r.ok) {
+    throw new Error(json.message ?? `football-data.org retornou HTTP ${r.status}`);
+  }
+  return json.teams ?? [];
 }
 
 Deno.serve(async (req) => {
@@ -77,13 +115,24 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   if (url.searchParams.get("seed") === "true") {
-    const partidas = await buscarPartidas(
-      `/competitions/${COMPETICAO}/matches?season=${TEMPORADA}`,
-      key,
-    );
+    const [partidas, selecoes] = await Promise.all([
+      buscarPartidas(`/competitions/${COMPETICAO}/matches?season=${TEMPORADA}`, key),
+      buscarSelecoes(`/competitions/${COMPETICAO}/teams?season=${TEMPORADA}`, key),
+    ]);
+
     const rows = partidas.map(mapear);
-    if (rows.length) await sb.from("partidas").upsert(rows);
-    return Response.json({ ok: true, seed: rows.length });
+    if (rows.length) {
+      const { error } = await sb.from("partidas").upsert(rows);
+      if (error) throw error;
+    }
+
+    const selecaoRows = selecoes.map(mapearSelecao);
+    if (selecaoRows.length) {
+      const { error } = await sb.from("selecoes").upsert(selecaoRows);
+      if (error) throw error;
+    }
+
+    return Response.json({ ok: true, seed: rows.length, selecoes: selecaoRows.length });
   }
 
   const agora = Date.now();

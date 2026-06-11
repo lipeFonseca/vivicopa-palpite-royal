@@ -112,6 +112,84 @@ export type Database = {
         }
         Relationships: []
       }
+      selecoes: {
+        Row: {
+          api_payload: Json
+          area_bandeira: string | null
+          area_codigo: string | null
+          area_id: number | null
+          area_nome: string | null
+          atualizado_em: string
+          competicoes: Json
+          cores: string | null
+          elenco: Json
+          endereco: string | null
+          escudo_url: string | null
+          football_data_id: number | null
+          fundada: number | null
+          id: string
+          nome: string
+          nome_curto: string | null
+          sigla: string | null
+          site: string | null
+          staff: Json
+          tecnico_data_nascimento: string | null
+          tecnico_nacionalidade: string | null
+          tecnico_nome: string | null
+          ultima_atualizacao: string | null
+        }
+        Insert: {
+          api_payload?: Json
+          area_bandeira?: string | null
+          area_codigo?: string | null
+          area_id?: number | null
+          area_nome?: string | null
+          atualizado_em?: string
+          competicoes?: Json
+          cores?: string | null
+          elenco?: Json
+          endereco?: string | null
+          escudo_url?: string | null
+          football_data_id?: never
+          fundada?: number | null
+          id: string
+          nome: string
+          nome_curto?: string | null
+          sigla?: string | null
+          site?: string | null
+          staff?: Json
+          tecnico_data_nascimento?: string | null
+          tecnico_nacionalidade?: string | null
+          tecnico_nome?: string | null
+          ultima_atualizacao?: string | null
+        }
+        Update: {
+          api_payload?: Json
+          area_bandeira?: string | null
+          area_codigo?: string | null
+          area_id?: number | null
+          area_nome?: string | null
+          atualizado_em?: string
+          competicoes?: Json
+          cores?: string | null
+          elenco?: Json
+          endereco?: string | null
+          escudo_url?: string | null
+          football_data_id?: never
+          fundada?: number | null
+          id?: string
+          nome?: string
+          nome_curto?: string | null
+          sigla?: string | null
+          site?: string | null
+          staff?: Json
+          tecnico_data_nascimento?: string | null
+          tecnico_nacionalidade?: string | null
+          tecnico_nome?: string | null
+          ultima_atualizacao?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       ranking: {
