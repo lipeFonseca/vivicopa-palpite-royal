@@ -22,7 +22,7 @@ import { selecoes, jogos, grupos, getSelecao, type Jogo, type Selecao } from "@/
 import { getStats } from "@/data/selecaoStats";
 import { isValidUsername, normalizeUsername, usernameToEmail } from "@/lib/auth";
 import { carregarPalpites, excluirPalpite, type Palpite } from "@/lib/storage";
-import { flagUrl, flagAlt } from "@/lib/flags";
+import { flagUrl, flagAlt, flagUrlFromFifaCode } from "@/lib/flags";
 
 const LOGO_URL_KEY = "vivicopa:logo-url";
 const LOGO_SIZE_KEY = "vivicopa:logo-size";
@@ -857,11 +857,14 @@ function useJogosHoje() {
   useEffect(() => {
     (supabase as any)
       .from("selecoes")
-      .select("nome, area_bandeira, escudo_url")
-      .then(({ data }: { data: { nome: string; area_bandeira: string | null; escudo_url: string | null }[] | null }) => {
+      .select("nome,area_codigo")
+      .then(({ data }: { data: { nome: string; area_codigo: string | null }[] | null }) => {
         if (!data) return;
         const map: Record<string, string> = {};
-        data.forEach((s) => { map[s.nome] = s.area_bandeira ?? s.escudo_url ?? ""; });
+        data.forEach((s) => {
+          const url = flagUrlFromFifaCode(s.area_codigo ?? "", 160);
+          if (url) map[s.nome] = url;
+        });
         setFlagMap(map);
       })
       .catch(() => {});
@@ -1231,11 +1234,14 @@ function useClassificacaoGrupos() {
   useEffect(() => {
     (supabase as any)
       .from("selecoes")
-      .select("nome,area_bandeira,escudo_url")
-      .then(({ data }: { data: { nome: string; area_bandeira: string | null; escudo_url: string | null }[] | null }) => {
+      .select("nome,area_codigo")
+      .then(({ data }: { data: { nome: string; area_codigo: string | null }[] | null }) => {
         if (!data) return;
         const map: Record<string, string> = {};
-        data.forEach((s) => { map[s.nome] = s.area_bandeira ?? s.escudo_url ?? ""; });
+        data.forEach((s) => {
+          const url = flagUrlFromFifaCode(s.area_codigo ?? "", 80);
+          if (url) map[s.nome] = url;
+        });
         setFlagMapGrupos(map);
       });
 
