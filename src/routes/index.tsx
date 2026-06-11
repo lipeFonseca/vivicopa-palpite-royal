@@ -904,11 +904,11 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
 
       <div className="flex flex-1 items-center justify-end gap-2">
         <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_a}</span>
-        {flagMap[jogo.time_a] ? (
-          <img src={flagMap[jogo.time_a]} alt={jogo.time_a} className="h-8 w-12 flex-shrink-0 rounded object-cover ring-1 ring-border" />
-        ) : (
-          <div className="h-8 w-12 flex-shrink-0 rounded bg-brand-soft" />
-        )}
+        <div className="h-8 w-12 flex-shrink-0 overflow-hidden rounded ring-1 ring-border">
+          {flagMap[jogo.time_a]
+            ? <img src={flagMap[jogo.time_a]} alt={jogo.time_a} className="h-full w-full object-cover" />
+            : <div className="h-full w-full bg-brand-soft" />}
+        </div>
       </div>
 
       <div className="w-14 flex-shrink-0 text-center">
@@ -922,11 +922,11 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
       </div>
 
       <div className="flex flex-1 items-center gap-2">
-        {flagMap[jogo.time_b] ? (
-          <img src={flagMap[jogo.time_b]} alt={jogo.time_b} className="h-8 w-12 flex-shrink-0 rounded object-cover ring-1 ring-border" />
-        ) : (
-          <div className="h-8 w-12 flex-shrink-0 rounded bg-brand-soft" />
-        )}
+        <div className="h-8 w-12 flex-shrink-0 overflow-hidden rounded ring-1 ring-border">
+          {flagMap[jogo.time_b]
+            ? <img src={flagMap[jogo.time_b]} alt={jogo.time_b} className="h-full w-full object-cover" />
+            : <div className="h-full w-full bg-brand-soft" />}
+        </div>
         <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_b}</span>
       </div>
     </div>
