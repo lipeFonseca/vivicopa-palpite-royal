@@ -559,14 +559,14 @@ function AdminTab() {
             </div>
             <Slider
               min={20}
-              max={120}
+              max={300}
               step={1}
               value={[logoHeaderSize]}
               onValueChange={([v]) => setLogoHeaderSize(v)}
             />
             <div className="mt-1 flex justify-between text-xs text-muted-foreground">
               <span>20px</span>
-              <span>120px</span>
+              <span>300px</span>
             </div>
           </div>
 
