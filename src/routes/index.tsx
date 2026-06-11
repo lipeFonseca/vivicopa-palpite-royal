@@ -26,6 +26,7 @@ import { flagUrl, flagAlt } from "@/lib/flags";
 
 const LOGO_URL_KEY = "vivicopa:logo-url";
 const LOGO_SIZE_KEY = "vivicopa:logo-size";
+const LOGO_HEADER_SIZE_KEY = "vivicopa:logo-header-size";
 
 const PAISES_SEDE = [
   { id: "usa", nome: "Estados Unidos" },
@@ -379,6 +380,7 @@ function AdminTab() {
 
   const [logoUrl, setLogoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
   const [logoSize, setLogoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
+  const [logoHeaderSize, setLogoHeaderSize] = useState(() => Number(localStorage.getItem(LOGO_HEADER_SIZE_KEY) || 36));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -394,6 +396,7 @@ function AdminTab() {
     if (logoUrl) localStorage.setItem(LOGO_URL_KEY, logoUrl);
     else localStorage.removeItem(LOGO_URL_KEY);
     localStorage.setItem(LOGO_SIZE_KEY, String(logoSize));
+    localStorage.setItem(LOGO_HEADER_SIZE_KEY, String(logoHeaderSize));
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
     toast.success("Logo salva.");
   };
@@ -546,6 +549,24 @@ function AdminTab() {
             <div className="mt-1 flex justify-between text-xs text-muted-foreground">
               <span>40px</span>
               <span>500px</span>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <Label>Tamanho na barra superior</Label>
+              <span className="text-sm font-bold text-brand">{logoHeaderSize}px</span>
+            </div>
+            <Slider
+              min={20}
+              max={120}
+              step={1}
+              value={[logoHeaderSize]}
+              onValueChange={([v]) => setLogoHeaderSize(v)}
+            />
+            <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+              <span>20px</span>
+              <span>120px</span>
             </div>
           </div>
 

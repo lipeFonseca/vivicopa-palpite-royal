@@ -2,14 +2,21 @@ import { Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const LOGO_URL_KEY = "vivicopa:logo-url";
+const LOGO_HEADER_SIZE_KEY = "vivicopa:logo-header-size";
 
 export function Header() {
   const [logoUrl, setLogoUrl] = useState(() =>
     typeof window !== "undefined" ? (localStorage.getItem(LOGO_URL_KEY) ?? "") : "",
   );
+  const [logoHeaderSize, setLogoHeaderSize] = useState(() =>
+    typeof window !== "undefined" ? Number(localStorage.getItem(LOGO_HEADER_SIZE_KEY) || 36) : 36,
+  );
 
   useEffect(() => {
-    const sync = () => setLogoUrl(localStorage.getItem(LOGO_URL_KEY) ?? "");
+    const sync = () => {
+      setLogoUrl(localStorage.getItem(LOGO_URL_KEY) ?? "");
+      setLogoHeaderSize(Number(localStorage.getItem(LOGO_HEADER_SIZE_KEY) || 36));
+    };
     window.addEventListener("vivicopa:logo-changed", sync);
     return () => window.removeEventListener("vivicopa:logo-changed", sync);
   }, []);
@@ -22,7 +29,8 @@ export function Header() {
             <img
               src={logoUrl}
               alt="Logo Vivicopa"
-              className="h-9 w-9 rounded-xl object-contain"
+              style={{ width: logoHeaderSize, height: logoHeaderSize }}
+              className="rounded-xl object-contain"
             />
           ) : (
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-brand text-white shadow-brand">
