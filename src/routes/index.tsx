@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -801,6 +801,78 @@ function TabTrigger({ value, icon, children }: { value: string; icon: React.Reac
   );
 }
 
+// ---------- HOOK: jogo em destaque (ao vivo ou próximo) via Supabase ----------
+type PartidaDestaque = {
+  id: string;
+  time_a: string;
+  time_b: string;
+  placar_a: number;
+  placar_b: number;
+  status: string;
+  inicia_em: string | null;
+};
+
+function usePartidaDestaque() {
+  const [partida, setPartida] = useState<PartidaDestaque | null>(null);
+  const [aoVivo, setAoVivo] = useState(false);
+  const [flagMap, setFlagMap] = useState<Record<string, string>>({});
+
+  const fetchPartida = useCallback(async () => {
+    try {
+      const sb = supabase as any;
+      const { data: live } = await sb
+        .from("partidas")
+        .select("id, time_a, time_b, placar_a, placar_b, status, inicia_em")
+        .in("status", ["LIVE", "HT"])
+        .order("inicia_em", { ascending: true })
+        .limit(1);
+
+      if (live && live.length > 0) {
+        setPartida(live[0] as PartidaDestaque);
+        setAoVivo(true);
+        return;
+      }
+
+      const { data: next } = await sb
+        .from("partidas")
+        .select("id, time_a, time_b, placar_a, placar_b, status, inicia_em")
+        .eq("status", "NS")
+        .gte("inicia_em", new Date().toISOString())
+        .order("inicia_em", { ascending: true })
+        .limit(1);
+
+      setPartida((next as PartidaDestaque[] | null)?.[0] ?? null);
+      setAoVivo(false);
+    } catch {
+      // sem Supabase configurado; fallback para dado local
+    }
+  }, []);
+
+  useEffect(() => {
+    (supabase as any)
+      .from("selecoes")
+      .select("nome, area_bandeira, escudo_url")
+      .then(({ data }: { data: { nome: string; area_bandeira: string | null; escudo_url: string | null }[] | null }) => {
+        if (!data) return;
+        const map: Record<string, string> = {};
+        data.forEach((s) => { map[s.nome] = s.area_bandeira ?? s.escudo_url ?? ""; });
+        setFlagMap(map);
+      })
+      .catch(() => {});
+
+    fetchPartida();
+
+    const ch = (supabase as any)
+      .channel("partida-destaque")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "partidas" }, fetchPartida)
+      .subscribe();
+
+    return () => { (supabase as any).removeChannel(ch); };
+  }, [fetchPartida]);
+
+  return { partida, aoVivo, flagMap };
+}
+
 // ---------- INÍCIO ----------
 function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos: () => void; onPalpite: () => void }) {
   const [heroBannerUrl, setHeroBannerUrl] = useState(() =>
@@ -812,6 +884,8 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
     window.addEventListener("vivicopa:logo-changed", sync);
     return () => window.removeEventListener("vivicopa:logo-changed", sync);
   }, []);
+
+  const { partida: partidaDestaque, aoVivo, flagMap } = usePartidaDestaque();
 
   const proximo = useMemo(() => {
     const hoje = new Date().toISOString().slice(0, 10);
@@ -892,23 +966,94 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-        <div className="mb-4 text-xs font-semibold uppercase tracking-wide text-brand">Próximo jogo</div>
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-          <div className="flex flex-col items-center text-center">
-            <img src={flagUrl(proximo.selecaoA, 160)} alt={flagAlt(proximo.selecaoA)} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
-            <div className="mt-2 text-sm font-bold text-brand-dark">{pa?.nome}</div>
-          </div>
-          <div className="text-center text-xs text-muted-foreground">
-            <div className="text-lg font-extrabold text-brand">vs</div>
-            <div className="mt-1">{proximo.data}</div>
-            <div>{proximo.hora}</div>
-            <div className="mt-1 max-w-[140px] text-[11px]">{proximo.estadio}</div>
-          </div>
-          <div className="flex flex-col items-center text-center">
-            <img src={flagUrl(proximo.selecaoB, 160)} alt={flagAlt(proximo.selecaoB)} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
-            <div className="mt-2 text-sm font-bold text-brand-dark">{pb?.nome}</div>
-          </div>
-        </div>
+        {aoVivo && partidaDestaque ? (
+          <>
+            <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-red-500">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+              </span>
+              Ao vivo
+              {partidaDestaque.status === "HT" && (
+                <span className="ml-1 font-normal normal-case text-muted-foreground">— Intervalo</span>
+              )}
+            </div>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <div className="flex flex-col items-center text-center">
+                {flagMap[partidaDestaque.time_a] ? (
+                  <img src={flagMap[partidaDestaque.time_a]} alt={partidaDestaque.time_a} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
+                ) : (
+                  <div className="flex h-16 w-24 items-center justify-center rounded-md bg-brand-soft"><Shield className="h-8 w-8 text-brand-dark" /></div>
+                )}
+                <div className="mt-2 text-sm font-bold text-brand-dark">{partidaDestaque.time_a}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-extrabold tabular-nums text-brand">
+                  {partidaDestaque.placar_a} – {partidaDestaque.placar_b}
+                </div>
+              </div>
+              <div className="flex flex-col items-center text-center">
+                {flagMap[partidaDestaque.time_b] ? (
+                  <img src={flagMap[partidaDestaque.time_b]} alt={partidaDestaque.time_b} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
+                ) : (
+                  <div className="flex h-16 w-24 items-center justify-center rounded-md bg-brand-soft"><Shield className="h-8 w-8 text-brand-dark" /></div>
+                )}
+                <div className="mt-2 text-sm font-bold text-brand-dark">{partidaDestaque.time_b}</div>
+              </div>
+            </div>
+          </>
+        ) : partidaDestaque ? (
+          <>
+            <div className="mb-4 text-xs font-semibold uppercase tracking-wide text-brand">Próximo jogo</div>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <div className="flex flex-col items-center text-center">
+                {flagMap[partidaDestaque.time_a] ? (
+                  <img src={flagMap[partidaDestaque.time_a]} alt={partidaDestaque.time_a} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
+                ) : (
+                  <div className="flex h-16 w-24 items-center justify-center rounded-md bg-brand-soft"><Shield className="h-8 w-8 text-brand-dark" /></div>
+                )}
+                <div className="mt-2 text-sm font-bold text-brand-dark">{partidaDestaque.time_a}</div>
+              </div>
+              <div className="text-center text-xs text-muted-foreground">
+                <div className="text-lg font-extrabold text-brand">vs</div>
+                {partidaDestaque.inicia_em && (
+                  <>
+                    <div className="mt-1">{new Date(partidaDestaque.inicia_em).toLocaleDateString("pt-BR")}</div>
+                    <div>{new Date(partidaDestaque.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</div>
+                  </>
+                )}
+              </div>
+              <div className="flex flex-col items-center text-center">
+                {flagMap[partidaDestaque.time_b] ? (
+                  <img src={flagMap[partidaDestaque.time_b]} alt={partidaDestaque.time_b} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
+                ) : (
+                  <div className="flex h-16 w-24 items-center justify-center rounded-md bg-brand-soft"><Shield className="h-8 w-8 text-brand-dark" /></div>
+                )}
+                <div className="mt-2 text-sm font-bold text-brand-dark">{partidaDestaque.time_b}</div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mb-4 text-xs font-semibold uppercase tracking-wide text-brand">Próximo jogo</div>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <div className="flex flex-col items-center text-center">
+                <img src={flagUrl(proximo.selecaoA, 160)} alt={flagAlt(proximo.selecaoA)} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
+                <div className="mt-2 text-sm font-bold text-brand-dark">{pa?.nome}</div>
+              </div>
+              <div className="text-center text-xs text-muted-foreground">
+                <div className="text-lg font-extrabold text-brand">vs</div>
+                <div className="mt-1">{proximo.data}</div>
+                <div>{proximo.hora}</div>
+                <div className="mt-1 max-w-[140px] text-[11px]">{proximo.estadio}</div>
+              </div>
+              <div className="flex flex-col items-center text-center">
+                <img src={flagUrl(proximo.selecaoB, 160)} alt={flagAlt(proximo.selecaoB)} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
+                <div className="mt-2 text-sm font-bold text-brand-dark">{pb?.nome}</div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
