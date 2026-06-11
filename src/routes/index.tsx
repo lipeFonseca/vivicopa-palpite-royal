@@ -917,7 +917,7 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
 
       <div className="flex flex-1 items-center justify-end gap-2">
         <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_a}</span>
-        <FlagBox url={flagMap[jogo.time_a]} label={jogo.time_a} className="h-8 w-12 rounded" />
+        <FlagBox url={flagMap[jogo.time_a]} label={jogo.time_a} className="h-16 w-24 rounded" />
       </div>
 
       <div className="w-14 flex-shrink-0 text-center">
@@ -931,7 +931,7 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
       </div>
 
       <div className="flex flex-1 items-center gap-2">
-        <FlagBox url={flagMap[jogo.time_b]} label={jogo.time_b} className="h-8 w-12 rounded" />
+        <FlagBox url={flagMap[jogo.time_b]} label={jogo.time_b} className="h-16 w-24 rounded" />
         <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_b}</span>
       </div>
     </div>
