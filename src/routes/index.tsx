@@ -1320,11 +1320,11 @@ function GruposTab({ onVerJogos }: { onVerJogos: (grupo: string) => void }) {
                     {idx + 1}
                   </span>
                   <div className="flex min-w-0 items-center gap-1.5">
-                    {flagMapGrupos[entry.nome] ? (
-                      <img src={flagMapGrupos[entry.nome]} alt={entry.nome} className="h-4 w-6 flex-shrink-0 rounded-sm object-cover ring-1 ring-border" />
-                    ) : (
-                      <div className="h-4 w-6 flex-shrink-0 rounded-sm bg-muted" />
-                    )}
+                    <div className="h-4 w-6 flex-shrink-0 overflow-hidden rounded-sm ring-1 ring-border">
+                      {flagMapGrupos[entry.nome]
+                        ? <img src={flagMapGrupos[entry.nome]} alt={entry.nome} className="h-full w-full object-cover" />
+                        : <div className="h-full w-full bg-muted" />}
+                    </div>
                     <span className="truncate font-medium">{entry.nome}</span>
                   </div>
                   <span className="text-center text-[11px]">{entry.j}</span>
