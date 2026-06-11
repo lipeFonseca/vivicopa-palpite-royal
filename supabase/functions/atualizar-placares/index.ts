@@ -136,14 +136,23 @@ Deno.serve(async (req) => {
   }
 
   const agora = Date.now();
+  // Include FT/AET/PEN games in the window check so recently-finished matches
+  // with a stale score (e.g. API returned null→0 before populating final score)
+  // get re-synced until the API catches up.
+  type CandRow = { inicia_em: string | null; status: string; placar_a: number; placar_b: number };
   const { data: cand } = await sb
     .from("partidas")
-    .select("inicia_em,status")
-    .not("status", "in", "(FT,AET,PEN)");
-  const temJogo = (cand ?? []).some((p) => {
+    .select("inicia_em,status,placar_a,placar_b");
+  const temJogo = ((cand ?? []) as CandRow[]).some((p) => {
     if (!p.inicia_em) return false;
     const ini = new Date(p.inicia_em).getTime();
-    return agora >= ini - 10 * 60_000 && agora <= ini + 240 * 60_000;
+    const dentroDaJanela = agora >= ini - 10 * 60_000 && agora <= ini + 360 * 60_000;
+    if (!dentroDaJanela) return false;
+    // Always sync non-finished games; also re-sync recently-finished 0-0 games
+    // since the API often delays populating fullTime scores.
+    const finalizado = ["FT", "AET", "PEN"].includes(p.status);
+    const placarsuspeito = finalizado && p.placar_a === 0 && p.placar_b === 0;
+    return !finalizado || placarsuspeito;
   });
   if (!temJogo) return Response.json({ ok: true, msg: "sem jogo na janela" });
 
