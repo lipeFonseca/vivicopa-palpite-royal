@@ -22,8 +22,11 @@ export function Header() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+    <header className="relative sticky top-0 z-40 border-b border-border bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+      <div className="hidden sm:block absolute right-4 top-2 text-[11px] font-semibold uppercase tracking-widest text-brand/70">
+        Copa do Mundo FIFA 2026
+      </div>
+      <div className="mx-auto flex max-w-6xl items-center px-4 py-3">
         <div className="flex items-center" style={{ gap: Math.round((logoHeaderSize / 36) * 8) }}>
           {logoUrl ? (
             <img
@@ -44,7 +47,6 @@ export function Header() {
             </div>
           </div>
         </div>
-        <div className="hidden text-xs font-semibold text-brand sm:block">Copa do Mundo FIFA 2026</div>
       </div>
     </header>
   );
