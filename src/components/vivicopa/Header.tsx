@@ -27,49 +27,49 @@ export function Header() {
   }, []);
 
   const scale = logoHeaderSize / 36;
+  const hasBanner = Boolean(bannerUrl);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70">
-      <div className="mx-auto flex max-w-6xl items-center px-4 py-3">
+    <header
+      className="relative sticky top-0 z-40 border-b border-border"
+      style={
+        hasBanner
+          ? { backgroundImage: `url(${bannerUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
+          : { background: "rgba(255,255,255,0.92)", backdropFilter: "blur(12px)" }
+      }
+    >
+      {hasBanner && (
         <div
-          className="relative flex items-center overflow-hidden"
-          style={{
-            gap: Math.round(scale * 8),
-            ...(bannerUrl
-              ? {
-                  backgroundImage: `url(${bannerUrl})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                  borderRadius: 12,
-                  padding: `${Math.round(scale * 8)}px ${Math.round(scale * 12)}px`,
-                }
-              : {}),
-          }}
-        >
-          {bannerUrl && (
-            <div
-              className="pointer-events-none absolute inset-0"
-              style={{ background: "rgba(0,0,0,0.30)", borderRadius: 12 }}
-            />
-          )}
+          className="absolute inset-0"
+          style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.25) 100%)" }}
+        />
+      )}
+
+      <div className="relative mx-auto flex max-w-6xl items-center px-4 py-3">
+        <div className="flex items-center" style={{ gap: Math.round(scale * 8) }}>
           {logoUrl ? (
             <img
               src={logoUrl}
               alt="Logo Vivicopa"
               style={{ width: logoHeaderSize, height: logoHeaderSize }}
-              className="relative z-10 rounded-xl object-contain"
+              className="rounded-xl object-contain drop-shadow-md"
             />
           ) : (
-            <div className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white shadow-brand">
-              <Trophy className="h-5 w-5" />
+            <div
+              className="flex shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white shadow-brand"
+              style={{ width: Math.round(scale * 36), height: Math.round(scale * 36) }}
+            >
+              <Trophy style={{ width: Math.round(scale * 20), height: Math.round(scale * 20) }} />
             </div>
           )}
-          <div className="relative z-10 leading-tight">
+
+          <div className="leading-tight">
             <div
               className="font-bold"
               style={{
                 fontSize: Math.round(scale * 18),
-                color: bannerUrl ? "#fff" : undefined,
+                color: hasBanner ? "#fff" : "var(--color-brand-dark, #1e3a5f)",
+                textShadow: hasBanner ? "0 1px 4px rgba(0,0,0,0.4)" : undefined,
               }}
             >
               Vivicopa
@@ -78,7 +78,8 @@ export function Header() {
               className="hidden sm:block"
               style={{
                 fontSize: Math.round(scale * 12),
-                color: bannerUrl ? "rgba(255,255,255,0.85)" : undefined,
+                color: hasBanner ? "rgba(255,255,255,0.85)" : "var(--color-muted-foreground, #6b7280)",
+                textShadow: hasBanner ? "0 1px 3px rgba(0,0,0,0.35)" : undefined,
               }}
             >
               Palpites, resenhas e emoção em cada jogo.
