@@ -857,14 +857,11 @@ function useJogosHoje() {
   useEffect(() => {
     (supabase as any)
       .from("selecoes")
-      .select("nome,area_codigo")
-      .then(({ data }: { data: { nome: string; area_codigo: string | null }[] | null }) => {
+      .select("nome,area_bandeira,escudo_url")
+      .then(({ data }: { data: { nome: string; area_bandeira: string | null; escudo_url: string | null }[] | null }) => {
         if (!data) return;
         const map: Record<string, string> = {};
-        data.forEach((s) => {
-          const url = flagUrlFromFifaCode(s.area_codigo ?? "", 160);
-          if (url) map[s.nome] = url;
-        });
+        data.forEach((s) => { map[s.nome] = s.area_bandeira ?? s.escudo_url ?? ""; });
         setFlagMap(map);
       })
       .catch(() => {});
@@ -880,6 +877,19 @@ function useJogosHoje() {
   }, [fetchJogos]);
 
   return { jogosHoje, tituloSecao, flagMap };
+}
+
+// Renders a flag/crest using CSS background-image so SVG and PNG images
+// always fill the container at the declared size with no layout flash.
+function FlagBox({ url, label, className }: { url?: string; label: string; className?: string }) {
+  return (
+    <div
+      className={`flex-shrink-0 bg-brand-soft ring-1 ring-border ${className ?? ""}`}
+      style={url ? { backgroundImage: `url(${url})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+      role="img"
+      aria-label={label}
+    />
+  );
 }
 
 function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<string, string> }) {
@@ -907,11 +917,7 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
 
       <div className="flex flex-1 items-center justify-end gap-2">
         <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_a}</span>
-        <div className="h-8 w-12 flex-shrink-0 overflow-hidden rounded ring-1 ring-border">
-          {flagMap[jogo.time_a]
-            ? <img src={flagMap[jogo.time_a]} alt={jogo.time_a} className="h-full w-full object-cover" />
-            : <div className="h-full w-full bg-brand-soft" />}
-        </div>
+        <FlagBox url={flagMap[jogo.time_a]} label={jogo.time_a} className="h-8 w-12 rounded" />
       </div>
 
       <div className="w-14 flex-shrink-0 text-center">
@@ -925,11 +931,7 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
       </div>
 
       <div className="flex flex-1 items-center gap-2">
-        <div className="h-8 w-12 flex-shrink-0 overflow-hidden rounded ring-1 ring-border">
-          {flagMap[jogo.time_b]
-            ? <img src={flagMap[jogo.time_b]} alt={jogo.time_b} className="h-full w-full object-cover" />
-            : <div className="h-full w-full bg-brand-soft" />}
-        </div>
+        <FlagBox url={flagMap[jogo.time_b]} label={jogo.time_b} className="h-8 w-12 rounded" />
         <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_b}</span>
       </div>
     </div>
@@ -1234,14 +1236,11 @@ function useClassificacaoGrupos() {
   useEffect(() => {
     (supabase as any)
       .from("selecoes")
-      .select("nome,area_codigo")
-      .then(({ data }: { data: { nome: string; area_codigo: string | null }[] | null }) => {
+      .select("nome,area_bandeira,escudo_url")
+      .then(({ data }: { data: { nome: string; area_bandeira: string | null; escudo_url: string | null }[] | null }) => {
         if (!data) return;
         const map: Record<string, string> = {};
-        data.forEach((s) => {
-          const url = flagUrlFromFifaCode(s.area_codigo ?? "", 80);
-          if (url) map[s.nome] = url;
-        });
+        data.forEach((s) => { map[s.nome] = s.area_bandeira ?? s.escudo_url ?? ""; });
         setFlagMapGrupos(map);
       });
 
@@ -1326,11 +1325,7 @@ function GruposTab({ onVerJogos }: { onVerJogos: (grupo: string) => void }) {
                     {idx + 1}
                   </span>
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <div className="h-4 w-6 flex-shrink-0 overflow-hidden rounded-sm ring-1 ring-border">
-                      {flagMapGrupos[entry.nome]
-                        ? <img src={flagMapGrupos[entry.nome]} alt={entry.nome} className="h-full w-full object-cover" />
-                        : <div className="h-full w-full bg-muted" />}
-                    </div>
+                    <FlagBox url={flagMapGrupos[entry.nome]} label={entry.nome} className="h-4 w-6 rounded-sm" />
                     <span className="truncate font-medium">{entry.nome}</span>
                   </div>
                   <span className="text-center text-[11px]">{entry.j}</span>
