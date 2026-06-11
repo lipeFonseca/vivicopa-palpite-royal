@@ -97,6 +97,11 @@
   --ring: oklch(0.55 0.03 260);
 }
 
+@keyframes vivicopa-marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
 @layer base {
   * {
     border-color: var(--color-border);

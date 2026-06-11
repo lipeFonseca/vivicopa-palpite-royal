@@ -28,6 +28,7 @@ const LOGO_URL_KEY = "vivicopa:logo-url";
 const LOGO_SIZE_KEY = "vivicopa:logo-size";
 const LOGO_HEADER_SIZE_KEY = "vivicopa:logo-header-size";
 const HEADER_BANNER_KEY = "vivicopa:header-banner-url";
+const HERO_BANNER_KEY = "vivicopa:hero-banner-url";
 
 const PAISES_SEDE = [
   { id: "usa", nome: "Estados Unidos" },
@@ -121,6 +122,10 @@ function Vivicopa() {
     if (cfg.header_banner_url !== undefined) {
       if (cfg.header_banner_url) localStorage.setItem(HEADER_BANNER_KEY, cfg.header_banner_url);
       else localStorage.removeItem(HEADER_BANNER_KEY);
+    }
+    if (cfg.hero_banner_url !== undefined) {
+      if (cfg.hero_banner_url) localStorage.setItem(HERO_BANNER_KEY, cfg.hero_banner_url);
+      else localStorage.removeItem(HERO_BANNER_KEY);
     }
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
   };
@@ -416,8 +421,10 @@ function AdminTab() {
   const [logoSize, setLogoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
   const [logoHeaderSize, setLogoHeaderSize] = useState(() => Number(localStorage.getItem(LOGO_HEADER_SIZE_KEY) || 36));
   const [bannerUrl, setBannerUrl] = useState(() => localStorage.getItem(HEADER_BANNER_KEY) ?? "");
+  const [heroBannerUrl, setHeroBannerUrl] = useState(() => localStorage.getItem(HERO_BANNER_KEY) ?? "");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
+  const heroBannerInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -437,12 +444,22 @@ function AdminTab() {
     e.target.value = "";
   };
 
+  const handleHeroBannerFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setHeroBannerUrl((ev.target?.result as string) ?? "");
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
   const salvarLogo = async () => {
     const rows = [
       { chave: "logo_url", valor: logoUrl, atualizado_em: new Date().toISOString() },
       { chave: "logo_size", valor: String(logoSize), atualizado_em: new Date().toISOString() },
       { chave: "logo_header_size", valor: String(logoHeaderSize), atualizado_em: new Date().toISOString() },
       { chave: "header_banner_url", valor: bannerUrl, atualizado_em: new Date().toISOString() },
+      { chave: "hero_banner_url", valor: heroBannerUrl, atualizado_em: new Date().toISOString() },
     ];
     const { error } = await supabase.from("app_config" as never).upsert(rows as never, { onConflict: "chave" });
     if (error) { toast.error("Erro ao salvar configurações."); return; }
@@ -450,6 +467,7 @@ function AdminTab() {
     localStorage.setItem(LOGO_SIZE_KEY, String(logoSize));
     localStorage.setItem(LOGO_HEADER_SIZE_KEY, String(logoHeaderSize));
     if (bannerUrl) localStorage.setItem(HEADER_BANNER_KEY, bannerUrl); else localStorage.removeItem(HEADER_BANNER_KEY);
+    if (heroBannerUrl) localStorage.setItem(HERO_BANNER_KEY, heroBannerUrl); else localStorage.removeItem(HERO_BANNER_KEY);
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
     toast.success("Configurações salvas.");
   };
@@ -467,7 +485,15 @@ function AdminTab() {
     localStorage.removeItem(HEADER_BANNER_KEY);
     setBannerUrl("");
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
-    toast.success("Banner removido.");
+    toast.success("Banner do cabeçalho removido.");
+  };
+
+  const removerHeroBanner = async () => {
+    await supabase.from("app_config" as never).update({ valor: "", atualizado_em: new Date().toISOString() } as never).eq("chave" as never, "hero_banner_url");
+    localStorage.removeItem(HERO_BANNER_KEY);
+    setHeroBannerUrl("");
+    window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
+    toast.success("Banner da tela inicial removido.");
   };
 
   const trocarSenha = async (event: FormEvent) => {
@@ -708,6 +734,60 @@ function AdminTab() {
         </div>
       </div>
     </div>
+
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+      <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
+        <ImageIcon className="h-3.5 w-3.5" /> Banner da tela inicial (retângulo azul)
+      </div>
+      <div className="space-y-4">
+        <div>
+          <Label>Imagem de fundo (arquivo ou URL)</Label>
+          <div className="mt-1.5 flex gap-2">
+            <Input
+              value={heroBannerUrl.startsWith("data:") ? "" : heroBannerUrl}
+              onChange={(e) => setHeroBannerUrl(e.target.value)}
+              placeholder="https://... ou carregue um arquivo"
+              className="flex-1"
+            />
+            <Button type="button" variant="outline" onClick={() => heroBannerInputRef.current?.click()}>
+              Carregar arquivo
+            </Button>
+            <input
+              ref={heroBannerInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleHeroBannerFile}
+            />
+          </div>
+          {heroBannerUrl.startsWith("data:") && (
+            <p className="mt-1 text-xs text-muted-foreground">Arquivo carregado localmente.</p>
+          )}
+        </div>
+        {heroBannerUrl && (
+          <div className="space-y-3">
+            <div
+              className="relative flex h-28 items-start overflow-hidden rounded-2xl p-6"
+              style={{ backgroundImage: `url(${heroBannerUrl})`, backgroundSize: "cover", backgroundPosition: "center" }}
+            >
+              <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.60) 0%, rgba(0,0,0,0.35) 100%)" }} />
+              <div className="relative z-10">
+                <div className="text-xs font-medium text-white/80">Copa do Mundo FIFA 2026</div>
+                <div className="text-xl font-extrabold text-white">Bem-vindo à Vivicopa</div>
+                <div className="mt-2 flex gap-2">
+                  <span className="rounded-md bg-white px-2 py-0.5 text-xs font-semibold text-brand-dark">Ver jogos</span>
+                  <span className="rounded-md border border-white/40 bg-white/10 px-2 py-0.5 text-xs font-semibold text-white">Dar meu palpite</span>
+                </div>
+              </div>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={removerHeroBanner}>Remover banner</Button>
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Clique em "Salvar configurações" no painel acima para aplicar.
+        </p>
+      </div>
+    </div>
     </div>
   );
 }
@@ -723,6 +803,16 @@ function TabTrigger({ value, icon, children }: { value: string; icon: React.Reac
 
 // ---------- INÍCIO ----------
 function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos: () => void; onPalpite: () => void }) {
+  const [heroBannerUrl, setHeroBannerUrl] = useState(() =>
+    typeof window !== "undefined" ? (localStorage.getItem(HERO_BANNER_KEY) ?? "") : "",
+  );
+
+  useEffect(() => {
+    const sync = () => setHeroBannerUrl(localStorage.getItem(HERO_BANNER_KEY) ?? "");
+    window.addEventListener("vivicopa:logo-changed", sync);
+    return () => window.removeEventListener("vivicopa:logo-changed", sync);
+  }, []);
+
   const proximo = useMemo(() => {
     const hoje = new Date().toISOString().slice(0, 10);
     return [...jogos].sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora))
@@ -733,8 +823,14 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-hero p-8 text-white shadow-brand">
-        <div className="relative z-10">
+      <div
+        className={`relative overflow-hidden rounded-3xl p-8 text-white shadow-brand ${heroBannerUrl ? "" : "bg-gradient-hero"}`}
+        style={heroBannerUrl ? { backgroundImage: `url(${heroBannerUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+      >
+        {heroBannerUrl && (
+          <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.60) 0%, rgba(0,0,0,0.35) 100%)" }} />
+        )}
+        <div className="relative z-10 pb-12">
           <div className="flex items-center gap-2 text-sm font-medium opacity-90">
             <Trophy className="h-4 w-4" /> Copa do Mundo FIFA 2026
           </div>
@@ -749,16 +845,27 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
             </Button>
           </div>
         </div>
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap justify-center gap-1.5 px-4 pb-3 opacity-30">
-          {selecoes.slice(0, 24).map((s) => (
-            <img
-              key={s.id}
-              src={flagUrl(s.id, 80)}
-              alt=""
-              className="h-5 w-7 rounded-sm object-cover ring-1 ring-white/40"
-              loading="lazy"
-            />
-          ))}
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden py-2"
+          style={{
+            maskImage: "linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)",
+            WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)",
+          }}
+        >
+          <div
+            className="flex gap-2"
+            style={{ animation: "vivicopa-marquee 50s linear infinite", width: "max-content" }}
+          >
+            {[...selecoes, ...selecoes].map((s, i) => (
+              <img
+                key={`${s.id}-${i}`}
+                src={flagUrl(s.id, 80)}
+                alt=""
+                className="h-5 w-8 flex-shrink-0 rounded-sm object-cover opacity-35 ring-1 ring-white/30"
+                loading="lazy"
+              />
+            ))}
+          </div>
         </div>
       </div>
 
