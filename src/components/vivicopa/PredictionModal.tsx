@@ -15,22 +15,22 @@ interface Props {
   onClose: () => void;
   onSaved: () => void;
   editar?: Palpite | null;
+  userId: string;
+  username: string;
 }
 
-export function PredictionModal({ jogo, open, onClose, onSaved, editar }: Props) {
-  const [usuario, setUsuario] = useState("");
+export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, username }: Props) {
   const [placarA, setPlacarA] = useState(0);
   const [placarB, setPlacarB] = useState(0);
   const [comentario, setComentario] = useState("");
+  const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     if (editar) {
-      setUsuario(editar.usuario);
       setPlacarA(editar.placarA);
       setPlacarB(editar.placarB);
       setComentario(editar.comentario ?? "");
     } else {
-      setUsuario(localStorage.getItem("vivicopa:usuario") ?? "");
       setPlacarA(0);
       setPlacarB(0);
       setComentario("");
@@ -41,15 +41,11 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar }: Props)
   const a = getSelecao(jogo.selecaoA);
   const b = getSelecao(jogo.selecaoB);
 
-  const handleSave = () => {
-    if (!usuario.trim()) {
-      toast.error("Informe seu nome");
-      return;
-    }
-    localStorage.setItem("vivicopa:usuario", usuario.trim());
+  const handleSave = async () => {
+    setSalvando(true);
     const palpite: Palpite = {
       id: editar?.id ?? crypto.randomUUID(),
-      usuario: usuario.trim(),
+      usuario: username,
       jogoId: jogo.id,
       selecaoA: jogo.selecaoA,
       selecaoB: jogo.selecaoB,
@@ -58,11 +54,18 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar }: Props)
       comentario: comentario.trim() || undefined,
       dataCriacao: editar?.dataCriacao ?? new Date().toISOString(),
     };
-    if (editar) atualizarPalpite(palpite);
-    else salvarPalpite(palpite);
-    toast.success("Palpite registrado! Agora é torcer!");
-    onSaved();
-    onClose();
+
+    try {
+      if (editar) await atualizarPalpite(palpite, userId);
+      else await salvarPalpite(palpite, userId);
+      toast.success("Palpite registrado! Agora é torcer!");
+      onSaved();
+      onClose();
+    } catch {
+      toast.error("Erro ao salvar palpite. Tente novamente.");
+    } finally {
+      setSalvando(false);
+    }
   };
 
   return (
@@ -74,9 +77,8 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar }: Props)
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="usuario">Seu nome</Label>
-            <Input id="usuario" value={usuario} onChange={(e) => setUsuario(e.target.value)} placeholder="Ex: João" />
+          <div className="rounded-lg bg-brand-soft px-3 py-2 text-sm font-semibold text-brand-dark">
+            Palpitando como: {username}
           </div>
           <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-3">
             <div>
@@ -99,8 +101,10 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar }: Props)
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} className="bg-gradient-brand text-white hover:opacity-90">Salvar palpite</Button>
+          <Button variant="outline" onClick={onClose} disabled={salvando}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={salvando} className="bg-gradient-brand text-white hover:opacity-90">
+            {salvando ? "Salvando..." : "Salvar palpite"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

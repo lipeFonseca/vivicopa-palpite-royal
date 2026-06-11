@@ -105,8 +105,29 @@ function Vivicopa() {
     return () => data.subscription.unsubscribe();
   }, []);
 
-  const refresh = () => setPalpites(carregarPalpites());
-  useEffect(() => { refresh(); }, []);
+  const refresh = async () => { setPalpites(await carregarPalpites()); };
+
+  const carregarConfig = async () => {
+    const { data } = await supabase.from("app_config" as never).select("chave, valor");
+    if (!data) return;
+    const cfg: Record<string, string> = {};
+    (data as { chave: string; valor: string | null }[]).forEach((r) => { cfg[r.chave] = r.valor ?? ""; });
+    if (cfg.logo_url !== undefined) {
+      if (cfg.logo_url) localStorage.setItem(LOGO_URL_KEY, cfg.logo_url);
+      else localStorage.removeItem(LOGO_URL_KEY);
+    }
+    if (cfg.logo_size) localStorage.setItem(LOGO_SIZE_KEY, cfg.logo_size);
+    if (cfg.logo_header_size) localStorage.setItem(LOGO_HEADER_SIZE_KEY, cfg.logo_header_size);
+    if (cfg.header_banner_url !== undefined) {
+      if (cfg.header_banner_url) localStorage.setItem(HEADER_BANNER_KEY, cfg.header_banner_url);
+      else localStorage.removeItem(HEADER_BANNER_KEY);
+    }
+    window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
+  };
+
+  useEffect(() => {
+    if (authProfile) { refresh(); carregarConfig(); }
+  }, [authProfile?.id]);
 
   const palpitesPorJogo = useMemo(() => {
     const m = new Map<string, number>();
@@ -210,7 +231,7 @@ function Vivicopa() {
             <MeusPalpitesTab palpites={palpites} onEditar={(p) => {
               const j = jogos.find((x) => x.id === p.jogoId);
               if (j) abrirPalpite(j, p);
-            }} onExcluir={(id) => { excluirPalpite(id); refresh(); }} />
+            }} onExcluir={async (id) => { await excluirPalpite(id, authProfile.id); await refresh(); }} />
           </TabsContent>
 
           <TabsContent value="tabela" className="mt-6">
@@ -230,7 +251,7 @@ function Vivicopa() {
       </main>
       <Footer />
 
-      <PredictionModal jogo={jogoSel} open={modalOpen} onClose={() => setModalOpen(false)} onSaved={refresh} editar={editar} />
+      <PredictionModal jogo={jogoSel} open={modalOpen} onClose={() => setModalOpen(false)} onSaved={refresh} editar={editar} userId={authProfile.id} username={authProfile.username} />
 
       <Dialog open={!!comentariosJogo} onOpenChange={(o) => !o && setComentariosJogo(null)}>
         <DialogContent className="max-w-lg">
@@ -289,8 +310,20 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("admin123");
   const [loading, setLoading] = useState(false);
-  const [logoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
-  const [logoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
+  const [logoUrl, setLogoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
+  const [logoSize, setLogoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
+
+  useEffect(() => {
+    supabase.from("app_config" as never).select("chave, valor")
+      .in("chave" as never, ["logo_url", "logo_size"])
+      .then(({ data }) => {
+        if (!data) return;
+        const cfg: Record<string, string> = {};
+        (data as { chave: string; valor: string | null }[]).forEach((r) => { cfg[r.chave] = r.valor ?? ""; });
+        if (cfg.logo_url !== undefined) setLogoUrl(cfg.logo_url);
+        if (cfg.logo_size) setLogoSize(Number(cfg.logo_size));
+      });
+  }, []);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -404,25 +437,33 @@ function AdminTab() {
     e.target.value = "";
   };
 
-  const salvarLogo = () => {
-    if (logoUrl) localStorage.setItem(LOGO_URL_KEY, logoUrl);
-    else localStorage.removeItem(LOGO_URL_KEY);
+  const salvarLogo = async () => {
+    const rows = [
+      { chave: "logo_url", valor: logoUrl, atualizado_em: new Date().toISOString() },
+      { chave: "logo_size", valor: String(logoSize), atualizado_em: new Date().toISOString() },
+      { chave: "logo_header_size", valor: String(logoHeaderSize), atualizado_em: new Date().toISOString() },
+      { chave: "header_banner_url", valor: bannerUrl, atualizado_em: new Date().toISOString() },
+    ];
+    const { error } = await supabase.from("app_config" as never).upsert(rows as never, { onConflict: "chave" });
+    if (error) { toast.error("Erro ao salvar configurações."); return; }
+    if (logoUrl) localStorage.setItem(LOGO_URL_KEY, logoUrl); else localStorage.removeItem(LOGO_URL_KEY);
     localStorage.setItem(LOGO_SIZE_KEY, String(logoSize));
     localStorage.setItem(LOGO_HEADER_SIZE_KEY, String(logoHeaderSize));
-    if (bannerUrl) localStorage.setItem(HEADER_BANNER_KEY, bannerUrl);
-    else localStorage.removeItem(HEADER_BANNER_KEY);
+    if (bannerUrl) localStorage.setItem(HEADER_BANNER_KEY, bannerUrl); else localStorage.removeItem(HEADER_BANNER_KEY);
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
     toast.success("Configurações salvas.");
   };
 
-  const removerLogo = () => {
+  const removerLogo = async () => {
+    await supabase.from("app_config" as never).update({ valor: "", atualizado_em: new Date().toISOString() } as never).eq("chave" as never, "logo_url");
     localStorage.removeItem(LOGO_URL_KEY);
     setLogoUrl("");
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
     toast.success("Logo removida.");
   };
 
-  const removerBanner = () => {
+  const removerBanner = async () => {
+    await supabase.from("app_config" as never).update({ valor: "", atualizado_em: new Date().toISOString() } as never).eq("chave" as never, "header_banner_url");
     localStorage.removeItem(HEADER_BANNER_KEY);
     setBannerUrl("");
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
