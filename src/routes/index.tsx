@@ -902,12 +902,12 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
         )}
       </div>
 
-      <div className="flex flex-1 items-center justify-end gap-1.5">
+      <div className="flex flex-1 items-center justify-end gap-2">
         <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_a}</span>
         {flagMap[jogo.time_a] ? (
-          <img src={flagMap[jogo.time_a]} alt={jogo.time_a} className="h-5 w-7 flex-shrink-0 rounded-sm object-cover ring-1 ring-border" />
+          <img src={flagMap[jogo.time_a]} alt={jogo.time_a} className="h-8 w-12 flex-shrink-0 rounded object-cover ring-1 ring-border" />
         ) : (
-          <div className="h-5 w-7 flex-shrink-0 rounded-sm bg-brand-soft" />
+          <div className="h-8 w-12 flex-shrink-0 rounded bg-brand-soft" />
         )}
       </div>
 
@@ -921,11 +921,11 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
         )}
       </div>
 
-      <div className="flex flex-1 items-center gap-1.5">
+      <div className="flex flex-1 items-center gap-2">
         {flagMap[jogo.time_b] ? (
-          <img src={flagMap[jogo.time_b]} alt={jogo.time_b} className="h-5 w-7 flex-shrink-0 rounded-sm object-cover ring-1 ring-border" />
+          <img src={flagMap[jogo.time_b]} alt={jogo.time_b} className="h-8 w-12 flex-shrink-0 rounded object-cover ring-1 ring-border" />
         ) : (
-          <div className="h-5 w-7 flex-shrink-0 rounded-sm bg-brand-soft" />
+          <div className="h-8 w-12 flex-shrink-0 rounded bg-brand-soft" />
         )}
         <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_b}</span>
       </div>
@@ -1207,27 +1207,139 @@ function SelecoesTab({ onAbrir }: { onAbrir: (s: Selecao) => void }) {
   );
 }
 
+// ---------- HOOK: classificação ao vivo por grupo ----------
+type EntradaClassificacao = {
+  nome: string;
+  j: number; v: number; e: number; d: number;
+  gp: number; gc: number; sg: number; pts: number;
+};
+
+function useClassificacaoGrupos() {
+  const [partidasGrupo, setPartidasGrupo] = useState<Array<{
+    time_a: string; time_b: string; placar_a: number; placar_b: number; status: string; grupo: string;
+  }>>([]);
+  const [flagMapGrupos, setFlagMapGrupos] = useState<Record<string, string>>({});
+
+  const fetchPartidasGrupo = useCallback(async () => {
+    const { data } = await (supabase as any)
+      .from("partidas")
+      .select("time_a,time_b,placar_a,placar_b,status,grupo")
+      .not("grupo", "is", null);
+    setPartidasGrupo(data ?? []);
+  }, []);
+
+  useEffect(() => {
+    (supabase as any)
+      .from("selecoes")
+      .select("nome,area_bandeira,escudo_url")
+      .then(({ data }: { data: { nome: string; area_bandeira: string | null; escudo_url: string | null }[] | null }) => {
+        if (!data) return;
+        const map: Record<string, string> = {};
+        data.forEach((s) => { map[s.nome] = s.area_bandeira ?? s.escudo_url ?? ""; });
+        setFlagMapGrupos(map);
+      });
+
+    fetchPartidasGrupo();
+
+    const ch = (supabase as any)
+      .channel("classificacao-grupos")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "partidas" }, fetchPartidasGrupo)
+      .subscribe();
+
+    return () => { (supabase as any).removeChannel(ch); };
+  }, [fetchPartidasGrupo]);
+
+  const classificacaoPorGrupo = useMemo(() => {
+    const FINISHED = new Set(["FT", "AET", "PEN"]);
+    const tabelas: Record<string, Record<string, EntradaClassificacao>> = {};
+
+    for (const p of partidasGrupo) {
+      if (!p.grupo) continue;
+      if (!tabelas[p.grupo]) tabelas[p.grupo] = {};
+      for (const nome of [p.time_a, p.time_b]) {
+        if (!tabelas[p.grupo][nome])
+          tabelas[p.grupo][nome] = { nome, j: 0, v: 0, e: 0, d: 0, gp: 0, gc: 0, sg: 0, pts: 0 };
+      }
+      if (!FINISHED.has(p.status)) continue;
+      const a = tabelas[p.grupo][p.time_a];
+      const b = tabelas[p.grupo][p.time_b];
+      a.j++; b.j++;
+      a.gp += p.placar_a; a.gc += p.placar_b;
+      b.gp += p.placar_b; b.gc += p.placar_a;
+      a.sg = a.gp - a.gc; b.sg = b.gp - b.gc;
+      if (p.placar_a > p.placar_b) { a.v++; a.pts += 3; b.d++; }
+      else if (p.placar_b > p.placar_a) { b.v++; b.pts += 3; a.d++; }
+      else { a.e++; a.pts++; b.e++; b.pts++; }
+    }
+
+    const sorted: Record<string, EntradaClassificacao[]> = {};
+    for (const [grupo, tabela] of Object.entries(tabelas)) {
+      sorted[grupo] = Object.values(tabela).sort((x, y) =>
+        y.pts !== x.pts ? y.pts - x.pts : y.sg !== x.sg ? y.sg - x.sg : y.gp - x.gp
+      );
+    }
+    return sorted;
+  }, [partidasGrupo]);
+
+  return { classificacaoPorGrupo, flagMapGrupos };
+}
+
 // ---------- GRUPOS ----------
 function GruposTab({ onVerJogos }: { onVerJogos: (grupo: string) => void }) {
+  const { classificacaoPorGrupo, flagMapGrupos } = useClassificacaoGrupos();
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {grupos.map((g) => {
-        const times = selecoes.filter((s) => s.grupo === g);
+        const tabela = classificacaoPorGrupo[`GROUP_${g}`] ?? [];
         return (
           <div key={g} className="rounded-2xl border border-border bg-card p-4 shadow-card">
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between">
               <div className="text-lg font-extrabold text-brand-dark">Grupo {g}</div>
-              <Badge className="bg-brand-light text-brand-dark hover:bg-brand-light">{times.length} seleções</Badge>
+              <Badge className="bg-brand-light text-brand-dark hover:bg-brand-light">{tabela.length || 4} seleções</Badge>
             </div>
-            <ul className="space-y-2">
-              {times.map((s) => (
-                <li key={s.id} className="flex items-center gap-3 rounded-lg bg-brand-soft/60 p-2 text-sm">
-                  <img src={flagUrl(s.id, 80)} alt={flagAlt(s.id)} loading="lazy" className="h-7 w-10 rounded-sm object-cover ring-1 ring-border" />
-                  <span className="font-medium">{s.nome}</span>
+
+            <div className="mb-1 grid grid-cols-[1.25rem_1fr_1.75rem_1.75rem_1.75rem_2rem] items-center gap-x-1 px-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <span>#</span>
+              <span>Seleção</span>
+              <span className="text-center">J</span>
+              <span className="text-center">SG</span>
+              <span className="text-center">GP</span>
+              <span className="text-center font-bold">Pts</span>
+            </div>
+
+            <ul className="space-y-1">
+              {tabela.map((entry, idx) => (
+                <li
+                  key={entry.nome}
+                  className={`grid grid-cols-[1.25rem_1fr_1.75rem_1.75rem_1.75rem_2rem] items-center gap-x-1 rounded-lg px-2 py-1.5 text-xs ${
+                    idx < 2 ? "bg-green-50 ring-1 ring-green-100" : "bg-brand-soft/40"
+                  }`}
+                >
+                  <span className={`text-center text-[10px] font-bold ${idx < 2 ? "text-green-600" : "text-muted-foreground"}`}>
+                    {idx + 1}
+                  </span>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    {flagMapGrupos[entry.nome] ? (
+                      <img src={flagMapGrupos[entry.nome]} alt={entry.nome} className="h-4 w-6 flex-shrink-0 rounded-sm object-cover ring-1 ring-border" />
+                    ) : (
+                      <div className="h-4 w-6 flex-shrink-0 rounded-sm bg-muted" />
+                    )}
+                    <span className="truncate font-medium">{entry.nome}</span>
+                  </div>
+                  <span className="text-center text-[11px]">{entry.j}</span>
+                  <span className="text-center text-[11px]">{entry.sg > 0 ? `+${entry.sg}` : entry.sg}</span>
+                  <span className="text-center text-[11px]">{entry.gp}</span>
+                  <span className={`text-center text-[11px] font-extrabold tabular-nums ${entry.pts > 0 ? "text-brand" : ""}`}>
+                    {entry.pts}
+                  </span>
                 </li>
               ))}
             </ul>
-            <Button onClick={() => onVerJogos(g)} variant="outline" className="mt-3 w-full">Ver jogos do grupo</Button>
+
+            <Button onClick={() => onVerJogos(g)} variant="outline" className="mt-3 w-full text-xs">
+              Ver jogos do grupo
+            </Button>
           </div>
         );
       })}
