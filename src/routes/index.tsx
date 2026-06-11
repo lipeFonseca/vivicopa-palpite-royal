@@ -394,12 +394,14 @@ function AdminTab() {
     if (logoUrl) localStorage.setItem(LOGO_URL_KEY, logoUrl);
     else localStorage.removeItem(LOGO_URL_KEY);
     localStorage.setItem(LOGO_SIZE_KEY, String(logoSize));
-    toast.success("Logo salva. Será exibida na próxima vez que a tela de login abrir.");
+    window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
+    toast.success("Logo salva.");
   };
 
   const removerLogo = () => {
     localStorage.removeItem(LOGO_URL_KEY);
     setLogoUrl("");
+    window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
     toast.success("Logo removida.");
   };
 
