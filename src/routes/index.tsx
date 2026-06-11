@@ -27,6 +27,7 @@ import { flagUrl, flagAlt } from "@/lib/flags";
 const LOGO_URL_KEY = "vivicopa:logo-url";
 const LOGO_SIZE_KEY = "vivicopa:logo-size";
 const LOGO_HEADER_SIZE_KEY = "vivicopa:logo-header-size";
+const HEADER_BANNER_KEY = "vivicopa:header-banner-url";
 
 const PAISES_SEDE = [
   { id: "usa", nome: "Estados Unidos" },
@@ -381,7 +382,9 @@ function AdminTab() {
   const [logoUrl, setLogoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
   const [logoSize, setLogoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
   const [logoHeaderSize, setLogoHeaderSize] = useState(() => Number(localStorage.getItem(LOGO_HEADER_SIZE_KEY) || 36));
+  const [bannerUrl, setBannerUrl] = useState(() => localStorage.getItem(HEADER_BANNER_KEY) ?? "");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -392,13 +395,24 @@ function AdminTab() {
     e.target.value = "";
   };
 
+  const handleBannerFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setBannerUrl((ev.target?.result as string) ?? "");
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
   const salvarLogo = () => {
     if (logoUrl) localStorage.setItem(LOGO_URL_KEY, logoUrl);
     else localStorage.removeItem(LOGO_URL_KEY);
     localStorage.setItem(LOGO_SIZE_KEY, String(logoSize));
     localStorage.setItem(LOGO_HEADER_SIZE_KEY, String(logoHeaderSize));
+    if (bannerUrl) localStorage.setItem(HEADER_BANNER_KEY, bannerUrl);
+    else localStorage.removeItem(HEADER_BANNER_KEY);
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
-    toast.success("Logo salva.");
+    toast.success("Configurações salvas.");
   };
 
   const removerLogo = () => {
@@ -406,6 +420,13 @@ function AdminTab() {
     setLogoUrl("");
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
     toast.success("Logo removida.");
+  };
+
+  const removerBanner = () => {
+    localStorage.removeItem(HEADER_BANNER_KEY);
+    setBannerUrl("");
+    window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
+    toast.success("Banner removido.");
   };
 
   const trocarSenha = async (event: FormEvent) => {
@@ -571,9 +592,57 @@ function AdminTab() {
           </div>
 
           <div className="flex gap-2">
-            <Button type="button" onClick={salvarLogo}>Salvar logo</Button>
+            <Button type="button" onClick={salvarLogo}>Salvar configurações</Button>
             {logoUrl && (
               <Button type="button" variant="outline" onClick={removerLogo}>Remover logo</Button>
+            )}
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <Label className="mb-1.5 block">Banner atrás do título (barra superior)</Label>
+            <div className="flex gap-2">
+              <Input
+                value={bannerUrl.startsWith("data:") ? "" : bannerUrl}
+                onChange={(e) => setBannerUrl(e.target.value)}
+                placeholder="https://... ou carregue um arquivo"
+                className="flex-1"
+              />
+              <Button type="button" variant="outline" onClick={() => bannerInputRef.current?.click()}>
+                Carregar arquivo
+              </Button>
+              <input
+                ref={bannerInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleBannerFile}
+              />
+            </div>
+            {bannerUrl.startsWith("data:") && (
+              <p className="mt-1 text-xs text-muted-foreground">Arquivo carregado localmente.</p>
+            )}
+            {bannerUrl && (
+              <div className="mt-3 space-y-2">
+                <div
+                  className="flex h-14 items-center gap-3 overflow-hidden rounded-xl px-3"
+                  style={{
+                    backgroundImage: `url(${bannerUrl})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    position: "relative",
+                  }}
+                >
+                  <div className="absolute inset-0 rounded-xl" style={{ background: "rgba(0,0,0,0.30)" }} />
+                  <div className="relative z-10 flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-brand text-white">
+                    <Trophy className="h-4 w-4" />
+                  </div>
+                  <div className="relative z-10 leading-tight">
+                    <div className="text-sm font-bold text-white">Vivicopa</div>
+                    <div className="text-xs text-white/80">Palpites, resenhas e emoção em cada jogo.</div>
+                  </div>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={removerBanner}>Remover banner</Button>
+              </div>
             )}
           </div>
         </div>
