@@ -883,7 +883,7 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
   const isLive = jogo.status === "LIVE" || jogo.status === "HT";
   const isFinished = ["FT", "AET", "PEN"].includes(jogo.status);
   const hora = jogo.inicia_em
-    ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+    ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })
     : "";
 
   return (
