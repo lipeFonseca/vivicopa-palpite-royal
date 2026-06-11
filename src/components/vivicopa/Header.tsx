@@ -24,7 +24,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center" style={{ gap: Math.round((logoHeaderSize / 36) * 8) }}>
           {logoUrl ? (
             <img
               src={logoUrl}
@@ -38,8 +38,8 @@ export function Header() {
             </div>
           )}
           <div className="leading-tight">
-            <div className="text-lg font-bold text-brand-dark">Vivicopa</div>
-            <div className="hidden text-xs text-muted-foreground sm:block">
+            <div className="font-bold text-brand-dark" style={{ fontSize: Math.round((logoHeaderSize / 36) * 18) }}>Vivicopa</div>
+            <div className="hidden text-muted-foreground sm:block" style={{ fontSize: Math.round((logoHeaderSize / 36) * 12) }}>
               Palpites, resenhas e emoção em cada jogo.
             </div>
           </div>
