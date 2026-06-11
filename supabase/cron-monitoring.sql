@@ -1,4 +1,4 @@
--- Run these queries in Lovable/Supabase SQL editor to inspect scheduled jobs.
+-- Run these queries in the Supabase SQL editor to inspect scheduled jobs.
 
 -- Active cron jobs.
 select

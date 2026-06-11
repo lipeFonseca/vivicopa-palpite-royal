@@ -1,4 +1,4 @@
--- Keep the Lovable/Supabase cron jobs represented in source control.
+-- Keep the Supabase cron jobs represented in source control.
 -- These jobs call the public Edge Function that syncs World Cup matches.
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
@@ -23,7 +23,7 @@ select cron.schedule(
   '* * * * *',
   $$
   select net.http_post(
-    url := 'https://uqofvjxczagoqispbrvr.supabase.co/functions/v1/atualizar-placares',
+    url := 'https://zqzhsxfsjqrskxmfpdfz.supabase.co/functions/v1/atualizar-placares',
     headers := '{"Content-Type": "application/json"}'::jsonb,
     body := '{}'::jsonb
   );
@@ -35,7 +35,7 @@ select cron.schedule(
   '0 0 * * *',
   $$
   select net.http_post(
-    url := 'https://uqofvjxczagoqispbrvr.supabase.co/functions/v1/atualizar-placares?seed=true',
+    url := 'https://zqzhsxfsjqrskxmfpdfz.supabase.co/functions/v1/atualizar-placares?seed=true',
     headers := '{"Content-Type": "application/json"}'::jsonb,
     body := '{}'::jsonb
   );

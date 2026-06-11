@@ -10,7 +10,6 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
   return (
@@ -38,7 +37,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    console.error("[RootErrorBoundary]", error);
   }, [error]);
 
   return (
@@ -79,12 +78,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "ViViCopa" },
       { name: "description", content: "um sistema para diverção livre entre a familia que visa dar palpites sobre os jogos da copa de 2026" },
-      { name: "author", content: "Lovable" },
+      { name: "author", content: "ViViCopa" },
       { property: "og:title", content: "ViViCopa" },
       { property: "og:description", content: "um sistema para diverção livre entre a familia que visa dar palpites sobre os jogos da copa de 2026" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "ViViCopa" },
       { name: "twitter:description", content: "um sistema para diverção livre entre a familia que visa dar palpites sobre os jogos da copa de 2026" },
       { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/2af06ee4-fdce-40b0-ad89-332bc70386c2" },
