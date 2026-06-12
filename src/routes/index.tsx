@@ -926,8 +926,8 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
 
   return (
     <div className={`rounded-xl ${isLive ? "bg-red-50 ring-1 ring-red-200" : "bg-muted/40"}`}>
-      <div className="flex items-center gap-2 px-3 py-2.5">
-        <div className="w-12 flex-shrink-0 text-center">
+      <div className="flex items-center gap-2 px-3 py-5">
+        <div className="w-20 flex-shrink-0 text-center">
           {isLive ? (
             <div className="flex flex-col items-center gap-0.5">
               <div className="flex items-center gap-1">
@@ -940,28 +940,28 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
               <span className="text-[10px] font-semibold text-red-400">{minuteLabel}</span>
             </div>
           ) : (
-            <span className={`text-xs font-medium ${isFinished ? "text-muted-foreground" : "text-brand"}`}>{hora}</span>
+            <span className={`text-base font-medium ${isFinished ? "text-muted-foreground" : "text-brand"}`}>{hora}</span>
           )}
         </div>
 
         <div className="flex flex-1 items-center justify-end gap-2">
-          <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_a}</span>
+          <span className={`truncate text-lg font-bold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_a}</span>
           <FlagBox url={flagMap[jogo.time_a]} label={jogo.time_a} className="h-32 w-48 rounded-md" />
         </div>
 
-        <div className="w-14 flex-shrink-0 text-center">
+        <div className="w-24 flex-shrink-0 text-center">
           {isLive || isFinished ? (
-            <span className={`text-sm font-extrabold tabular-nums ${isLive ? "text-red-500" : "text-muted-foreground"}`}>
+            <span className={`text-2xl font-extrabold tabular-nums ${isLive ? "text-red-500" : "text-muted-foreground"}`}>
               {jogo.placar_a} – {jogo.placar_b}
             </span>
           ) : (
-            <span className="text-xs font-bold text-muted-foreground">vs</span>
+            <span className="text-2xl font-extrabold text-muted-foreground">vs</span>
           )}
         </div>
 
         <div className="flex flex-1 items-center gap-2">
           <FlagBox url={flagMap[jogo.time_b]} label={jogo.time_b} className="h-32 w-48 rounded-md" />
-          <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_b}</span>
+          <span className={`truncate text-lg font-bold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_b}</span>
         </div>
       </div>
 
