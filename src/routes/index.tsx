@@ -283,7 +283,7 @@ function Vivicopa() {
           </TabsContent>
 
           <TabsContent value="meus" className="mt-6">
-            <MeusPalpitesTab palpites={palpites} resultadosPorJogo={resultadosPorJogo} onEditar={(p) => {
+            <MeusPalpitesTab usuario={authProfile} palpites={palpites} resultadosPorJogo={resultadosPorJogo} onEditar={(p) => {
               const j = jogos.find((x) => x.id === p.jogoId);
               if (j) abrirPalpite(j, p);
             }} onExcluir={async (p) => {
@@ -1610,25 +1610,25 @@ function GruposTab({ onVerJogos }: { onVerJogos: (grupo: string) => void }) {
 }
 
 // ---------- MEUS PALPITES ----------
-function MeusPalpitesTab({ palpites, onEditar, onExcluir, resultadosPorJogo }: {
+function MeusPalpitesTab({ usuario, palpites, onEditar, onExcluir, resultadosPorJogo }: {
+  usuario: AuthProfile;
   palpites: Palpite[];
   onEditar: (p: Palpite) => void;
   onExcluir: (p: Palpite) => void;
   resultadosPorJogo?: Map<string, JogoResultado>;
 }) {
-  const [nome, setNome] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("vivicopa:usuario") ?? "" : ""));
-  const meus = palpites.filter((p) => p.usuario.toLowerCase() === nome.trim().toLowerCase());
+  const meus = palpites.filter((p) => p.usuarioId === usuario.id);
 
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
-        <Label htmlFor="nome">Seu nome</Label>
-        <Input id="nome" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome para ver seus palpites" />
+        <div className="text-xs font-semibold uppercase tracking-wide text-brand">Meus palpites</div>
+        <div className="mt-1 text-sm text-muted-foreground">
+          Exibindo palpites registrados por <span className="font-semibold text-brand-dark">{usuario.username}</span>.
+        </div>
       </div>
 
-      {nome.trim() === "" ? (
-        <div className="py-10 text-center text-muted-foreground">Informe seu nome para ver seus palpites.</div>
-      ) : meus.length === 0 ? (
+      {meus.length === 0 ? (
         <div className="py-10 text-center text-muted-foreground">Você ainda não fez palpites.</div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">

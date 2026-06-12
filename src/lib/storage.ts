@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface Palpite {
   id: string;
+  usuarioId: string;
   usuario: string;
   jogoId: string;
   selecaoA: string;
@@ -15,6 +16,7 @@ export interface Palpite {
 function dbRowToPalpite(row: Record<string, unknown>): Palpite {
   return {
     id: row.id as string,
+    usuarioId: row.usuario_id as string,
     usuario: row.usuario_nome as string,
     jogoId: row.jogo_id as string,
     selecaoA: row.selecao_a as string,
