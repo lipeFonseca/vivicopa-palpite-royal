@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import type { Jogo } from "@/data/worldcup2026";
 import { getSelecao } from "@/data/worldcup2026";
 import { salvarPalpite, atualizarPalpite, type Palpite } from "@/lib/storage";
+import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
 
 interface Props {
   jogo: Jogo | null;
@@ -40,8 +41,13 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
   if (!jogo) return null;
   const a = getSelecao(jogo.selecaoA);
   const b = getSelecao(jogo.selecaoB);
+  const bloqueado = palpiteBloqueadoParaJogo(jogo);
 
   const handleSave = async () => {
+    if (bloqueado) {
+      toast.error("Palpites encerrados para este jogo.");
+      return;
+    }
     setSalvando(true);
     const palpite: Palpite = {
       id: editar?.id ?? crypto.randomUUID(),
@@ -85,24 +91,29 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
               <Label className="flex items-center gap-1">
                 <span>{a?.bandeiraEmoji}</span> {a?.nome}
               </Label>
-              <Input type="number" min={0} value={placarA} onChange={(e) => setPlacarA(Number(e.target.value))} />
+              <Input type="number" min={0} value={placarA} disabled={bloqueado} onChange={(e) => setPlacarA(Number(e.target.value))} />
             </div>
             <div className="pb-2 text-lg font-bold text-brand">x</div>
             <div>
               <Label className="flex items-center gap-1">
                 <span>{b?.bandeiraEmoji}</span> {b?.nome}
               </Label>
-              <Input type="number" min={0} value={placarB} onChange={(e) => setPlacarB(Number(e.target.value))} />
+              <Input type="number" min={0} value={placarB} disabled={bloqueado} onChange={(e) => setPlacarB(Number(e.target.value))} />
             </div>
           </div>
           <div>
             <Label htmlFor="coment">Comentário (opcional)</Label>
-            <Textarea id="coment" value={comentario} onChange={(e) => setComentario(e.target.value)} placeholder="Mande sua resenha..." />
+            <Textarea id="coment" value={comentario} disabled={bloqueado} onChange={(e) => setComentario(e.target.value)} placeholder="Mande sua resenha..." />
           </div>
+          {bloqueado && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              Palpites encerrados para este jogo.
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={salvando}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={salvando} className="bg-gradient-brand text-white hover:opacity-90">
+          <Button onClick={handleSave} disabled={salvando || bloqueado} className="bg-gradient-brand text-white hover:opacity-90">
             {salvando ? "Salvando..." : "Salvar palpite"}
           </Button>
         </DialogFooter>

@@ -51,23 +51,26 @@ export async function carregarPalpites(): Promise<Palpite[]> {
 }
 
 export async function salvarPalpite(p: Palpite, userId: string): Promise<void> {
-  await supabase
+  const { error } = await supabase
     .from("palpites_familia" as never)
     .insert(palpiteToDbRow(p, userId) as never);
+  if (error) throw error;
 }
 
 export async function atualizarPalpite(p: Palpite, userId: string): Promise<void> {
-  await supabase
+  const { error } = await supabase
     .from("palpites_familia" as never)
     .update(palpiteToDbRow(p, userId) as never)
     .eq("id", p.id)
     .eq("usuario_id", userId);
+  if (error) throw error;
 }
 
 export async function excluirPalpite(id: string, userId: string): Promise<void> {
-  await supabase
+  const { error } = await supabase
     .from("palpites_familia" as never)
     .delete()
     .eq("id", id)
     .eq("usuario_id", userId);
+  if (error) throw error;
 }

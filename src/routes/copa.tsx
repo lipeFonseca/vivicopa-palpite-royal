@@ -78,6 +78,13 @@ function ordemFase(fase?: string | null) {
   return idx === -1 ? FASES_ORDEM.length : idx;
 }
 
+function partidaBloqueadaParaPalpite(partida: Partida, now = new Date()) {
+  if (partida.status !== "NS") return true;
+  if (!partida.inicia_em) return true;
+  const inicio = new Date(partida.inicia_em);
+  return Number.isFinite(inicio.getTime()) && inicio.getTime() <= now.getTime();
+}
+
 function CopaPage() {
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -317,9 +324,13 @@ function PartidaCard({
 
   const aoVivo = AO_VIVO.has(partida.status);
   const finalizado = ["FT", "AET", "PEN"].includes(partida.status);
-  const bloqueado = partida.status !== "NS";
+  const bloqueado = partidaBloqueadaParaPalpite(partida);
 
   const salvar = async () => {
+    if (bloqueado) {
+      toast.error("Palpites encerrados para este jogo.");
+      return;
+    }
     setSalvando(true);
     const { error } = await supabase
       .from("palpites")
@@ -410,6 +421,9 @@ function PartidaCard({
           <Button size="sm" onClick={salvar} disabled={salvando}>
             {palpite ? "Atualizar" : "Salvar"}
           </Button>
+        )}
+        {bloqueado && !finalizado && (
+          <span className="text-xs text-muted-foreground">Palpites encerrados</span>
         )}
       </div>
     </div>
@@ -583,7 +597,7 @@ function ChaveCard({
   const finalizado = ["FT", "AET", "PEN"].includes(partida.status);
   const vencedorA = finalizado && partida.placar_a > partida.placar_b;
   const vencedorB = finalizado && partida.placar_b > partida.placar_a;
-  const bloqueado = partida.status !== "NS";
+  const bloqueado = partidaBloqueadaParaPalpite(partida);
   const indefinido =
     !partida.time_a || partida.time_a === "A definir" ||
     !partida.time_b || partida.time_b === "A definir";
@@ -599,6 +613,10 @@ function ChaveCard({
 
   const salvar = async () => {
     if (!userId) return;
+    if (bloqueado) {
+      toast.error("Palpites encerrados para este jogo.");
+      return;
+    }
     setSalvando(true);
     const { error } = await supabase.from("palpites").upsert(
       { usuario_id: userId, partida_id: partida.id, palpite_a: a, palpite_b: b },

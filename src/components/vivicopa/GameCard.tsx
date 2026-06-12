@@ -5,11 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import type { Jogo } from "@/data/worldcup2026";
 import { getSelecao } from "@/data/worldcup2026";
 import { flagUrl, flagAlt } from "@/lib/flags";
+import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
 
 export type GameResult = {
   placar_a: number;
   placar_b: number;
   status: string;
+  inicia_em?: string | null;
   minuto?: number | null;
   acrescimos?: number | null;
 };
@@ -28,8 +30,9 @@ export function GameCard({ jogo, qtdPalpites, resultado, onPalpitar, onComentari
   const temPalpite = qtdPalpites > 0;
   const isLive = ["LIVE", "HT", "ET", "PEN_LIVE"].includes(resultado?.status ?? "");
   const isFinished = ["FT", "AET", "PEN"].includes(resultado?.status ?? "");
+  const palpiteBloqueado = palpiteBloqueadoParaJogo(jogo, resultado);
   const mostrarPlacar = Boolean(resultado && (isLive || isFinished));
-  const statusLabel = resultado?.status === "HT" ? "Intervalo" : isLive ? "Ao vivo" : isFinished ? "Finalizado" : null;
+  const statusLabel = resultado?.status === "HT" ? "Intervalo" : isLive ? "Ao vivo" : isFinished ? "Finalizado" : palpiteBloqueado ? "Palpites encerrados" : null;
   const [aberto, setAberto] = useState(false);
 
   return (
@@ -95,8 +98,8 @@ export function GameCard({ jogo, qtdPalpites, resultado, onPalpitar, onComentari
       </div>
 
       <div className="flex gap-2 p-4 pt-3">
-        <Button onClick={() => onPalpitar(jogo)} className="flex-1 bg-gradient-brand text-white hover:opacity-90">
-          Dar palpite
+        <Button onClick={() => onPalpitar(jogo)} disabled={palpiteBloqueado} className="flex-1 bg-gradient-brand text-white hover:opacity-90">
+          {palpiteBloqueado ? "Palpites encerrados" : "Dar palpite"}
         </Button>
         <Button onClick={() => onComentarios(jogo)} variant="outline" size="icon" aria-label="Ver comentários">
           <MessageSquare className="h-4 w-4" />

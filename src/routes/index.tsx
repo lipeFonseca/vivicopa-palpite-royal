@@ -25,6 +25,7 @@ import { getStats } from "@/data/selecaoStats";
 import { isValidUsername, normalizeUsername, usernameToEmail } from "@/lib/auth";
 import { carregarPalpites, excluirPalpite, type Palpite } from "@/lib/storage";
 import { flagUrl, flagAlt, flagUrlFromFifaCode } from "@/lib/flags";
+import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
 
 const LOGO_URL_KEY = "vivicopa:logo-url";
 const LOGO_SIZE_KEY = "vivicopa:logo-size";
@@ -99,6 +100,7 @@ function Vivicopa() {
   const [comentariosJogo, setComentariosJogo] = useState<Jogo | null>(null);
   const [selecaoModal, setSelecaoModal] = useState<Selecao | null>(null);
   const [filtroGrupoInicial, setFiltroGrupoInicial] = useState<string>("todos");
+  const resultadosPorJogo = useResultadosPorJogo();
 
   const carregarSessao = async () => {
     setAuthLoading(true);
@@ -179,7 +181,15 @@ function Vivicopa() {
     return m;
   }, [palpites]);
 
-  const abrirPalpite = (j: Jogo, p?: Palpite) => { setJogoSel(j); setEditar(p ?? null); setModalOpen(true); };
+  const abrirPalpite = (j: Jogo, p?: Palpite) => {
+    if (palpiteBloqueadoParaJogo(j, resultadosPorJogo.get(j.id))) {
+      toast.error("Palpites encerrados para este jogo.");
+      return;
+    }
+    setJogoSel(j);
+    setEditar(p ?? null);
+    setModalOpen(true);
+  };
   const abrirComentarios = (j: Jogo) => setComentariosJogo(j);
 
   if (authLoading) {
@@ -246,13 +256,14 @@ function Vivicopa() {
               palpitesPorJogo={palpitesPorJogo}
               onPalpitar={(j) => abrirPalpite(j)}
               onComentarios={abrirComentarios}
+              resultadosPorJogo={resultadosPorJogo}
               grupoInicial={filtroGrupoInicial}
               onConsumirGrupo={() => setFiltroGrupoInicial("todos")}
             />
           </TabsContent>
 
           <TabsContent value="calendario" className="mt-6">
-            <CalendarioTab palpitesPorJogo={palpitesPorJogo} onPalpitar={(j) => abrirPalpite(j)} onComentarios={abrirComentarios} />
+            <CalendarioTab palpitesPorJogo={palpitesPorJogo} onPalpitar={(j) => abrirPalpite(j)} onComentarios={abrirComentarios} resultadosPorJogo={resultadosPorJogo} />
           </TabsContent>
 
           <TabsContent value="selecoes" className="mt-6">
@@ -272,10 +283,18 @@ function Vivicopa() {
           </TabsContent>
 
           <TabsContent value="meus" className="mt-6">
-            <MeusPalpitesTab palpites={palpites} onEditar={(p) => {
+            <MeusPalpitesTab palpites={palpites} resultadosPorJogo={resultadosPorJogo} onEditar={(p) => {
               const j = jogos.find((x) => x.id === p.jogoId);
               if (j) abrirPalpite(j, p);
-            }} onExcluir={async (id) => { await excluirPalpite(id, authProfile.id); await refresh(); }} />
+            }} onExcluir={async (p) => {
+              const j = jogos.find((x) => x.id === p.jogoId);
+              if (j && palpiteBloqueadoParaJogo(j, resultadosPorJogo.get(j.id))) {
+                toast.error("Palpites encerrados para este jogo.");
+                return;
+              }
+              await excluirPalpite(p.id, authProfile.id);
+              await refresh();
+            }} />
           </TabsContent>
 
           <TabsContent value="tabela" className="mt-6">
@@ -1336,10 +1355,11 @@ function useResultadosPorJogo() {
   return resultados;
 }
 // ---------- JOGOS ----------
-function JogosTab({ palpitesPorJogo, onPalpitar, onComentarios, grupoInicial = "todos", onConsumirGrupo }: {
+function JogosTab({ palpitesPorJogo, onPalpitar, onComentarios, resultadosPorJogo, grupoInicial = "todos", onConsumirGrupo }: {
   palpitesPorJogo: Map<string, number>;
   onPalpitar: (j: Jogo) => void;
   onComentarios: (j: Jogo) => void;
+  resultadosPorJogo: Map<string, JogoResultado>;
   grupoInicial?: string;
   onConsumirGrupo?: () => void;
 }) {
@@ -1347,8 +1367,6 @@ function JogosTab({ palpitesPorJogo, onPalpitar, onComentarios, grupoInicial = "
   const [filtroData, setFiltroData] = useState("");
   const [filtroSelecao, setFiltroSelecao] = useState("todas");
   const [filtroStatus, setFiltroStatus] = useState("todos");
-  const resultadosPorJogo = useResultadosPorJogo();
-
   useEffect(() => {
     if (grupoInicial && grupoInicial !== "todos") {
       setFiltroGrupo(grupoInicial);
@@ -1592,10 +1610,11 @@ function GruposTab({ onVerJogos }: { onVerJogos: (grupo: string) => void }) {
 }
 
 // ---------- MEUS PALPITES ----------
-function MeusPalpitesTab({ palpites, onEditar, onExcluir }: {
+function MeusPalpitesTab({ palpites, onEditar, onExcluir, resultadosPorJogo }: {
   palpites: Palpite[];
   onEditar: (p: Palpite) => void;
-  onExcluir: (id: string) => void;
+  onExcluir: (p: Palpite) => void;
+  resultadosPorJogo?: Map<string, JogoResultado>;
 }) {
   const [nome, setNome] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("vivicopa:usuario") ?? "" : ""));
   const meus = palpites.filter((p) => p.usuario.toLowerCase() === nome.trim().toLowerCase());
@@ -1617,6 +1636,7 @@ function MeusPalpitesTab({ palpites, onEditar, onExcluir }: {
             const j = jogos.find((x) => x.id === p.jogoId);
             const a = getSelecao(p.selecaoA);
             const b = getSelecao(p.selecaoB);
+            const bloqueado = j ? palpiteBloqueadoParaJogo(j, resultadosPorJogo?.get(j.id)) : true;
             return (
               <div key={p.id} className="rounded-2xl border border-border bg-card p-4 shadow-card">
                 <div className="mb-2 flex items-center justify-between text-xs">
@@ -1630,9 +1650,12 @@ function MeusPalpitesTab({ palpites, onEditar, onExcluir }: {
                 </div>
                 {p.comentario && <div className="mt-2 rounded-lg bg-brand-soft p-2 text-sm italic">"{p.comentario}"</div>}
                 <div className="mt-3 flex gap-2">
-                  <Button size="sm" variant="outline" className="flex-1" onClick={() => onEditar(p)}>Editar</Button>
-                  <Button size="sm" variant="destructive" className="flex-1" onClick={() => onExcluir(p.id)}>Excluir</Button>
+                  <Button size="sm" variant="outline" className="flex-1" disabled={bloqueado} onClick={() => onEditar(p)}>Editar</Button>
+                  <Button size="sm" variant="destructive" className="flex-1" disabled={bloqueado} onClick={() => onExcluir(p)}>Excluir</Button>
                 </div>
+                {bloqueado && (
+                  <div className="mt-2 text-center text-xs text-muted-foreground">Palpites encerrados para este jogo.</div>
+                )}
               </div>
             );
           })}
@@ -1916,13 +1939,12 @@ function useCalendarioResultados() {
   return resultados;
 }
 // ---------- CALENDÁRIO ----------
-function CalendarioTab({ palpitesPorJogo, onPalpitar, onComentarios }: {
+function CalendarioTab({ palpitesPorJogo, onPalpitar, onComentarios, resultadosPorJogo }: {
   palpitesPorJogo: Map<string, number>;
   onPalpitar: (j: Jogo) => void;
   onComentarios: (j: Jogo) => void;
+  resultadosPorJogo: Map<string, JogoResultado>;
 }) {
-  const resultadosPorJogo = useCalendarioResultados();
-
   const porDia = useMemo(() => {
     const map = new Map<string, Jogo[]>();
     [...jogos]
@@ -1964,6 +1986,7 @@ function CalendarioTab({ palpitesPorJogo, onPalpitar, onComentarios }: {
                 const resultado = resultadosPorJogo.get(j.id);
                 const aoVivo = isPartidaAoVivo(resultado?.status);
                 const finalizada = isPartidaFinalizada(resultado?.status);
+                const bloqueado = palpiteBloqueadoParaJogo(j, resultado);
                 const mostrarPlacar = Boolean(resultado && (aoVivo || finalizada));
                 return (
                   <div key={j.id} className={`flex items-center gap-3 rounded-2xl border bg-card p-3 shadow-card ${aoVivo ? "border-red-200 bg-red-50" : "border-border"}`}>
@@ -1996,7 +2019,9 @@ function CalendarioTab({ palpitesPorJogo, onPalpitar, onComentarios }: {
                         <span className="max-w-[110px] truncate">{j.cidade}</span>
                       </div>
                       <div className="flex gap-1">
-                        <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => onPalpitar(j)}>Palpitar</Button>
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" disabled={bloqueado} onClick={() => onPalpitar(j)}>
+                          {bloqueado ? "Encerrado" : "Palpitar"}
+                        </Button>
                         <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => onComentarios(j)} aria-label="Comentários">
                           <MessageSquare className="h-3.5 w-3.5" />
                         </Button>
