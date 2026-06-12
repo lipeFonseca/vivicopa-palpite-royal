@@ -29,6 +29,7 @@ const LOGO_SIZE_KEY = "vivicopa:logo-size";
 const LOGO_HEADER_SIZE_KEY = "vivicopa:logo-header-size";
 const HEADER_BANNER_KEY = "vivicopa:header-banner-url";
 const HERO_BANNER_KEY = "vivicopa:hero-banner-url";
+const FAVICON_URL_KEY = "vivicopa:favicon-url";
 
 const PAISES_SEDE = [
   { id: "usa", nome: "Estados Unidos" },
@@ -54,7 +55,38 @@ export const Route = createFileRoute("/")({
   component: Vivicopa,
 });
 
+
+function applyFavicon(url: string) {
+  if (typeof document === "undefined") return;
+  const selector = "link[rel='icon'][data-vivicopa='true']";
+  let link = document.querySelector<HTMLLinkElement>(selector);
+  if (!url) {
+    link?.remove();
+    return;
+  }
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "icon";
+    link.dataset.vivicopa = "true";
+    document.head.appendChild(link);
+  }
+  link.href = url;
+}
+
+function useConfiguredFavicon() {
+  useEffect(() => {
+    const sync = () => applyFavicon(localStorage.getItem(FAVICON_URL_KEY) ?? "");
+    sync();
+    window.addEventListener("vivicopa:favicon-changed", sync);
+    window.addEventListener("vivicopa:logo-changed", sync);
+    return () => {
+      window.removeEventListener("vivicopa:favicon-changed", sync);
+      window.removeEventListener("vivicopa:logo-changed", sync);
+    };
+  }, []);
+}
 function Vivicopa() {
+  useConfiguredFavicon();
   const [authLoading, setAuthLoading] = useState(true);
   const [authProfile, setAuthProfile] = useState<AuthProfile | null>(null);
   const [aba, setAba] = useState("inicio");
@@ -127,7 +159,12 @@ function Vivicopa() {
       if (cfg.hero_banner_url) localStorage.setItem(HERO_BANNER_KEY, cfg.hero_banner_url);
       else localStorage.removeItem(HERO_BANNER_KEY);
     }
+    if (cfg.favicon_url !== undefined) {
+      if (cfg.favicon_url) localStorage.setItem(FAVICON_URL_KEY, cfg.favicon_url);
+      else localStorage.removeItem(FAVICON_URL_KEY);
+    }
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
+    window.dispatchEvent(new CustomEvent("vivicopa:favicon-changed"));
   };
 
   useEffect(() => {
@@ -422,9 +459,11 @@ function AdminTab() {
   const [logoHeaderSize, setLogoHeaderSize] = useState(() => Number(localStorage.getItem(LOGO_HEADER_SIZE_KEY) || 36));
   const [bannerUrl, setBannerUrl] = useState(() => localStorage.getItem(HEADER_BANNER_KEY) ?? "");
   const [heroBannerUrl, setHeroBannerUrl] = useState(() => localStorage.getItem(HERO_BANNER_KEY) ?? "");
+  const [faviconUrl, setFaviconUrl] = useState(() => localStorage.getItem(FAVICON_URL_KEY) ?? "");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const heroBannerInputRef = useRef<HTMLInputElement>(null);
+  const faviconInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -453,6 +492,15 @@ function AdminTab() {
     e.target.value = "";
   };
 
+
+  const handleFaviconFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setFaviconUrl((ev.target?.result as string) ?? "");
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
   const salvarLogo = async () => {
     const rows = [
       { chave: "logo_url", valor: logoUrl, atualizado_em: new Date().toISOString() },
@@ -460,6 +508,7 @@ function AdminTab() {
       { chave: "logo_header_size", valor: String(logoHeaderSize), atualizado_em: new Date().toISOString() },
       { chave: "header_banner_url", valor: bannerUrl, atualizado_em: new Date().toISOString() },
       { chave: "hero_banner_url", valor: heroBannerUrl, atualizado_em: new Date().toISOString() },
+      { chave: "favicon_url", valor: faviconUrl, atualizado_em: new Date().toISOString() },
     ];
     const { error } = await supabase.from("app_config" as never).upsert(rows as never, { onConflict: "chave" });
     if (error) { toast.error("Erro ao salvar configurações."); return; }
@@ -468,7 +517,9 @@ function AdminTab() {
     localStorage.setItem(LOGO_HEADER_SIZE_KEY, String(logoHeaderSize));
     if (bannerUrl) localStorage.setItem(HEADER_BANNER_KEY, bannerUrl); else localStorage.removeItem(HEADER_BANNER_KEY);
     if (heroBannerUrl) localStorage.setItem(HERO_BANNER_KEY, heroBannerUrl); else localStorage.removeItem(HERO_BANNER_KEY);
+    if (faviconUrl) localStorage.setItem(FAVICON_URL_KEY, faviconUrl); else localStorage.removeItem(FAVICON_URL_KEY);
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
+    window.dispatchEvent(new CustomEvent("vivicopa:favicon-changed"));
     toast.success("Configurações salvas.");
   };
 
@@ -496,6 +547,14 @@ function AdminTab() {
     toast.success("Banner da tela inicial removido.");
   };
 
+
+  const removerFavicon = async () => {
+    await supabase.from("app_config" as never).update({ valor: "", atualizado_em: new Date().toISOString() } as never).eq("chave" as never, "favicon_url");
+    localStorage.removeItem(FAVICON_URL_KEY);
+    setFaviconUrl("");
+    window.dispatchEvent(new CustomEvent("vivicopa:favicon-changed"));
+    toast.success("Favicon removido.");
+  };
   const trocarSenha = async (event: FormEvent) => {
     event.preventDefault();
     if (novaSenha.length < 6) {
@@ -658,6 +717,46 @@ function AdminTab() {
             </div>
           </div>
 
+
+          <div className="border-t border-border pt-4">
+            <Label className="mb-1.5 block">Favicon do site</Label>
+            <div className="flex gap-2">
+              <Input
+                value={faviconUrl.startsWith("data:") ? "" : faviconUrl}
+                onChange={(e) => setFaviconUrl(e.target.value)}
+                placeholder="https://... ou carregue um arquivo"
+                className="flex-1"
+              />
+              <Button type="button" variant="outline" onClick={() => faviconInputRef.current?.click()}>
+                Carregar arquivo
+              </Button>
+              <input
+                ref={faviconInputRef}
+                type="file"
+                accept="image/png,image/svg+xml,image/x-icon,image/vnd.microsoft.icon,image/*"
+                className="hidden"
+                onChange={handleFaviconFile}
+              />
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-brand-soft">
+                {faviconUrl ? (
+                  <img src={faviconUrl} alt="Prévia do favicon" className="h-6 w-6 object-contain" />
+                ) : (
+                  <Shield className="h-5 w-5 text-brand" />
+                )}
+              </div>
+              <div className="flex-1 text-xs text-muted-foreground">
+                Use uma imagem quadrada, preferencialmente PNG, SVG ou ICO.
+              </div>
+              {faviconUrl && (
+                <Button type="button" variant="outline" size="sm" onClick={removerFavicon}>Remover favicon</Button>
+              )}
+            </div>
+            {faviconUrl.startsWith("data:") && (
+              <p className="mt-1 text-xs text-muted-foreground">Arquivo carregado localmente.</p>
+            )}
+          </div>
           <div className="flex gap-2">
             <Button type="button" onClick={salvarLogo}>Salvar configurações</Button>
             {logoUrl && (
