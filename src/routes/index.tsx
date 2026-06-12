@@ -926,6 +926,7 @@ type PartidaDestaque = {
 };
 
 function useJogosHoje() {
+  const [jogosAoVivo, setJogosAoVivo] = useState<PartidaDestaque[]>([]);
   const [jogosHoje, setJogosHoje] = useState<PartidaDestaque[]>([]);
   const [tituloSecao, setTituloSecao] = useState("Jogos de Hoje");
   const [flagMap, setFlagMap] = useState<Record<string, string>>({});
@@ -933,6 +934,19 @@ function useJogosHoje() {
   const fetchJogos = useCallback(async () => {
     try {
       const sb = supabase as any;
+      const selectCols = "id, time_a, time_b, placar_a, placar_b, status, inicia_em, minuto, acrescimos, gols";
+      const liveStatuses = ["LIVE", "HT", "ET", "PEN_LIVE"];
+
+      const { data: aoVivo } = await sb
+        .from("partidas")
+        .select(selectCols)
+        .in("status", liveStatuses)
+        .order("inicia_em", { ascending: true });
+
+      const partidasAoVivo = (aoVivo as PartidaDestaque[] | null) ?? [];
+      setJogosAoVivo(partidasAoVivo);
+      const idsAoVivo = new Set(partidasAoVivo.map((j) => j.id));
+
       // Janela "hoje" em horário de Brasília (UTC-3)
       const brasiliaHoje = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const inicioHoje = new Date(brasiliaHoje + "T03:00:00.000Z");
@@ -940,29 +954,31 @@ function useJogosHoje() {
 
       const { data: hoje } = await sb
         .from("partidas")
-        .select("id, time_a, time_b, placar_a, placar_b, status, inicia_em, minuto, acrescimos, gols")
+        .select(selectCols)
         .gte("inicia_em", inicioHoje.toISOString())
         .lt("inicia_em", fimHoje.toISOString())
         .order("inicia_em", { ascending: true });
 
-      if (hoje && hoje.length > 0) {
-        setJogosHoje(hoje as PartidaDestaque[]);
+      const partidasHoje = ((hoje as PartidaDestaque[] | null) ?? []).filter((j) => !idsAoVivo.has(j.id));
+      if (partidasHoje.length > 0) {
+        setJogosHoje(partidasHoje);
         setTituloSecao("Jogos de Hoje");
         return;
       }
 
-      // Sem jogos hoje: pega os próximos 3 jogos
+      // Sem jogos hoje: pega os próximos 3 jogos que ainda não começaram.
       const { data: proximos } = await sb
         .from("partidas")
-        .select("id, time_a, time_b, placar_a, placar_b, status, inicia_em, minuto, acrescimos, gols")
+        .select(selectCols)
         .in("status", ["NS"])
         .gte("inicia_em", new Date().toISOString())
         .order("inicia_em", { ascending: true })
         .limit(3);
 
-      setJogosHoje((proximos as PartidaDestaque[] | null) ?? []);
+      setJogosHoje(((proximos as PartidaDestaque[] | null) ?? []).filter((j) => !idsAoVivo.has(j.id)));
       setTituloSecao("Próximos Jogos");
     } catch {
+      setJogosAoVivo([]);
       setJogosHoje([]);
     }
   }, []);
@@ -989,9 +1005,8 @@ function useJogosHoje() {
     return () => { (supabase as any).removeChannel(ch); };
   }, [fetchJogos]);
 
-  return { jogosHoje, tituloSecao, flagMap };
+  return { jogosAoVivo, jogosHoje, tituloSecao, flagMap };
 }
-
 // Renders a flag/crest using CSS background-image so SVG and PNG images
 // always fill the container at the declared size with no layout flash.
 function FlagBox({ url, label, className }: { url?: string; label: string; className?: string }) {
@@ -1104,7 +1119,7 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
     return () => window.removeEventListener("vivicopa:logo-changed", sync);
   }, []);
 
-  const { jogosHoje, tituloSecao, flagMap } = useJogosHoje();
+  const { jogosAoVivo, jogosHoje, tituloSecao, flagMap } = useJogosHoje();
 
   const proximo = useMemo(() => {
     const hoje = new Date().toISOString().slice(0, 10);
@@ -1184,10 +1199,10 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
         <StatCard label="Grupos" value={grupos.length} />
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wide text-brand">{tituloSecao}</span>
-          {jogosHoje.some((j) => j.status === "LIVE" || j.status === "HT") && (
+      {jogosAoVivo.length > 0 && (
+        <div className="rounded-2xl border border-red-200 bg-card p-5 shadow-card">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wide text-red-500">Jogos ao vivo</span>
             <span className="flex items-center gap-1 text-[10px] font-bold text-red-500">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
@@ -1195,7 +1210,16 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
               </span>
               Ao vivo
             </span>
-          )}
+          </div>
+          <div className="flex flex-col gap-2">
+            {jogosAoVivo.map((j) => <JogoRow key={j.id} jogo={j} flagMap={flagMap} />)}
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-brand">{tituloSecao}</span>
         </div>
         {jogosHoje.length > 0 ? (
           <div className="flex flex-col gap-2">
@@ -1220,7 +1244,6 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
           </div>
         )}
       </div>
-
       <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
         <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
           <Flag className="h-3.5 w-3.5" /> Seleções participantes
