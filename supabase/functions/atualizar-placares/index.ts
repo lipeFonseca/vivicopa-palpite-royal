@@ -140,6 +140,26 @@ Deno.serve(async (req) => {
     scheduled: 0,
   };
 
+  if (url.searchParams.get("mode") === "fast-live") {
+    try {
+      const liveData = await client.live(COMP) as Record<string, unknown>[];
+      const changedLive = liveData.filter((m) => changed(m, storedById.get(String(m.id))));
+      if (changedLive.length) {
+        await sb.from("partidas").upsert(changedLive.map((m) => mapFullRow(m, agora)));
+        summary.live = changedLive.length;
+      }
+    } catch (err) {
+      console.error("Fast live error:", (err as Error).message);
+    }
+
+    return Response.json({
+      ok: true,
+      mode: "fast-live",
+      ...summary,
+      rateLimit: client.info(),
+    });
+  }
+
   const scheduledKey = "football_data:scheduled:wc";
   let canFetchScheduled = true;
   const { data: scheduledState } = await sb
