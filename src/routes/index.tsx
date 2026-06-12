@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { Trophy, Flag, Users, MessageSquare, Calendar, ListChecks, Table as TableIcon, Home as HomeIcon, CalendarDays, MapPin, Award, GitBranch, Shield, LogOut, KeyRound, UserPlus, ImageIcon } from "lucide-react";
@@ -1020,6 +1022,32 @@ function FlagBox({ url, label, className }: { url?: string; label: string; class
   );
 }
 
+function FlagNameButton({ url, label }: { url?: string; label: string }) {
+  return (
+    <TooltipProvider delayDuration={120}>
+      <Popover>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                title={label}
+                aria-label={label}
+                className="rounded-md outline-none ring-brand/40 transition focus-visible:ring-2"
+              >
+                <FlagBox url={url} label={label} className="h-16 w-24 rounded-md sm:h-32 sm:w-48" />
+              </button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent className="hidden sm:block">{label}</TooltipContent>
+        </Tooltip>
+        <PopoverContent className="w-auto px-3 py-2 text-sm font-semibold sm:hidden">
+          {label}
+        </PopoverContent>
+      </Popover>
+    </TooltipProvider>
+  );
+}
 function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<string, string> }) {
   const isLive = jogo.status === "LIVE" || jogo.status === "HT" || jogo.status === "ET" || jogo.status === "PEN_LIVE";
   const isHalfTime = jogo.status === "HT";
@@ -1040,8 +1068,8 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
 
   return (
     <div className={`rounded-xl ${isLive ? "bg-red-50 ring-1 ring-red-200" : "bg-muted/40"}`}>
-      <div className="flex flex-col gap-3 px-3 py-4 sm:flex-row sm:items-center sm:gap-2 sm:py-5">
-        <div className="w-full flex-shrink-0 text-center sm:w-20">
+      <div className="grid grid-cols-[3.25rem_minmax(0,1fr)_4rem_minmax(0,1fr)] items-center gap-2 px-2 py-4 sm:grid-cols-[5rem_minmax(0,1fr)_6rem_minmax(0,1fr)] sm:px-3 sm:py-5">
+        <div className="min-w-0 text-center">
           {isLive ? (
             <div className="flex flex-col items-center gap-0.5">
               <div className="flex items-center gap-1">
@@ -1058,24 +1086,22 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
           )}
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col-reverse items-center justify-center gap-2 sm:flex-row sm:justify-end">
-          <span className={`max-w-full truncate text-center text-base font-bold sm:text-left sm:text-lg ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_a}</span>
-          <FlagBox url={flagMap[jogo.time_a]} label={jogo.time_a} className="h-20 w-32 rounded-md sm:h-32 sm:w-48" />
+        <div className="flex min-w-0 justify-center sm:justify-end">
+          <FlagNameButton url={flagMap[jogo.time_a]} label={jogo.time_a} />
         </div>
 
-        <div className="w-full flex-shrink-0 text-center sm:w-24">
+        <div className="min-w-0 text-center">
           {isLive || isFinished ? (
-            <span className={`text-2xl font-extrabold tabular-nums ${isLive ? "text-red-500" : "text-muted-foreground"}`}>
+            <span className={`text-lg font-extrabold tabular-nums sm:text-2xl ${isLive ? "text-red-500" : "text-muted-foreground"}`}>
               {jogo.placar_a} – {jogo.placar_b}
             </span>
           ) : (
-            <span className="text-2xl font-extrabold text-muted-foreground">vs</span>
+            <span className="text-lg font-extrabold text-muted-foreground sm:text-2xl">vs</span>
           )}
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2 sm:flex-row sm:justify-start">
-          <FlagBox url={flagMap[jogo.time_b]} label={jogo.time_b} className="h-20 w-32 rounded-md sm:h-32 sm:w-48" />
-          <span className={`max-w-full truncate text-center text-base font-bold sm:text-left sm:text-lg ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_b}</span>
+        <div className="flex min-w-0 justify-center sm:justify-start">
+          <FlagNameButton url={flagMap[jogo.time_b]} label={jogo.time_b} />
         </div>
       </div>
 
