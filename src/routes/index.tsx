@@ -1040,8 +1040,8 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
 
   return (
     <div className={`rounded-xl ${isLive ? "bg-red-50 ring-1 ring-red-200" : "bg-muted/40"}`}>
-      <div className="flex items-center gap-2 px-3 py-5">
-        <div className="w-20 flex-shrink-0 text-center">
+      <div className="flex flex-col gap-3 px-3 py-4 sm:flex-row sm:items-center sm:gap-2 sm:py-5">
+        <div className="w-full flex-shrink-0 text-center sm:w-20">
           {isLive ? (
             <div className="flex flex-col items-center gap-0.5">
               <div className="flex items-center gap-1">
@@ -1058,12 +1058,12 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
           )}
         </div>
 
-        <div className="flex flex-1 items-center justify-end gap-2">
-          <span className={`truncate text-lg font-bold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_a}</span>
-          <FlagBox url={flagMap[jogo.time_a]} label={jogo.time_a} className="h-32 w-48 rounded-md" />
+        <div className="flex min-w-0 flex-1 flex-col-reverse items-center justify-center gap-2 sm:flex-row sm:justify-end">
+          <span className={`max-w-full truncate text-center text-base font-bold sm:text-left sm:text-lg ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_a}</span>
+          <FlagBox url={flagMap[jogo.time_a]} label={jogo.time_a} className="h-20 w-32 rounded-md sm:h-32 sm:w-48" />
         </div>
 
-        <div className="w-24 flex-shrink-0 text-center">
+        <div className="w-full flex-shrink-0 text-center sm:w-24">
           {isLive || isFinished ? (
             <span className={`text-2xl font-extrabold tabular-nums ${isLive ? "text-red-500" : "text-muted-foreground"}`}>
               {jogo.placar_a} – {jogo.placar_b}
@@ -1073,9 +1073,9 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
           )}
         </div>
 
-        <div className="flex flex-1 items-center gap-2">
-          <FlagBox url={flagMap[jogo.time_b]} label={jogo.time_b} className="h-32 w-48 rounded-md" />
-          <span className={`truncate text-lg font-bold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_b}</span>
+        <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2 sm:flex-row sm:justify-start">
+          <FlagBox url={flagMap[jogo.time_b]} label={jogo.time_b} className="h-20 w-32 rounded-md sm:h-32 sm:w-48" />
+          <span className={`max-w-full truncate text-center text-base font-bold sm:text-left sm:text-lg ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_b}</span>
         </div>
       </div>
 
@@ -1181,7 +1181,7 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
         <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
           <MapPin className="h-3.5 w-3.5" /> Países-sede da Copa 2026
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {PAISES_SEDE.map((p) => (
             <div key={p.id} className="flex flex-col items-center gap-2 rounded-xl bg-brand-soft p-3 text-center">
               <img src={flagUrl(p.id, 160)} alt={flagAlt(p.id)} className="h-14 w-20 rounded-md object-cover shadow-md ring-1 ring-border" />
