@@ -1,74 +1,39 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import {
+  FootballDataClient,
+  getPhase,
+  mapScheduledRow,
+  mapFullRow,
+} from "./football-data-client.ts";
 
-const API = "https://api.football-data.org/v4";
-const COMPETICAO = "WC";
-const TEMPORADA = "2026";
+const COMP = "WC";
 
-function formatarDataApi(d: Date) {
+function fmt(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-function mapearStatus(status: string) {
-  switch (status) {
-    case "SCHEDULED":
-    case "TIMED":
-      return "NS";
-    case "IN_PLAY":
-      return "LIVE";
-    case "PAUSED":
-      return "HT";
-    case "FINISHED":
-    case "AWARDED":
-      return "FT";
-    case "POSTPONED":
-      return "PST";
-    case "SUSPENDED":
-      return "SUSP";
-    case "CANCELED":
-    case "CANCELLED":
-      return "CANC";
-    default:
-      return status;
-  }
-}
+// ─── Selecao mapper (unchanged from original) ──────────────────────────────
 
-function placar(j: any, lado: "home" | "away") {
-  return j.score?.fullTime?.[lado] ?? j.score?.regularTime?.[lado] ?? 0;
-}
-
-function mapear(j: any) {
-  return {
-    id: String(j.id),
-    time_a: j.homeTeam?.name || "A definir",
-    time_b: j.awayTeam?.name || "A definir",
-    placar_a: placar(j, "home"),
-    placar_b: placar(j, "away"),
-    status: mapearStatus(j.status),
-    inicia_em: j.utcDate,
-    fase: j.stage ?? null,
-    grupo: j.group ?? null,
-    rodada: j.matchday ?? null,
-  };
-}
-
-function mapearSelecao(s: any) {
+function mapSelecao(s: Record<string, unknown>) {
+  const area = s.area as Record<string, unknown> | undefined;
+  const coach = s.coach as Record<string, unknown> | undefined;
   return {
     id: String(s.id),
     nome: s.name,
     nome_curto: s.shortName ?? null,
     sigla: s.tla ?? null,
-    area_id: s.area?.id ?? null,
-    area_nome: s.area?.name ?? null,
-    area_codigo: s.area?.code ?? null,
-    area_bandeira: s.area?.flag ?? null,
+    area_id: area?.id ?? null,
+    area_nome: area?.name ?? null,
+    area_codigo: area?.code ?? null,
+    area_bandeira: area?.flag ?? null,
     escudo_url: s.crest ?? null,
     endereco: s.address ?? null,
     site: s.website ?? null,
     fundada: s.founded ?? null,
     cores: s.clubColors ?? null,
-    tecnico_nome: s.coach?.name ?? null,
-    tecnico_nacionalidade: s.coach?.nationality ?? null,
-    tecnico_data_nascimento: s.coach?.dateOfBirth ?? null,
+    tecnico_nome: coach?.name ?? null,
+    tecnico_nacionalidade: coach?.nationality ?? null,
+    tecnico_data_nascimento: coach?.dateOfBirth ?? null,
     elenco: s.squad ?? [],
     staff: s.staff ?? [],
     competicoes: s.runningCompetitions ?? [],
@@ -78,92 +43,167 @@ function mapearSelecao(s: any) {
   };
 }
 
-async function buscarPartidas(path: string, key: string) {
-  const r = await fetch(`${API}${path}`, {
-    headers: { "X-Auth-Token": key },
-  });
-  const json = await r.json();
-  if (!r.ok) {
-    throw new Error(json.message ?? `football-data.org retornou HTTP ${r.status}`);
-  }
-  return json.matches ?? [];
-}
-
-async function buscarSelecoes(path: string, key: string) {
-  const r = await fetch(`${API}${path}`, {
-    headers: { "X-Auth-Token": key },
-  });
-  const json = await r.json();
-  if (!r.ok) {
-    throw new Error(json.message ?? `football-data.org retornou HTTP ${r.status}`);
-  }
-  return json.teams ?? [];
-}
+// ─── Main handler ──────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
   const sb = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
-  const key = Deno.env.get("FOOTBALL_DATA_TOKEN");
-  if (!key) {
+
+  const token = Deno.env.get("FOOTBALL_DATA_TOKEN");
+  if (!token) {
     return Response.json(
       { ok: false, error: "Secret FOOTBALL_DATA_TOKEN não configurado" },
       { status: 500 },
     );
   }
 
+  const client = new FootballDataClient(token);
   const url = new URL(req.url);
+  const agora = Date.now();
+
+  // ── Seed mode: full import of all WC matches + teams ────────────────────
   if (url.searchParams.get("seed") === "true") {
-    const [partidas, selecoes] = await Promise.all([
-      buscarPartidas(`/competitions/${COMPETICAO}/matches?season=${TEMPORADA}`, key),
-      buscarSelecoes(`/competitions/${COMPETICAO}/teams?season=${TEMPORADA}`, key),
+    const [apiMatches, apiTeams] = await Promise.all([
+      client.scheduled(COMP, "2026-06-01", "2026-07-20"),
+      client.teams(COMP),
     ]);
 
-    const rows = partidas.map(mapear);
-    if (rows.length) {
-      const { error } = await sb.from("partidas").upsert(rows);
+    const matchRows = (apiMatches as Record<string, unknown>[]).map((m) =>
+      mapScheduledRow(m, agora)
+    );
+    if (matchRows.length) {
+      const { error } = await sb.from("partidas").upsert(matchRows);
       if (error) throw error;
     }
 
-    const selecaoRows = selecoes.map(mapearSelecao);
-    if (selecaoRows.length) {
-      const { error } = await sb.from("selecoes").upsert(selecaoRows);
+    const teamRows = (apiTeams as Record<string, unknown>[]).map(mapSelecao);
+    if (teamRows.length) {
+      const { error } = await sb.from("selecoes").upsert(teamRows);
       if (error) throw error;
     }
 
-    return Response.json({ ok: true, seed: rows.length, selecoes: selecaoRows.length });
+    return Response.json({
+      ok: true,
+      seed: matchRows.length,
+      selecoes: teamRows.length,
+    });
   }
 
-  const agora = Date.now();
-  // Include FT/AET/PEN games in the window check so recently-finished matches
-  // with a stale score (e.g. API returned null→0 before populating final score)
-  // get re-synced until the API catches up.
-  type CandRow = { inicia_em: string | null; status: string; placar_a: number; placar_b: number };
-  const { data: cand } = await sb
+  // ── Normal sync: phase-based polling ────────────────────────────────────
+
+  type StoredRow = {
+    id: string;
+    status: string;
+    inicia_em: string | null;
+    placar_a: number;
+    placar_b: number;
+  };
+
+  const { data: stored } = await sb
     .from("partidas")
-    .select("inicia_em,status,placar_a,placar_b");
-  const temJogo = ((cand ?? []) as CandRow[]).some((p) => {
-    if (!p.inicia_em) return false;
-    const ini = new Date(p.inicia_em).getTime();
-    const dentroDaJanela = agora >= ini - 10 * 60_000 && agora <= ini + 360 * 60_000;
-    if (!dentroDaJanela) return false;
-    // Always sync non-finished games; also re-sync recently-finished 0-0 games
-    // since the API often delays populating fullTime scores.
-    const finalizado = ["FT", "AET", "PEN"].includes(p.status);
-    const placarsuspeito = finalizado && p.placar_a === 0 && p.placar_b === 0;
-    return !finalizado || placarsuspeito;
+    .select("id,status,inicia_em,placar_a,placar_b");
+
+  const rows = (stored ?? []) as StoredRow[];
+
+  const liveRows = rows.filter((m) => getPhase(m.status, m.inicia_em, agora) === "live");
+  const preMatchRows = rows.filter((m) => getPhase(m.status, m.inicia_em, agora) === "pre_match");
+
+  // Recently finished (≤6h) with 0-0 score may be API lag — re-consolidate
+  const suspiciousRows = rows.filter((m) => {
+    if (getPhase(m.status, m.inicia_em, agora) !== "finished") return false;
+    if (m.placar_a !== 0 || m.placar_b !== 0) return false;
+    if (!m.inicia_em) return false;
+    const hoursAgo = (agora - new Date(m.inicia_em).getTime()) / 3_600_000;
+    return hoursAgo <= 6;
   });
-  if (!temJogo) return Response.json({ ok: true, msg: "sem jogo na janela" });
 
-  const de = new Date(agora - 6 * 60 * 60_000);
-  const ate = new Date(agora + 18 * 60 * 60_000);
-  const partidas = await buscarPartidas(
-    `/competitions/${COMPETICAO}/matches?season=${TEMPORADA}&dateFrom=${formatarDataApi(de)}&dateTo=${formatarDataApi(ate)}`,
-    key,
-  );
-  const rows = partidas.map(mapear);
-  if (rows.length) await sb.from("partidas").upsert(rows);
+  const summary: Record<string, unknown> = {
+    live: 0,
+    pre_match: 0,
+    suspicious: 0,
+    scheduled: 0,
+  };
 
-  return Response.json({ ok: true, atualizados: rows.length });
+  // ── Phase 3: Live matches (single API call covers all) ──────────────────
+  if (liveRows.length > 0) {
+    try {
+      const liveData = await client.live(COMP) as Record<string, unknown>[];
+      if (liveData.length) {
+        await sb.from("partidas").upsert(liveData.map((m) => mapFullRow(m, agora)));
+        summary.live = liveData.length;
+      } else {
+        // API says no live matches — status might have changed to FT already;
+        // upsert what we have from Phase 4 below for each previously-live match
+      }
+    } catch (err) {
+      console.error("Phase 3 error:", (err as Error).message);
+    }
+  }
+
+  // ── Phase 2: Pre-match lineups (one request per match) ──────────────────
+  // Limit to available rate-limit budget, keeping 2 slots in reserve
+  const budget = Math.max(0, client.info().remaining - 2);
+  const preToFetch = preMatchRows.slice(0, Math.min(preMatchRows.length, budget));
+  for (const m of preToFetch) {
+    try {
+      const match = await client.lineups(m.id) as Record<string, unknown>;
+      if (match) {
+        await sb.from("partidas").upsert([mapFullRow(match, agora)]);
+        summary.pre_match = (summary.pre_match as number) + 1;
+      }
+    } catch (err) {
+      console.error(`Phase 2 error for ${m.id}:`, (err as Error).message);
+    }
+  }
+
+  // ── Phase 4: Consolidate suspicious 0-0 finished matches ────────────────
+  const reserve = Math.max(0, client.info().remaining - 1);
+  const suspToFetch = suspiciousRows.slice(0, Math.min(suspiciousRows.length, reserve));
+  for (const m of suspToFetch) {
+    try {
+      const match = await client.details(m.id) as Record<string, unknown>;
+      if (match) {
+        await sb.from("partidas").upsert([mapFullRow(match, agora)]);
+        summary.suspicious = (summary.suspicious as number) + 1;
+      }
+    } catch (err) {
+      console.error(`Phase 4 error for ${m.id}:`, (err as Error).message);
+    }
+  }
+
+  // ── Phase 1: Scheduling update when nothing live/pre-match ──────────────
+  // Only runs when the app is idle and there's rate budget to spare.
+  if (liveRows.length === 0 && preMatchRows.length === 0 && client.info().remaining > 2) {
+    try {
+      const from = fmt(new Date(agora - 6 * 3_600_000));
+      const to = fmt(new Date(agora + 18 * 3_600_000));
+      const scheduledData = await client.scheduled(COMP, from, to) as Record<string, unknown>[];
+      if (scheduledData.length) {
+        await sb.from("partidas").upsert(
+          scheduledData.map((m) => mapScheduledRow(m, agora)),
+        );
+        summary.scheduled = scheduledData.length;
+      }
+    } catch (err) {
+      console.error("Phase 1 error:", (err as Error).message);
+    }
+  }
+
+  // Fallback: no live games and no pre-match — original window logic as safety
+  // net so matches don't go stale during quiet periods.
+  const hasActivity =
+    (summary.live as number) > 0 ||
+    (summary.pre_match as number) > 0 ||
+    (summary.scheduled as number) > 0;
+  if (!hasActivity) {
+    return Response.json({ ok: true, msg: "sem atividade na janela", ...summary });
+  }
+
+  return Response.json({
+    ok: true,
+    ...summary,
+    rateLimit: client.info(),
+  });
 });

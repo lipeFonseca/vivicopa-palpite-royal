@@ -802,6 +802,17 @@ function TabTrigger({ value, icon, children }: { value: string; icon: React.Reac
 }
 
 // ---------- HOOK: jogos de hoje + ao vivo via Supabase ----------
+type GoalEvent = {
+  minuto: number;
+  acrescimos: number | null;
+  tipo: "REGULAR" | "OWN" | "PENALTY";
+  time_nome: string | null;
+  time_id: number | null;
+  marcador_nome: string | null;
+  placar_a: number;
+  placar_b: number;
+};
+
 type PartidaDestaque = {
   id: string;
   time_a: string;
@@ -810,6 +821,9 @@ type PartidaDestaque = {
   placar_b: number;
   status: string;
   inicia_em: string | null;
+  minuto?: number | null;
+  acrescimos?: number | null;
+  gols?: GoalEvent[] | null;
 };
 
 function useJogosHoje() {
@@ -827,7 +841,7 @@ function useJogosHoje() {
 
       const { data: hoje } = await sb
         .from("partidas")
-        .select("id, time_a, time_b, placar_a, placar_b, status, inicia_em")
+        .select("id, time_a, time_b, placar_a, placar_b, status, inicia_em, minuto, acrescimos, gols")
         .gte("inicia_em", inicioHoje.toISOString())
         .lt("inicia_em", fimHoje.toISOString())
         .order("inicia_em", { ascending: true });
@@ -841,7 +855,7 @@ function useJogosHoje() {
       // Sem jogos hoje: pega os próximos 3 jogos
       const { data: proximos } = await sb
         .from("partidas")
-        .select("id, time_a, time_b, placar_a, placar_b, status, inicia_em")
+        .select("id, time_a, time_b, placar_a, placar_b, status, inicia_em, minuto, acrescimos, gols")
         .in("status", ["NS"])
         .gte("inicia_em", new Date().toISOString())
         .order("inicia_em", { ascending: true })
@@ -893,47 +907,88 @@ function FlagBox({ url, label, className }: { url?: string; label: string; class
 }
 
 function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<string, string> }) {
-  const isLive = jogo.status === "LIVE" || jogo.status === "HT";
+  const isLive = jogo.status === "LIVE" || jogo.status === "HT" || jogo.status === "ET" || jogo.status === "PEN_LIVE";
+  const isHalfTime = jogo.status === "HT";
   const isFinished = ["FT", "AET", "PEN"].includes(jogo.status);
   const hora = jogo.inicia_em
     ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })
     : "";
 
+  const goals = Array.isArray(jogo.gols) ? jogo.gols : [];
+  const goalsA = goals.filter((g) => g.time_nome === jogo.time_a);
+  const goalsB = goals.filter((g) => g.time_nome === jogo.time_b);
+
+  const minuteLabel = isHalfTime
+    ? "HT"
+    : jogo.minuto
+    ? `${jogo.minuto}${jogo.acrescimos ? `+${jogo.acrescimos}` : ""}'`
+    : "LIVE";
+
   return (
-    <div className={`flex items-center gap-2 rounded-xl px-3 py-2.5 ${isLive ? "bg-red-50 ring-1 ring-red-200" : "bg-muted/40"}`}>
-      <div className="w-12 flex-shrink-0 text-center">
-        {isLive ? (
-          <div className="flex items-center justify-center gap-1">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
+    <div className={`rounded-xl ${isLive ? "bg-red-50 ring-1 ring-red-200" : "bg-muted/40"}`}>
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        <div className="w-12 flex-shrink-0 text-center">
+          {isLive ? (
+            <div className="flex flex-col items-center gap-0.5">
+              <div className="flex items-center gap-1">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
+                </span>
+                <span className="text-[10px] font-bold text-red-500">LIVE</span>
+              </div>
+              <span className="text-[10px] font-semibold text-red-400">{minuteLabel}</span>
+            </div>
+          ) : (
+            <span className={`text-xs font-medium ${isFinished ? "text-muted-foreground" : "text-brand"}`}>{hora}</span>
+          )}
+        </div>
+
+        <div className="flex flex-1 items-center justify-end gap-2">
+          <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_a}</span>
+          <FlagBox url={flagMap[jogo.time_a]} label={jogo.time_a} className="h-32 w-48 rounded-md" />
+        </div>
+
+        <div className="w-14 flex-shrink-0 text-center">
+          {isLive || isFinished ? (
+            <span className={`text-sm font-extrabold tabular-nums ${isLive ? "text-red-500" : "text-muted-foreground"}`}>
+              {jogo.placar_a} – {jogo.placar_b}
             </span>
-            <span className="text-[10px] font-bold text-red-500">{jogo.status === "HT" ? "HT" : "LIVE"}</span>
+          ) : (
+            <span className="text-xs font-bold text-muted-foreground">vs</span>
+          )}
+        </div>
+
+        <div className="flex flex-1 items-center gap-2">
+          <FlagBox url={flagMap[jogo.time_b]} label={jogo.time_b} className="h-32 w-48 rounded-md" />
+          <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_b}</span>
+        </div>
+      </div>
+
+      {/* Goal events — shown when there are scored goals */}
+      {(goalsA.length > 0 || goalsB.length > 0) && (
+        <div className="grid grid-cols-[1fr_auto_1fr] gap-x-2 border-t border-red-100 px-3 pb-2.5 pt-1.5 text-[10px] text-muted-foreground">
+          <div className="space-y-0.5 text-right">
+            {goalsA.map((g, i) => (
+              <div key={i}>
+                {g.marcador_nome ?? "—"}
+                {g.tipo === "OWN" ? " (cg)" : g.tipo === "PENALTY" ? " (pen)" : ""}{" "}
+                <span className="font-semibold text-foreground/70">{g.minuto}{g.acrescimos ? `+${g.acrescimos}` : ""}'</span>
+              </div>
+            ))}
           </div>
-        ) : (
-          <span className={`text-xs font-medium ${isFinished ? "text-muted-foreground" : "text-brand"}`}>{hora}</span>
-        )}
-      </div>
-
-      <div className="flex flex-1 items-center justify-end gap-2">
-        <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_a}</span>
-        <FlagBox url={flagMap[jogo.time_a]} label={jogo.time_a} className="h-32 w-48 rounded-md" />
-      </div>
-
-      <div className="w-14 flex-shrink-0 text-center">
-        {isLive || isFinished ? (
-          <span className={`text-sm font-extrabold tabular-nums ${isLive ? "text-red-500" : "text-muted-foreground"}`}>
-            {jogo.placar_a} – {jogo.placar_b}
-          </span>
-        ) : (
-          <span className="text-xs font-bold text-muted-foreground">vs</span>
-        )}
-      </div>
-
-      <div className="flex flex-1 items-center gap-2">
-        <FlagBox url={flagMap[jogo.time_b]} label={jogo.time_b} className="h-32 w-48 rounded-md" />
-        <span className={`truncate text-xs font-semibold ${isFinished ? "text-muted-foreground" : "text-foreground"}`}>{jogo.time_b}</span>
-      </div>
+          <div className="flex items-start justify-center pt-0.5 text-base leading-none">⚽</div>
+          <div className="space-y-0.5">
+            {goalsB.map((g, i) => (
+              <div key={i}>
+                <span className="font-semibold text-foreground/70">{g.minuto}{g.acrescimos ? `+${g.acrescimos}` : ""}'</span>{" "}
+                {g.marcador_nome ?? "—"}
+                {g.tipo === "OWN" ? " (cg)" : g.tipo === "PENALTY" ? " (pen)" : ""}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
