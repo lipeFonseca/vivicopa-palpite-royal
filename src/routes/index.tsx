@@ -16,7 +16,7 @@ import { Slider } from "@/components/ui/slider";
 
 import { Header } from "@/components/vivicopa/Header";
 import { Footer } from "@/components/vivicopa/Footer";
-import { GameCard } from "@/components/vivicopa/GameCard";
+import { GameCard, type GameResult } from "@/components/vivicopa/GameCard";
 import { PredictionModal } from "@/components/vivicopa/PredictionModal";
 import { ChaveamentoAutomatico } from "@/components/vivicopa/ChaveamentoAutomatico";
 import { supabase } from "@/integrations/supabase/client";
@@ -1296,6 +1296,45 @@ function StatCard({ label, value }: { label: string; value: number }) {
   );
 }
 
+
+type JogoResultado = GameResult & {
+  id: string;
+  inicia_em: string | null;
+};
+
+function useResultadosPorJogo() {
+  const [resultados, setResultados] = useState<Map<string, JogoResultado>>(new Map());
+
+  const fetchResultados = useCallback(async () => {
+    const sb = supabase as any;
+    const { data } = await sb
+      .from("partidas")
+      .select("id,placar_a,placar_b,status,inicia_em,minuto,acrescimos")
+      .order("inicia_em", { ascending: true })
+      .limit(jogos.length);
+
+    const ordenados = [...jogos].sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora));
+    const map = new Map<string, JogoResultado>();
+    ((data ?? []) as JogoResultado[]).forEach((partida, index) => {
+      const jogo = ordenados[index];
+      if (jogo) map.set(jogo.id, partida);
+    });
+    setResultados(map);
+  }, []);
+
+  useEffect(() => {
+    fetchResultados().catch(() => setResultados(new Map()));
+
+    const ch = (supabase as any)
+      .channel("jogos-resultados")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "partidas" }, fetchResultados)
+      .subscribe();
+
+    return () => { (supabase as any).removeChannel(ch); };
+  }, [fetchResultados]);
+
+  return resultados;
+}
 // ---------- JOGOS ----------
 function JogosTab({ palpitesPorJogo, onPalpitar, onComentarios, grupoInicial = "todos", onConsumirGrupo }: {
   palpitesPorJogo: Map<string, number>;
@@ -1308,6 +1347,7 @@ function JogosTab({ palpitesPorJogo, onPalpitar, onComentarios, grupoInicial = "
   const [filtroData, setFiltroData] = useState("");
   const [filtroSelecao, setFiltroSelecao] = useState("todas");
   const [filtroStatus, setFiltroStatus] = useState("todos");
+  const resultadosPorJogo = useResultadosPorJogo();
 
   useEffect(() => {
     if (grupoInicial && grupoInicial !== "todos") {
@@ -1371,7 +1411,7 @@ function JogosTab({ palpitesPorJogo, onPalpitar, onComentarios, grupoInicial = "
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {lista.map((j) => (
           <GameCard key={j.id} jogo={j} qtdPalpites={palpitesPorJogo.get(j.id) ?? 0}
-            onPalpitar={onPalpitar} onComentarios={onComentarios} />
+            resultado={resultadosPorJogo.get(j.id)} onPalpitar={onPalpitar} onComentarios={onComentarios} />
         ))}
         {lista.length === 0 && <div className="col-span-full py-10 text-center text-muted-foreground">Nenhum jogo encontrado com esses filtros.</div>}
       </div>

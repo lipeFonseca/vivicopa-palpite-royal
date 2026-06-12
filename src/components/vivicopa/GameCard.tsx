@@ -6,22 +6,35 @@ import type { Jogo } from "@/data/worldcup2026";
 import { getSelecao } from "@/data/worldcup2026";
 import { flagUrl, flagAlt } from "@/lib/flags";
 
+export type GameResult = {
+  placar_a: number;
+  placar_b: number;
+  status: string;
+  minuto?: number | null;
+  acrescimos?: number | null;
+};
+
 interface Props {
   jogo: Jogo;
   qtdPalpites: number;
+  resultado?: GameResult;
   onPalpitar: (j: Jogo) => void;
   onComentarios: (j: Jogo) => void;
 }
 
-export function GameCard({ jogo, qtdPalpites, onPalpitar, onComentarios }: Props) {
+export function GameCard({ jogo, qtdPalpites, resultado, onPalpitar, onComentarios }: Props) {
   const a = getSelecao(jogo.selecaoA);
   const b = getSelecao(jogo.selecaoB);
   const temPalpite = qtdPalpites > 0;
+  const isLive = ["LIVE", "HT", "ET", "PEN_LIVE"].includes(resultado?.status ?? "");
+  const isFinished = ["FT", "AET", "PEN"].includes(resultado?.status ?? "");
+  const mostrarPlacar = Boolean(resultado && (isLive || isFinished));
+  const statusLabel = resultado?.status === "HT" ? "Intervalo" : isLive ? "Ao vivo" : isFinished ? "Finalizado" : null;
   const [aberto, setAberto] = useState(false);
 
   return (
-    <div className={`overflow-hidden rounded-2xl border bg-card shadow-card transition hover:shadow-brand ${temPalpite ? "border-brand/40" : "border-border"}`}>
-      <div className="flex items-center justify-between bg-gradient-brand px-4 py-2 text-white">
+    <div className={`overflow-hidden rounded-2xl border bg-card shadow-card transition hover:shadow-brand ${isLive ? "border-red-200 ring-1 ring-red-100" : temPalpite ? "border-brand/40" : "border-border"}`}>
+      <div className={`flex items-center justify-between px-4 py-2 text-white ${isLive ? "bg-red-500" : "bg-gradient-brand"}`}>
         <Badge className="bg-white/20 text-white hover:bg-white/20">Grupo {jogo.grupo}</Badge>
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${temPalpite ? "bg-white text-brand-dark" : "bg-white/20 text-white"}`}>
           {qtdPalpites} palpite{qtdPalpites === 1 ? "" : "s"}
@@ -38,8 +51,17 @@ export function GameCard({ jogo, qtdPalpites, onPalpitar, onComentarios }: Props
           />
           <div className="mt-2 text-sm font-bold text-brand-dark">{a?.nome}</div>
         </div>
-        <div className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          vs
+        <div className="text-center">
+          {mostrarPlacar ? (
+            <div className={`text-xl font-extrabold tabular-nums ${isLive ? "text-red-500" : "text-brand-dark"}`}>
+              {resultado?.placar_a} – {resultado?.placar_b}
+            </div>
+          ) : (
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">vs</div>
+          )}
+          {statusLabel && (
+            <div className={`mt-1 text-[10px] font-bold uppercase ${isLive ? "text-red-500" : "text-muted-foreground"}`}>{statusLabel}</div>
+          )}
         </div>
         <div className="flex flex-col items-center text-center">
           <img
