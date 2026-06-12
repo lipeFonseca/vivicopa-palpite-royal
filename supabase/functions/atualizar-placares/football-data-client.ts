@@ -5,12 +5,12 @@
  * Implements the 4-phase polling strategy:
  *   Phase 1 — scheduled:  GET /competitions/{code}/matches?dateFrom=…&dateTo=…  (light)
  *   Phase 2 — pre_match:  GET /matches/{id}  + X-Unfold-Lineups              (~60 min before)
- *   Phase 3 — live:       GET /competitions/{code}/matches?status=LIVE  (1 req → all games)
+ *   Phase 3 — live:       GET /matches?status=LIVE  (1 req -> all live games)
  *   Phase 4 — finished:   GET /matches/{id}  + all unfold headers        (consolidation)
  *
  * Rate-limit budget is tracked per-instance (per Edge Function invocation).
- * The client reads X-RequestsAvailable / X-RequestCounter-Reset response headers
- * and refuses to make a request when only 1 slot remains as a safety buffer.
+ * The client serializes requests, reads X-RequestsAvailable /
+ * X-RequestCounter-Reset response headers and keeps 2 slots in reserve.
  */
 
 const API_BASE = "https://api.football-data.org/v4";
@@ -82,11 +82,13 @@ export interface MatchStats {
 export class FootballDataClient {
   private token: string;
   private rl: RateLimitInfo;
+  private queue: Promise<void>;
 
   constructor(token: string) {
     this.token = token;
-    // Conservative starting assumption: 9 remaining (keeps 1 in reserve always)
+    // Conservative starting assumption for Free plan: keep 2 in reserve.
     this.rl = { remaining: 9, resetAt: Date.now() + 60_000, callsMade: 0 };
+    this.queue = Promise.resolve();
   }
 
   /** Current rate-limit snapshot. */
@@ -100,35 +102,53 @@ export class FootballDataClient {
       this.rl.remaining = 9;
       this.rl.resetAt = Date.now() + 60_000;
     }
-    return this.rl.remaining > need; // always keep ≥1 in reserve
+    return this.rl.remaining > need + 1;
   }
 
-  private async get(path: string, extra: Record<string, string> = {}): Promise<unknown> {
+  private get(path: string, extra: Record<string, string> = {}): Promise<unknown> {
+    const next = this.queue.then(() => this.request(path, extra));
+    this.queue = next.then(() => undefined, () => undefined);
+    return next;
+  }
+
+  private async request(path: string, extra: Record<string, string> = {}): Promise<unknown> {
     if (!this.hasCapacity()) {
-      const wait = Math.ceil((this.rl.resetAt - Date.now()) / 1000);
-      throw new Error(`rate-limit: ${this.rl.remaining} restantes, reset em ${wait}s`);
+      const waitMs = Math.max(1_000, this.rl.resetAt - Date.now());
+      await sleep(waitMs);
     }
 
-    const res = await fetch(`${API_BASE}${path}`, {
-      headers: { "X-Auth-Token": this.token, ...extra },
-    });
+    let backoffMs = 1_000;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const res = await fetch(`${API_BASE}${path}`, {
+        headers: { "X-Auth-Token": this.token, ...extra },
+      });
 
-    // Sync rate-limit state from response headers
+      this.updateRateLimit(res);
+
+      if (res.status === 429) {
+        const resetMs = Math.max(1_000, this.rl.resetAt - Date.now());
+        const retryAfterMs = parseInt(res.headers.get("Retry-After") ?? "0", 10) * 1_000;
+        await sleep(Math.max(resetMs, retryAfterMs, backoffMs));
+        backoffMs *= 2;
+        continue;
+      }
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+        throw new Error((body.message as string) ?? `HTTP ${res.status} em ${path}`);
+      }
+      return res.json();
+    }
+
+    throw new Error(`429 Too Many Requests persistente em ${path}`);
+  }
+
+  private updateRateLimit(res: Response) {
     const rem = res.headers.get("X-RequestsAvailable");
     const resetSecs = res.headers.get("X-RequestCounter-Reset");
     if (rem !== null) this.rl.remaining = parseInt(rem, 10);
     if (resetSecs !== null) this.rl.resetAt = Date.now() + parseInt(resetSecs, 10) * 1_000;
     this.rl.callsMade++;
-
-    if (res.status === 429) {
-      const after = parseInt(res.headers.get("Retry-After") ?? "60", 10);
-      throw new Error(`429 Too Many Requests — aguardar ${after}s antes de tentar novamente`);
-    }
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({})) as Record<string, unknown>;
-      throw new Error((body.message as string) ?? `HTTP ${res.status} em ${path}`);
-    }
-    return res.json();
   }
 
   /**
@@ -154,12 +174,15 @@ export class FootballDataClient {
    * Includes goals, bookings, substitutions.
    */
   async live(comp: string): Promise<unknown[]> {
-    const j = await this.get(`/competitions/${comp}/matches?status=LIVE`, {
+    const j = await this.get(`/matches?status=LIVE`, {
       "X-Unfold-Goals": "true",
       "X-Unfold-Bookings": "true",
       "X-Unfold-Subs": "true",
     }) as Record<string, unknown>;
-    return (j.matches ?? []) as unknown[];
+    return ((j.matches ?? []) as Record<string, unknown>[]).filter((match) => {
+      const competition = match.competition as Record<string, unknown> | undefined;
+      return competition?.code === comp;
+    });
   }
 
   /**
@@ -183,6 +206,10 @@ export class FootballDataClient {
     ) as Record<string, unknown>;
     return (j.teams ?? []) as unknown[];
   }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ─── Phase detection ───────────────────────────────────────────────────────
@@ -275,6 +302,7 @@ export function mapScheduledRow(
     rodada: j.matchday ?? null,
     fase_polling: getPhase(j.status as string, j.utcDate as string | null, agora),
     ultima_atualizacao_api: j.lastUpdated ?? null,
+    ultima_busca_api: new Date(agora).toISOString(),
   };
 }
 

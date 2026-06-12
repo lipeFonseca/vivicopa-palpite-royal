@@ -75,40 +75,82 @@ export type Database = {
       }
       partidas: {
         Row: {
+          acrescimos: number | null
+          cartoes: Json | null
+          escalacao_a: Json | null
+          escalacao_b: Json | null
+          estatisticas_a: Json | null
+          estatisticas_b: Json | null
           fase: string | null
+          fase_polling: string | null
+          gols: Json | null
           grupo: string | null
           id: string
           inicia_em: string | null
+          minuto: number | null
           placar_a: number
           placar_b: number
+          placar_parcial_a: number | null
+          placar_parcial_b: number | null
           rodada: number | null
           status: string
+          substituicoes: Json | null
           time_a: string
           time_b: string
+          ultima_atualizacao_api: string | null
+          ultima_busca_api: string | null
         }
         Insert: {
+          acrescimos?: number | null
+          cartoes?: Json | null
+          escalacao_a?: Json | null
+          escalacao_b?: Json | null
+          estatisticas_a?: Json | null
+          estatisticas_b?: Json | null
           fase?: string | null
+          fase_polling?: string | null
+          gols?: Json | null
           grupo?: string | null
           id: string
           inicia_em?: string | null
+          minuto?: number | null
           placar_a?: number
           placar_b?: number
+          placar_parcial_a?: number | null
+          placar_parcial_b?: number | null
           rodada?: number | null
           status?: string
+          substituicoes?: Json | null
           time_a: string
           time_b: string
+          ultima_atualizacao_api?: string | null
+          ultima_busca_api?: string | null
         }
         Update: {
+          acrescimos?: number | null
+          cartoes?: Json | null
+          escalacao_a?: Json | null
+          escalacao_b?: Json | null
+          estatisticas_a?: Json | null
+          estatisticas_b?: Json | null
           fase?: string | null
+          fase_polling?: string | null
+          gols?: Json | null
           grupo?: string | null
           id?: string
           inicia_em?: string | null
+          minuto?: number | null
           placar_a?: number
           placar_b?: number
+          placar_parcial_a?: number | null
+          placar_parcial_b?: number | null
           rodada?: number | null
           status?: string
+          substituicoes?: Json | null
           time_a?: string
           time_b?: string
+          ultima_atualizacao_api?: string | null
+          ultima_busca_api?: string | null
         }
         Relationships: []
       }
