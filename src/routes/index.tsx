@@ -1675,12 +1675,66 @@ function ComentariosJogo({ jogo, palpites }: { jogo: Jogo; palpites: Palpite[] }
   );
 }
 
+
+type CalendarioResultado = {
+  id: string;
+  placar_a: number;
+  placar_b: number;
+  status: string;
+  inicia_em: string | null;
+  minuto?: number | null;
+  acrescimos?: number | null;
+};
+
+function isPartidaAoVivo(status?: string | null) {
+  return ["LIVE", "HT", "ET", "PEN_LIVE"].includes(status ?? "");
+}
+
+function isPartidaFinalizada(status?: string | null) {
+  return ["FT", "AET", "PEN"].includes(status ?? "");
+}
+
+function useCalendarioResultados() {
+  const [resultados, setResultados] = useState<Map<string, CalendarioResultado>>(new Map());
+
+  const fetchResultados = useCallback(async () => {
+    const sb = supabase as any;
+    const { data } = await sb
+      .from("partidas")
+      .select("id,placar_a,placar_b,status,inicia_em,minuto,acrescimos")
+      .order("inicia_em", { ascending: true })
+      .limit(jogos.length);
+
+    const ordenados = [...jogos].sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora));
+    const map = new Map<string, CalendarioResultado>();
+    ((data ?? []) as CalendarioResultado[]).forEach((partida, index) => {
+      const jogo = ordenados[index];
+      if (jogo) map.set(jogo.id, partida);
+    });
+    setResultados(map);
+  }, []);
+
+  useEffect(() => {
+    fetchResultados().catch(() => setResultados(new Map()));
+
+    const ch = (supabase as any)
+      .channel("calendario-resultados")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "partidas" }, fetchResultados)
+      .subscribe();
+
+    return () => { (supabase as any).removeChannel(ch); };
+  }, [fetchResultados]);
+
+  return resultados;
+}
 // ---------- CALENDÁRIO ----------
 function CalendarioTab({ palpitesPorJogo, onPalpitar, onComentarios }: {
   palpitesPorJogo: Map<string, number>;
   onPalpitar: (j: Jogo) => void;
   onComentarios: (j: Jogo) => void;
 }) {
+  const resultadosPorJogo = useCalendarioResultados();
+
   const porDia = useMemo(() => {
     const map = new Map<string, Jogo[]>();
     [...jogos]
@@ -1719,8 +1773,12 @@ function CalendarioTab({ palpitesPorJogo, onPalpitar, onComentarios }: {
             <div className="grid gap-3 md:grid-cols-2">
               {lista.map((j) => {
                 const a = getSelecao(j.selecaoA); const b = getSelecao(j.selecaoB);
+                const resultado = resultadosPorJogo.get(j.id);
+                const aoVivo = isPartidaAoVivo(resultado?.status);
+                const finalizada = isPartidaFinalizada(resultado?.status);
+                const mostrarPlacar = Boolean(resultado && (aoVivo || finalizada));
                 return (
-                  <div key={j.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 shadow-card">
+                  <div key={j.id} className={`flex items-center gap-3 rounded-2xl border bg-card p-3 shadow-card ${aoVivo ? "border-red-200 bg-red-50" : "border-border"}`}>
                     <div className="text-center">
                       <div className="text-base font-extrabold text-brand">{j.hora}</div>
                       <Badge className="bg-brand-light text-[10px] text-brand-dark hover:bg-brand-light">G {j.grupo}</Badge>
@@ -1730,7 +1788,15 @@ function CalendarioTab({ palpitesPorJogo, onPalpitar, onComentarios }: {
                         <img src={flagUrl(j.selecaoA, 80)} alt={flagAlt(j.selecaoA)} className="h-7 w-10 rounded-sm object-cover ring-1 ring-border" />
                         <div className="mt-1 text-[11px] font-semibold">{a?.nome}</div>
                       </div>
-                      <span className="text-xs text-muted-foreground">x</span>
+                      <div className="min-w-10 text-center">
+                        {mostrarPlacar ? (
+                          <div className={`text-base font-extrabold tabular-nums ${aoVivo ? "text-red-500" : "text-brand-dark"}`}>
+                            {resultado?.placar_a} – {resultado?.placar_b}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">x</span>
+                        )}
+                      </div>
                       <div className="flex flex-col items-center text-center">
                         <img src={flagUrl(j.selecaoB, 80)} alt={flagAlt(j.selecaoB)} className="h-7 w-10 rounded-sm object-cover ring-1 ring-border" />
                         <div className="mt-1 text-[11px] font-semibold">{b?.nome}</div>
