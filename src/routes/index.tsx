@@ -352,7 +352,7 @@ function Vivicopa() {
 
 function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("admin123");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [logoUrl, setLogoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
   const [logoSize, setLogoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
@@ -440,7 +440,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
           {loading ? "Entrando..." : "Entrar"}
         </Button>
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          Primeiro acesso: usuario admin e senha admin123. Troque a senha depois de entrar.
+          Use as credenciais fornecidas pelo administrador do projeto.
         </p>
         <Toaster />
       </form>
