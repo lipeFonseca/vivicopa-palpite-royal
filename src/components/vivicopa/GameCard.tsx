@@ -97,12 +97,13 @@ export function GameCard({ jogo, qtdPalpites, resultado, onPalpitar, onComentari
         )}
       </div>
 
-      <div className="flex gap-2 p-4 pt-3">
-        <Button onClick={() => onPalpitar(jogo)} disabled={palpiteBloqueado} className="flex-1 bg-gradient-brand text-white hover:opacity-90">
+      <div className="grid gap-2 p-4 pt-3">
+        <Button onClick={() => onPalpitar(jogo)} disabled={palpiteBloqueado} className="w-full bg-gradient-brand text-white hover:opacity-90">
           {palpiteBloqueado ? "Palpites encerrados" : "Dar palpite"}
         </Button>
-        <Button onClick={() => onComentarios(jogo)} variant="outline" size="icon" aria-label="Ver comentários">
-          <MessageSquare className="h-4 w-4" />
+        <Button onClick={() => onComentarios(jogo)} variant="outline" className="w-full">
+          <MessageSquare className="mr-2 h-4 w-4" />
+          Comentários
         </Button>
       </div>
     </div>
