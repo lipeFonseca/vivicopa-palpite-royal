@@ -31,6 +31,7 @@ const LOGO_HEADER_SIZE_KEY = "vivicopa:logo-header-size";
 const HEADER_BANNER_KEY = "vivicopa:header-banner-url";
 const HERO_BANNER_KEY = "vivicopa:hero-banner-url";
 const FAVICON_URL_KEY = "vivicopa:favicon-url";
+const API_UI_REFRESH_MS = 10_000;
 
 const PAISES_SEDE = [
   { id: "usa", nome: "Estados Unidos" },
@@ -1085,9 +1086,8 @@ function useJogosHoje() {
 
       setJogosHoje(((proximos as PartidaDestaque[] | null) ?? []).filter((j) => !idsAoVivo.has(j.id)));
       setTituloSecao("Próximos Jogos");
-    } catch {
-      setJogosAoVivo([]);
-      setJogosHoje([]);
+    } catch (error) {
+      console.warn("Nao foi possivel atualizar jogos agora.", error);
     }
   }, []);
 
@@ -1105,12 +1105,13 @@ function useJogosHoje() {
 
     fetchJogos();
 
+    const interval = window.setInterval(fetchJogos, API_UI_REFRESH_MS);
     const ch = (supabase as any)
       .channel("jogos-hoje")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "partidas" }, fetchJogos)
+      .on("postgres_changes", { event: "*", schema: "public", table: "partidas" }, fetchJogos)
       .subscribe();
 
-    return () => { (supabase as any).removeChannel(ch); };
+    return () => { window.clearInterval(interval); (supabase as any).removeChannel(ch); };
   }, [fetchJogos]);
 
   return { jogosAoVivo, jogosHoje, tituloSecao, flagMap };
@@ -1447,14 +1448,15 @@ function useResultadosPorJogo() {
   }, []);
 
   useEffect(() => {
-    fetchResultados().catch(() => setResultados(new Map()));
+    fetchResultados().catch((error) => console.warn("Nao foi possivel atualizar resultados agora.", error));
 
+    const interval = window.setInterval(fetchResultados, API_UI_REFRESH_MS);
     const ch = (supabase as any)
       .channel("jogos-resultados")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "partidas" }, fetchResultados)
+      .on("postgres_changes", { event: "*", schema: "public", table: "partidas" }, fetchResultados)
       .subscribe();
 
-    return () => { (supabase as any).removeChannel(ch); };
+    return () => { window.clearInterval(interval); (supabase as any).removeChannel(ch); };
   }, [fetchResultados]);
 
   return resultados;
@@ -1612,12 +1614,13 @@ function useClassificacaoGrupos() {
 
     fetchPartidasGrupo();
 
+    const interval = window.setInterval(fetchPartidasGrupo, API_UI_REFRESH_MS);
     const ch = (supabase as any)
       .channel("classificacao-grupos")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "partidas" }, fetchPartidasGrupo)
+      .on("postgres_changes", { event: "*", schema: "public", table: "partidas" }, fetchPartidasGrupo)
       .subscribe();
 
-    return () => { (supabase as any).removeChannel(ch); };
+    return () => { window.clearInterval(interval); (supabase as any).removeChannel(ch); };
   }, [fetchPartidasGrupo]);
 
   const classificacaoPorGrupo = useMemo(() => {
@@ -2026,14 +2029,15 @@ function useCalendarioResultados() {
   }, []);
 
   useEffect(() => {
-    fetchResultados().catch(() => setResultados(new Map()));
+    fetchResultados().catch((error) => console.warn("Nao foi possivel atualizar resultados agora.", error));
 
+    const interval = window.setInterval(fetchResultados, API_UI_REFRESH_MS);
     const ch = (supabase as any)
       .channel("calendario-resultados")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "partidas" }, fetchResultados)
+      .on("postgres_changes", { event: "*", schema: "public", table: "partidas" }, fetchResultados)
       .subscribe();
 
-    return () => { (supabase as any).removeChannel(ch); };
+    return () => { window.clearInterval(interval); (supabase as any).removeChannel(ch); };
   }, [fetchResultados]);
 
   return resultados;
@@ -2228,6 +2232,9 @@ function TitulosTab() {
     </div>
   );
 }
+
+
+
 
 
 
