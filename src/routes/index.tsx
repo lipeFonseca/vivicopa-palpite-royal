@@ -34,8 +34,17 @@ const LOGO_SIZE_KEY = "vivicopa:logo-size";
 const LOGO_HEADER_SIZE_KEY = "vivicopa:logo-header-size";
 const HEADER_BANNER_KEY = "vivicopa:header-banner-url";
 const HERO_BANNER_KEY = "vivicopa:hero-banner-url";
+const HERO_BANNER_POS_KEY = "vivicopa:hero-banner-pos";
+const HOME_SECONDARY_POS_KEY = "vivicopa:home-secondary-pos";
 const FAVICON_URL_KEY = "vivicopa:favicon-url";
 const LOGIN_BACKGROUND_KEY = "vivicopa:login-background-url";
+
+const parsePos = (s: string): { x: number; y: number } => {
+  const parts = (s ?? "").split(" ").map(Number);
+  return { x: isNaN(parts[0]) ? 50 : parts[0], y: isNaN(parts[1]) ? 50 : parts[1] };
+};
+const formatPos = (x: number, y: number) => `${x} ${y}`;
+const posCSS = (s: string) => { const p = parsePos(s); return `${p.x}% ${p.y}%`; };
 const API_UI_REFRESH_MS = 10_000;
 
 const PAISES_SEDE = [
@@ -174,6 +183,8 @@ function Vivicopa() {
       if (cfg.hero_banner_url) localStorage.setItem(HERO_BANNER_KEY, cfg.hero_banner_url);
       else localStorage.removeItem(HERO_BANNER_KEY);
     }
+    if (cfg.hero_banner_position) localStorage.setItem(HERO_BANNER_POS_KEY, cfg.hero_banner_position);
+    if (cfg.home_secondary_image_position) localStorage.setItem(HOME_SECONDARY_POS_KEY, cfg.home_secondary_image_position);
     if (cfg.favicon_url !== undefined) {
       if (cfg.favicon_url) localStorage.setItem(FAVICON_URL_KEY, cfg.favicon_url);
       else localStorage.removeItem(FAVICON_URL_KEY);
@@ -833,6 +844,8 @@ function AdminTab() {
   const [logoHeaderSize, setLogoHeaderSize] = useState(() => Number(localStorage.getItem(LOGO_HEADER_SIZE_KEY) || 58));
   const [bannerUrl, setBannerUrl] = useState(() => localStorage.getItem(HEADER_BANNER_KEY) ?? "");
   const [heroBannerUrl, setHeroBannerUrl] = useState(() => localStorage.getItem(HERO_BANNER_KEY) ?? "");
+  const [heroBannerPos, setHeroBannerPos] = useState(() => parsePos(localStorage.getItem(HERO_BANNER_POS_KEY) ?? ""));
+  const [homeSecondaryPos, setHomeSecondaryPos] = useState(() => parsePos(localStorage.getItem(HOME_SECONDARY_POS_KEY) ?? ""));
   const [faviconUrl, setFaviconUrl] = useState(() => localStorage.getItem(FAVICON_URL_KEY) ?? "");
   const initialTheme = readSiteTheme();
   const [siteTitle, setSiteTitle] = useState(initialTheme.title);
@@ -927,6 +940,8 @@ function AdminTab() {
       { chave: "logo_header_size", valor: String(logoHeaderSize), atualizado_em: new Date().toISOString() },
       { chave: "header_banner_url", valor: bannerUrl, atualizado_em: new Date().toISOString() },
       { chave: "hero_banner_url", valor: heroBannerUrl, atualizado_em: new Date().toISOString() },
+      { chave: "hero_banner_position", valor: formatPos(heroBannerPos.x, heroBannerPos.y), atualizado_em: new Date().toISOString() },
+      { chave: "home_secondary_image_position", valor: formatPos(homeSecondaryPos.x, homeSecondaryPos.y), atualizado_em: new Date().toISOString() },
       { chave: "favicon_url", valor: faviconUrl, atualizado_em: new Date().toISOString() },
       { chave: "login_background_url", valor: loginBackgroundUrl, atualizado_em: new Date().toISOString() },
       { chave: "site_title", valor: siteTitle.trim() || DEFAULT_SITE_THEME.title, atualizado_em: new Date().toISOString() },
@@ -943,6 +958,8 @@ function AdminTab() {
     localStorage.setItem(LOGO_HEADER_SIZE_KEY, String(logoHeaderSize));
     if (bannerUrl) localStorage.setItem(HEADER_BANNER_KEY, bannerUrl); else localStorage.removeItem(HEADER_BANNER_KEY);
     if (heroBannerUrl) localStorage.setItem(HERO_BANNER_KEY, heroBannerUrl); else localStorage.removeItem(HERO_BANNER_KEY);
+    localStorage.setItem(HERO_BANNER_POS_KEY, formatPos(heroBannerPos.x, heroBannerPos.y));
+    localStorage.setItem(HOME_SECONDARY_POS_KEY, formatPos(homeSecondaryPos.x, homeSecondaryPos.y));
     if (faviconUrl) localStorage.setItem(FAVICON_URL_KEY, faviconUrl); else localStorage.removeItem(FAVICON_URL_KEY);
     if (loginBackgroundUrl) localStorage.setItem(LOGIN_BACKGROUND_KEY, loginBackgroundUrl); else localStorage.removeItem(LOGIN_BACKGROUND_KEY);
     storeSiteTheme({
@@ -1075,11 +1092,29 @@ function AdminTab() {
               <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado — carregue um novo arquivo para migrar para o Storage.</p>
             )}
             <div
-              className="mt-3 aspect-[16/7] w-full border border-dashed border-border bg-brand-soft bg-cover bg-center"
-              style={homeSecondaryImage ? { backgroundImage: "url(" + homeSecondaryImage + ")" } : undefined}
+              className="mt-3 aspect-[16/7] w-full border border-dashed border-border bg-brand-soft bg-cover"
+              style={homeSecondaryImage ? { backgroundImage: "url(" + homeSecondaryImage + ")", backgroundPosition: `${homeSecondaryPos.x}% ${homeSecondaryPos.y}%` } : undefined}
             >
               {!homeSecondaryImage && <div className="flex h-full items-center justify-center text-xs font-semibold uppercase text-muted-foreground">Espaço da segunda imagem</div>}
             </div>
+            {homeSecondaryImage && (
+              <div className="mt-3 grid grid-cols-2 gap-4">
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-xs font-semibold">
+                    <span>Posição horizontal</span><span className="text-brand">{homeSecondaryPos.x}%</span>
+                  </div>
+                  <Slider min={0} max={100} step={1} value={[homeSecondaryPos.x]} onValueChange={([v]) => setHomeSecondaryPos(p => ({ ...p, x: v }))} />
+                  <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground"><span>Esquerda</span><span>Direita</span></div>
+                </div>
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-xs font-semibold">
+                    <span>Posição vertical</span><span className="text-brand">{homeSecondaryPos.y}%</span>
+                  </div>
+                  <Slider min={0} max={100} step={1} value={[homeSecondaryPos.y]} onValueChange={([v]) => setHomeSecondaryPos(p => ({ ...p, y: v }))} />
+                  <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground"><span>Topo</span><span>Base</span></div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-border pt-4">
@@ -1382,7 +1417,7 @@ function AdminTab() {
           <div className="space-y-3">
             <div
               className="relative flex aspect-[16/7] items-start overflow-hidden border border-border p-6"
-              style={{ backgroundImage: `url(${heroBannerUrl})`, backgroundSize: "cover", backgroundPosition: "center" }}
+              style={{ backgroundImage: `url(${heroBannerUrl})`, backgroundSize: "cover", backgroundPosition: `${heroBannerPos.x}% ${heroBannerPos.y}%` }}
             >
               <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(238,233,220,0.96) 0%, rgba(238,233,220,0.75) 40%, transparent 72%)" }} />
               <div className="relative z-10">
@@ -1392,6 +1427,22 @@ function AdminTab() {
                   <span className="bg-[#174b66] px-2 py-1 text-[9px] font-bold uppercase text-white">Ver jogos</span>
                   <span className="bg-[var(--site-accent)] px-2 py-1 text-[9px] font-bold uppercase text-white">Fazer palpite</span>
                 </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs font-semibold">
+                  <span>Posição horizontal</span><span className="text-brand">{heroBannerPos.x}%</span>
+                </div>
+                <Slider min={0} max={100} step={1} value={[heroBannerPos.x]} onValueChange={([v]) => setHeroBannerPos(p => ({ ...p, x: v }))} />
+                <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground"><span>Esquerda</span><span>Direita</span></div>
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs font-semibold">
+                  <span>Posição vertical</span><span className="text-brand">{heroBannerPos.y}%</span>
+                </div>
+                <Slider min={0} max={100} step={1} value={[heroBannerPos.y]} onValueChange={([v]) => setHeroBannerPos(p => ({ ...p, y: v }))} />
+                <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground"><span>Topo</span><span>Base</span></div>
               </div>
             </div>
           </div>
@@ -1659,15 +1710,23 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
   const [heroBannerUrl, setHeroBannerUrl] = useState(() =>
     typeof window !== "undefined" ? (localStorage.getItem(HERO_BANNER_KEY) ?? "") : "",
   );
+  const [heroBannerPos, setHeroBannerPos] = useState(() =>
+    typeof window !== "undefined" ? parsePos(localStorage.getItem(HERO_BANNER_POS_KEY) ?? "") : { x: 50, y: 50 },
+  );
   const [secondaryImage, setSecondaryImage] = useState(() =>
     typeof window !== "undefined" ? (localStorage.getItem(HOME_SECONDARY_IMAGE_KEY) ?? "") : "",
+  );
+  const [secondaryPos, setSecondaryPos] = useState(() =>
+    typeof window !== "undefined" ? parsePos(localStorage.getItem(HOME_SECONDARY_POS_KEY) ?? "") : { x: 50, y: 50 },
   );
   const [theme, setTheme] = useState(readSiteTheme);
 
   useEffect(() => {
     const syncBrand = () => {
       setHeroBannerUrl(localStorage.getItem(HERO_BANNER_KEY) ?? "");
+      setHeroBannerPos(parsePos(localStorage.getItem(HERO_BANNER_POS_KEY) ?? ""));
       setSecondaryImage(localStorage.getItem(HOME_SECONDARY_IMAGE_KEY) ?? "");
+      setSecondaryPos(parsePos(localStorage.getItem(HOME_SECONDARY_POS_KEY) ?? ""));
     };
     const syncTheme = () => setTheme(readSiteTheme());
     window.addEventListener("vivicopa:logo-changed", syncBrand);
@@ -1689,8 +1748,8 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
   return (
     <div className="editorial-home">
       <section
-        className={"editorial-hero relative min-h-[500px] w-full overflow-hidden bg-cover bg-center " + (heroBannerUrl ? "has-image" : "is-empty")}
-        style={heroBannerUrl ? { backgroundImage: "url(" + heroBannerUrl + ")" } : undefined}
+        className={"editorial-hero relative min-h-[500px] w-full overflow-hidden bg-cover " + (heroBannerUrl ? "has-image" : "is-empty")}
+        style={heroBannerUrl ? { backgroundImage: "url(" + heroBannerUrl + ")", backgroundPosition: `${heroBannerPos.x}% ${heroBannerPos.y}%` } : undefined}
       >
         <div className="editorial-hero-wash absolute inset-0" />
         <div className="editorial-hero-copy relative z-10 flex min-h-[500px] max-w-[46rem] flex-col justify-center px-6 py-14 sm:px-10 lg:px-12">
@@ -1770,8 +1829,8 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
           </div>
         </div>
         <div
-          className={"editorial-secondary-image relative min-h-[280px] bg-cover bg-center " + (secondaryImage ? "has-image" : "is-empty")}
-          style={secondaryImage ? { backgroundImage: "url(" + secondaryImage + ")" } : undefined}
+          className={"editorial-secondary-image relative min-h-[280px] bg-cover " + (secondaryImage ? "has-image" : "is-empty")}
+          style={secondaryImage ? { backgroundImage: "url(" + secondaryImage + ")", backgroundPosition: `${secondaryPos.x}% ${secondaryPos.y}%` } : undefined}
         >
           <button type="button" onClick={onJogos} className="absolute bottom-4 right-5 z-10 text-[9px] font-black uppercase text-foreground/65">
             Ver calendário
