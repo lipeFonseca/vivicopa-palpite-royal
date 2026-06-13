@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
-import { Trophy, Flag, Users, MessageSquare, Calendar, ListChecks, Table as TableIcon, Home as HomeIcon, CalendarDays, MapPin, Award, GitBranch, Shield, LogOut, KeyRound, UserPlus, ImageIcon } from "lucide-react";
+import { Trophy, Flag, Users, MessageSquare, Calendar, ListChecks, Table as TableIcon, Home as HomeIcon, CalendarDays, MapPin, Award, GitBranch, Shield, LogOut, KeyRound, UserPlus, ImageIcon, RefreshCw, Save, Trash2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 
 import { Header } from "@/components/vivicopa/Header";
@@ -306,7 +306,7 @@ function Vivicopa() {
 
           {authProfile.role === "admin" && (
             <TabsContent value="admin" className="mt-6">
-              <AdminTab />
+              <AdminTab currentUser={authProfile} />
             </TabsContent>
           )}
         </Tabs>
@@ -555,7 +555,176 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
     </div>
   );
 }
-function AdminTab() {
+type ManagedUser = {
+  id: string;
+  username: string;
+  email: string | null;
+  role: "admin" | "user";
+  auth_email: string | null;
+  created_at: string | null;
+  last_sign_in_at: string | null;
+};
+
+type ManagedUserDraft = ManagedUser & { password?: string };
+
+function AdminUsersPanel({ currentUserId }: { currentUserId: string }) {
+  const [users, setUsers] = useState<ManagedUserDraft[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const carregarUsuarios = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase.functions.invoke("manage-users", { method: "GET" });
+    setLoading(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    const nextUsers = ((data as { users?: ManagedUser[] } | null)?.users ?? []).map((user) => ({ ...user, password: "" }));
+    setUsers(nextUsers);
+  }, []);
+
+  useEffect(() => {
+    carregarUsuarios();
+    const sync = () => { carregarUsuarios(); };
+    window.addEventListener("vivicopa:users-changed", sync);
+    return () => window.removeEventListener("vivicopa:users-changed", sync);
+  }, [carregarUsuarios]);
+
+  const atualizarDraft = (id: string, patch: Partial<ManagedUserDraft>) => {
+    setUsers((current) => current.map((user) => user.id === id ? { ...user, ...patch } : user));
+  };
+
+  const salvarUsuario = async (user: ManagedUserDraft) => {
+    const username = normalizeUsername(user.username);
+    const email = normalizeEmail(user.email ?? "");
+
+    if (!isValidUsername(username)) {
+      toast.error("Usuario deve ter 3 a 32 caracteres e usar apenas letras, numeros, ponto, hifen ou underline.");
+      return;
+    }
+    if (email && !isValidEmail(email)) {
+      toast.error("Informe um e-mail valido.");
+      return;
+    }
+    if (user.password && user.password.length < 6) {
+      toast.error("A nova senha precisa ter pelo menos 6 caracteres.");
+      return;
+    }
+
+    setSavingId(user.id);
+    const { error } = await supabase.functions.invoke("manage-users", {
+      method: "PATCH",
+      body: {
+        id: user.id,
+        username,
+        email: email || null,
+        role: user.role,
+        password: user.password || undefined,
+      },
+    });
+    setSavingId(null);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Usuario atualizado.");
+    await carregarUsuarios();
+  };
+
+  const apagarUsuario = async (user: ManagedUserDraft) => {
+    if (user.id === currentUserId) {
+      toast.error("Voce nao pode apagar o proprio usuario.");
+      return;
+    }
+    const ok = window.confirm(`Apagar o usuario ${user.username}? Esta acao nao pode ser desfeita.`);
+    if (!ok) return;
+
+    setDeletingId(user.id);
+    const { error } = await supabase.functions.invoke("manage-users", {
+      method: "DELETE",
+      body: { id: user.id },
+    });
+    setDeletingId(null);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Usuario apagado.");
+    await carregarUsuarios();
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
+          <Users className="h-3.5 w-3.5" /> Usuarios cadastrados
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={carregarUsuarios} disabled={loading}>
+          <RefreshCw className={`mr-1 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Atualizar
+        </Button>
+      </div>
+
+      <div className="space-y-3">
+        {users.map((user) => {
+          const isSelf = user.id === currentUserId;
+          return (
+            <div key={user.id} className="grid gap-3 rounded-xl border border-border bg-brand-soft/40 p-3 lg:grid-cols-[1.1fr_1.4fr_120px_1fr_auto] lg:items-end">
+              <div>
+                <Label htmlFor={`user-${user.id}`}>Usuario</Label>
+                <Input id={`user-${user.id}`} value={user.username} onChange={(e) => atualizarDraft(user.id, { username: e.target.value })} />
+              </div>
+              <div>
+                <Label htmlFor={`email-${user.id}`}>E-mail de contato</Label>
+                <Input id={`email-${user.id}`} type="email" value={user.email ?? ""} onChange={(e) => atualizarDraft(user.id, { email: e.target.value })} placeholder="sem e-mail" />
+              </div>
+              <div>
+                <Label>Perfil</Label>
+                <Select value={user.role} onValueChange={(role) => atualizarDraft(user.id, { role: role as "admin" | "user" })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Usuario</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor={`password-${user.id}`}>Nova senha</Label>
+                <Input id={`password-${user.id}`} type="password" value={user.password ?? ""} onChange={(e) => atualizarDraft(user.id, { password: e.target.value })} placeholder="manter atual" />
+              </div>
+              <div className="flex gap-2 lg:justify-end">
+                <Button type="button" size="sm" onClick={() => salvarUsuario(user)} disabled={savingId === user.id || deletingId === user.id}>
+                  <Save className="mr-1 h-3.5 w-3.5" /> Salvar
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => apagarUsuario(user)} disabled={isSelf || savingId === user.id || deletingId === user.id}>
+                  <Trash2 className="mr-1 h-3.5 w-3.5" /> Apagar
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+        {!loading && users.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Nenhum usuario encontrado.
+          </div>
+        )}
+        {loading && users.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Carregando usuarios...
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+function AdminTab({ currentUser }: { currentUser: AuthProfile }) {
   const [novaSenha, setNovaSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
   const [novoUsuario, setNovoUsuario] = useState("");
@@ -709,6 +878,7 @@ function AdminTab() {
       if (error) throw error;
       setNovoUsuario("");
       setSenhaUsuario("");
+      window.dispatchEvent(new CustomEvent("vivicopa:users-changed"));
       toast.success(`Usuario ${username} criado.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Nao foi possivel criar o usuario.");
@@ -2232,6 +2402,9 @@ function TitulosTab() {
     </div>
   );
 }
+
+
+
 
 
 
