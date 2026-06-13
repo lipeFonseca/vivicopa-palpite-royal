@@ -1387,6 +1387,47 @@ function StatCard({ label, value }: { label: string; value: number }) {
 }
 
 
+function jogoSlot(jogo: Jogo) {
+  return `${jogo.data}T${jogo.hora}`;
+}
+
+function partidaSlot(iniciaEm: string | null) {
+  if (!iniciaEm) return "";
+  const brasilia = new Date(new Date(iniciaEm).getTime() - 3 * 60 * 60 * 1000);
+  return brasilia.toISOString().slice(0, 16);
+}
+
+function grupoApiParaLocal(grupo?: string | null) {
+  if (!grupo) return null;
+  return grupo.replace(/^GROUP_/i, "");
+}
+
+function mapearPartidasPorJogos<T extends { inicia_em: string | null }>(partidas: T[]) {
+  const jogosOrdenados = [...jogos].sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora));
+  const jogosPorSlot = new Map<string, Jogo[]>();
+  jogosOrdenados.forEach((jogo) => {
+    const slot = jogoSlot(jogo);
+    jogosPorSlot.set(slot, [...(jogosPorSlot.get(slot) ?? []), jogo]);
+  });
+
+  const usadosPorSlot = new Map<string, number>();
+  const map = new Map<string, T>();
+  partidas
+    .slice()
+    .sort((a, b) => String(a.inicia_em ?? "").localeCompare(String(b.inicia_em ?? "")))
+    .forEach((partida) => {
+      const slot = partidaSlot(partida.inicia_em);
+      const candidatos = jogosPorSlot.get(slot);
+      if (!candidatos?.length) return;
+      const index = usadosPorSlot.get(slot) ?? 0;
+      const jogo = candidatos[index];
+      if (!jogo) return;
+      map.set(jogo.id, partida);
+      usadosPorSlot.set(slot, index + 1);
+    });
+
+  return map;
+}
 type JogoResultado = GameResult & {
   id: string;
   inicia_em: string | null;
@@ -1399,17 +1440,10 @@ function useResultadosPorJogo() {
     const sb = supabase as any;
     const { data } = await sb
       .from("partidas")
-      .select("id,placar_a,placar_b,status,inicia_em,minuto,acrescimos")
-      .order("inicia_em", { ascending: true })
-      .limit(jogos.length);
+      .select("id,time_a,time_b,placar_a,placar_b,status,inicia_em,minuto,acrescimos")
+      .order("inicia_em", { ascending: true });
 
-    const ordenados = [...jogos].sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora));
-    const map = new Map<string, JogoResultado>();
-    ((data ?? []) as JogoResultado[]).forEach((partida, index) => {
-      const jogo = ordenados[index];
-      if (jogo) map.set(jogo.id, partida);
-    });
-    setResultados(map);
+    setResultados(mapearPartidasPorJogos((data ?? []) as JogoResultado[]));
   }, []);
 
   useEffect(() => {
@@ -1562,7 +1596,7 @@ function useClassificacaoGrupos() {
       .from("partidas")
       .select("time_a,time_b,placar_a,placar_b,status,grupo")
       .not("grupo", "is", null);
-    setPartidasGrupo(data ?? []);
+    setPartidasGrupo(((data ?? []) as Array<{ time_a: string; time_b: string; placar_a: number; placar_b: number; status: string; grupo: string; }>).map((p) => ({ ...p, grupo: grupoApiParaLocal(p.grupo) ?? p.grupo })));
   }, []);
 
   useEffect(() => {
@@ -1960,6 +1994,8 @@ function ComentariosJogo({ jogo, palpites }: { jogo: Jogo; palpites: Palpite[] }
 
 type CalendarioResultado = {
   id: string;
+  time_a?: string;
+  time_b?: string;
   placar_a: number;
   placar_b: number;
   status: string;
@@ -1983,17 +2019,10 @@ function useCalendarioResultados() {
     const sb = supabase as any;
     const { data } = await sb
       .from("partidas")
-      .select("id,placar_a,placar_b,status,inicia_em,minuto,acrescimos")
-      .order("inicia_em", { ascending: true })
-      .limit(jogos.length);
+      .select("id,time_a,time_b,placar_a,placar_b,status,inicia_em,minuto,acrescimos")
+      .order("inicia_em", { ascending: true });
 
-    const ordenados = [...jogos].sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora));
-    const map = new Map<string, CalendarioResultado>();
-    ((data ?? []) as CalendarioResultado[]).forEach((partida, index) => {
-      const jogo = ordenados[index];
-      if (jogo) map.set(jogo.id, partida);
-    });
-    setResultados(map);
+    setResultados(mapearPartidasPorJogos((data ?? []) as CalendarioResultado[]));
   }, []);
 
   useEffect(() => {
@@ -2199,6 +2228,9 @@ function TitulosTab() {
     </div>
   );
 }
+
+
+
 
 
 

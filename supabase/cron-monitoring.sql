@@ -10,6 +10,7 @@ select
 from cron.job
 where jobname in (
   'atualizar-placares-every-minute',
+  'atualizar-placares-fast-live-offset-30s',
   'atualizar-placares-seed-daily'
 )
 order by jobname;
@@ -44,3 +45,4 @@ select
 from public.partidas
 group by status
 order by status;
+

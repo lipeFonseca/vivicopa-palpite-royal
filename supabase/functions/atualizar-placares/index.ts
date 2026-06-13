@@ -256,6 +256,7 @@ Deno.serve(async (req) => {
   const hasActivity =
     (summary.live as number) > 0 ||
     (summary.pre_match as number) > 0 ||
+    (summary.suspicious as number) > 0 ||
     (summary.scheduled as number) > 0;
   if (!hasActivity) {
     return Response.json({ ok: true, msg: "sem atividade na janela", ...summary });
@@ -267,3 +268,4 @@ Deno.serve(async (req) => {
     rateLimit: client.info(),
   });
 });
+
