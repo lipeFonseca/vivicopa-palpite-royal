@@ -31,6 +31,7 @@ const LOGO_HEADER_SIZE_KEY = "vivicopa:logo-header-size";
 const HEADER_BANNER_KEY = "vivicopa:header-banner-url";
 const HERO_BANNER_KEY = "vivicopa:hero-banner-url";
 const FAVICON_URL_KEY = "vivicopa:favicon-url";
+const LOGIN_BACKGROUND_KEY = "vivicopa:login-background-url";
 const API_UI_REFRESH_MS = 10_000;
 
 const PAISES_SEDE = [
@@ -165,6 +166,10 @@ function Vivicopa() {
     if (cfg.favicon_url !== undefined) {
       if (cfg.favicon_url) localStorage.setItem(FAVICON_URL_KEY, cfg.favicon_url);
       else localStorage.removeItem(FAVICON_URL_KEY);
+    }
+    if (cfg.login_background_url !== undefined) {
+      if (cfg.login_background_url) localStorage.setItem(LOGIN_BACKGROUND_KEY, cfg.login_background_url);
+      else localStorage.removeItem(LOGIN_BACKGROUND_KEY);
     }
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
     window.dispatchEvent(new CustomEvent("vivicopa:favicon-changed"));
@@ -385,16 +390,22 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [loading, setLoading] = useState(false);
   const [logoUrl, setLogoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
   const [logoSize, setLogoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
+  const [loginBackgroundUrl, setLoginBackgroundUrl] = useState(() => localStorage.getItem(LOGIN_BACKGROUND_KEY) ?? "");
 
   useEffect(() => {
     supabase.from("app_config" as never).select("chave, valor")
-      .in("chave" as never, ["logo_url", "logo_size"])
+      .in("chave" as never, ["logo_url", "logo_size", "login_background_url"])
       .then(({ data }) => {
         if (!data) return;
         const cfg: Record<string, string> = {};
         (data as { chave: string; valor: string | null }[]).forEach((r) => { cfg[r.chave] = r.valor ?? ""; });
         if (cfg.logo_url !== undefined) setLogoUrl(cfg.logo_url);
         if (cfg.logo_size) setLogoSize(Number(cfg.logo_size));
+        if (cfg.login_background_url !== undefined) {
+          setLoginBackgroundUrl(cfg.login_background_url);
+          if (cfg.login_background_url) localStorage.setItem(LOGIN_BACKGROUND_KEY, cfg.login_background_url);
+          else localStorage.removeItem(LOGIN_BACKGROUND_KEY);
+        }
       });
   }, []);
 
@@ -460,8 +471,12 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   const isSignup = mode === "signup";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-brand-soft px-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-brand">
+    <div
+      className="relative flex min-h-screen items-center justify-center bg-brand-soft bg-cover bg-center bg-no-repeat px-4 py-8"
+      style={loginBackgroundUrl ? { backgroundImage: "url(\"" + loginBackgroundUrl + "\")" } : undefined}
+    >
+      {loginBackgroundUrl && <div className="absolute inset-0 bg-black/35" aria-hidden="true" />}
+      <form onSubmit={handleSubmit} className="relative z-10 w-full max-w-sm rounded-2xl border border-white/70 bg-card/95 p-6 shadow-brand backdrop-blur-sm">
         <div className="mb-5 text-center">
           <div className="mx-auto mb-3 flex items-center justify-center">
             {logoUrl ? (
@@ -798,6 +813,7 @@ function AdminTab() {
   const [savingPassword, setSavingPassword] = useState(false);
 
   const [logoUrl, setLogoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
+  const [loginBackgroundUrl, setLoginBackgroundUrl] = useState(() => localStorage.getItem(LOGIN_BACKGROUND_KEY) ?? "");
   const [logoSize, setLogoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
   const [logoHeaderSize, setLogoHeaderSize] = useState(() => Number(localStorage.getItem(LOGO_HEADER_SIZE_KEY) || 36));
   const [bannerUrl, setBannerUrl] = useState(() => localStorage.getItem(HEADER_BANNER_KEY) ?? "");
@@ -807,6 +823,7 @@ function AdminTab() {
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const heroBannerInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
+  const loginBackgroundInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -836,6 +853,15 @@ function AdminTab() {
   };
 
 
+  const handleLoginBackgroundFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setLoginBackgroundUrl((ev.target?.result as string) ?? "");
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
   const handleFaviconFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -852,6 +878,7 @@ function AdminTab() {
       { chave: "header_banner_url", valor: bannerUrl, atualizado_em: new Date().toISOString() },
       { chave: "hero_banner_url", valor: heroBannerUrl, atualizado_em: new Date().toISOString() },
       { chave: "favicon_url", valor: faviconUrl, atualizado_em: new Date().toISOString() },
+      { chave: "login_background_url", valor: loginBackgroundUrl, atualizado_em: new Date().toISOString() },
     ];
     const { error } = await supabase.from("app_config" as never).upsert(rows as never, { onConflict: "chave" });
     if (error) { toast.error("Erro ao salvar configurações."); return; }
@@ -861,6 +888,7 @@ function AdminTab() {
     if (bannerUrl) localStorage.setItem(HEADER_BANNER_KEY, bannerUrl); else localStorage.removeItem(HEADER_BANNER_KEY);
     if (heroBannerUrl) localStorage.setItem(HERO_BANNER_KEY, heroBannerUrl); else localStorage.removeItem(HERO_BANNER_KEY);
     if (faviconUrl) localStorage.setItem(FAVICON_URL_KEY, faviconUrl); else localStorage.removeItem(FAVICON_URL_KEY);
+    if (loginBackgroundUrl) localStorage.setItem(LOGIN_BACKGROUND_KEY, loginBackgroundUrl); else localStorage.removeItem(LOGIN_BACKGROUND_KEY);
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
     window.dispatchEvent(new CustomEvent("vivicopa:favicon-changed"));
     toast.success("Configurações salvas.");
@@ -890,6 +918,13 @@ function AdminTab() {
     toast.success("Banner da tela inicial removido.");
   };
 
+
+  const removerLoginBackground = async () => {
+    await supabase.from("app_config" as never).update({ valor: "", atualizado_em: new Date().toISOString() } as never).eq("chave" as never, "login_background_url");
+    localStorage.removeItem(LOGIN_BACKGROUND_KEY);
+    setLoginBackgroundUrl("");
+    toast.success("Fundo da tela de login removido.");
+  };
 
   const removerFavicon = async () => {
     await supabase.from("app_config" as never).update({ valor: "", atualizado_em: new Date().toISOString() } as never).eq("chave" as never, "favicon_url");
@@ -949,12 +984,12 @@ function AdminTab() {
 
     <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
       <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
-        <ImageIcon className="h-3.5 w-3.5" /> Personalizar logo da tela de login
+        <ImageIcon className="h-3.5 w-3.5" /> Editar página de login
       </div>
       <div className="grid gap-6 md:grid-cols-[1fr_180px]">
         <div className="space-y-4">
           <div>
-            <Label>Imagem (arquivo ou URL)</Label>
+            <Label>Logo da página de login</Label>
             <div className="mt-1.5 flex gap-2">
               <Input
                 value={logoUrl.startsWith("data:") ? "" : logoUrl}
@@ -1015,6 +1050,52 @@ function AdminTab() {
           </div>
 
 
+          <div className="border-t border-border pt-4">
+            <Label className="mb-1.5 block">Imagem de fundo da tela de bloqueio</Label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={loginBackgroundUrl.startsWith("data:") ? "" : loginBackgroundUrl}
+                onChange={(e) => setLoginBackgroundUrl(e.target.value)}
+                placeholder="https://... ou carregue um arquivo"
+                className="flex-1"
+              />
+              <Button type="button" variant="outline" onClick={() => loginBackgroundInputRef.current?.click()}>
+                Carregar arquivo
+              </Button>
+              <input
+                ref={loginBackgroundInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleLoginBackgroundFile}
+              />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              A imagem ocupará todo o fundo da página, com corte proporcional para preencher a tela.
+            </p>
+            {loginBackgroundUrl.startsWith("data:") && (
+              <p className="mt-1 text-xs text-muted-foreground">Arquivo carregado localmente.</p>
+            )}
+            {loginBackgroundUrl && (
+              <div className="mt-3 space-y-2">
+                <div
+                  className="relative aspect-[16/7] w-full overflow-hidden rounded-xl border border-border bg-cover bg-center"
+                  style={{ backgroundImage: "url(\"" + loginBackgroundUrl + "\")" }}
+                >
+                  <div className="absolute inset-0 bg-black/30" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="rounded-lg border border-white/70 bg-white/90 px-4 py-3 text-center shadow-card backdrop-blur-sm">
+                      <Shield className="mx-auto h-5 w-5 text-brand" />
+                      <span className="mt-1 block text-xs font-bold text-brand-dark">Prévia do login</span>
+                    </div>
+                  </div>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={removerLoginBackground}>
+                  Remover imagem de fundo
+                </Button>
+              </div>
+            )}
+          </div>
           <div className="border-t border-border pt-4">
             <Label className="mb-1.5 block">Favicon do site</Label>
             <div className="flex gap-2">
