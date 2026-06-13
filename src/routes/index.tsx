@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
-import { Trophy, Flag, Users, MessageSquare, Calendar, ListChecks, Table as TableIcon, Home as HomeIcon, CalendarDays, MapPin, Award, GitBranch, Shield, LogOut, KeyRound, UserPlus, ImageIcon, RefreshCw, Save, Trash2 } from "lucide-react";
+import { Trophy, Flag, Users, MessageSquare, Calendar, ListChecks, Table as TableIcon, Home as HomeIcon, CalendarDays, MapPin, Award, GitBranch, Shield, KeyRound, UserPlus, ImageIcon, RefreshCw, Save, Trash2, Loader2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 
 import { Header } from "@/components/vivicopa/Header";
@@ -24,6 +24,10 @@ import { isValidEmail, isValidUsername, normalizeEmail, normalizeUsername, usern
 import { carregarPalpites, excluirPalpite, type Palpite } from "@/lib/storage";
 import { flagUrl, flagAlt, flagUrlFromFifaCode } from "@/lib/flags";
 import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
+import { applySiteTheme, DEFAULT_SITE_THEME, HOME_SECONDARY_IMAGE_KEY, readSiteTheme, SITE_ACCENT_KEY, SITE_PRIMARY_KEY, SITE_SUBTITLE_KEY, SITE_SURFACE_KEY, SITE_TITLE_KEY, storeSiteTheme } from "@/lib/siteTheme";
+
+const STORAGE_BUCKET = "imagens-app";
+const STORAGE_MAX_BYTES = 5_000_000;
 
 const LOGO_URL_KEY = "vivicopa:logo-url";
 const LOGO_SIZE_KEY = "vivicopa:logo-size";
@@ -90,6 +94,12 @@ function useConfiguredFavicon() {
 }
 function Vivicopa() {
   useConfiguredFavicon();
+  useEffect(() => {
+    const syncTheme = () => applySiteTheme();
+    syncTheme();
+    window.addEventListener("vivicopa:theme-changed", syncTheme);
+    return () => window.removeEventListener("vivicopa:theme-changed", syncTheme);
+  }, []);
   const [authLoading, setAuthLoading] = useState(true);
   const [authProfile, setAuthProfile] = useState<AuthProfile | null>(null);
   const [aba, setAba] = useState("inicio");
@@ -126,6 +136,7 @@ function Vivicopa() {
       return;
     }
 
+    await carregarConfig();
     setAuthProfile({
       id: user.id,
       username: profile?.username ?? user.email?.split("@")[0] ?? "usuario",
@@ -171,12 +182,26 @@ function Vivicopa() {
       if (cfg.login_background_url) localStorage.setItem(LOGIN_BACKGROUND_KEY, cfg.login_background_url);
       else localStorage.removeItem(LOGIN_BACKGROUND_KEY);
     }
+    const themeKeys = [
+      ["site_title", SITE_TITLE_KEY],
+      ["site_subtitle", SITE_SUBTITLE_KEY],
+      ["site_primary", SITE_PRIMARY_KEY],
+      ["site_accent", SITE_ACCENT_KEY],
+      ["site_surface", SITE_SURFACE_KEY],
+      ["home_secondary_image", HOME_SECONDARY_IMAGE_KEY],
+    ] as const;
+    themeKeys.forEach(([dbKey, storageKey]) => {
+      if (cfg[dbKey] === undefined) return;
+      if (cfg[dbKey]) localStorage.setItem(storageKey, cfg[dbKey]);
+      else localStorage.removeItem(storageKey);
+    });
+    applySiteTheme();
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
     window.dispatchEvent(new CustomEvent("vivicopa:favicon-changed"));
   };
 
   useEffect(() => {
-    if (authProfile) { refresh(); carregarConfig(); }
+    if (authProfile) { refresh(); }
   }, [authProfile?.id]);
 
   const palpitesPorJogo = useMemo(() => {
@@ -211,54 +236,44 @@ function Vivicopa() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-brand-soft">
-      <Header />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card p-3 shadow-card">
-          <div className="flex items-center gap-2 text-sm">
-            <Shield className="h-4 w-4 text-brand" />
-            <span className="font-semibold text-brand-dark">{authProfile.username}</span>
-            <Badge variant={authProfile.role === "admin" ? "default" : "secondary"}>
-              {authProfile.role === "admin" ? "Admin" : "Usuario"}
-            </Badge>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              await supabase.auth.signOut();
-              setAuthProfile(null);
-              setAba("inicio");
-            }}
-          >
-            <LogOut className="mr-1 h-3.5 w-3.5" /> Sair
-          </Button>
-        </div>
-        <Tabs value={aba} onValueChange={setAba} className="w-full">
-          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-white p-1 shadow-card">
-            <TabTrigger value="inicio" icon={<HomeIcon className="h-4 w-4" />}>Início</TabTrigger>
-            <TabTrigger value="jogos" icon={<Calendar className="h-4 w-4" />}>Jogos</TabTrigger>
-            <TabTrigger value="calendario" icon={<CalendarDays className="h-4 w-4" />}>Calendário</TabTrigger>
-            <TabTrigger value="selecoes" icon={<Flag className="h-4 w-4" />}>Seleções</TabTrigger>
-            <TabTrigger value="grupos" icon={<Users className="h-4 w-4" />}>Grupos</TabTrigger>
-            <TabTrigger value="chaveamento" icon={<GitBranch className="h-4 w-4" />}>Chaveamento</TabTrigger>
-            <TabTrigger value="titulos" icon={<Award className="h-4 w-4" />}>Títulos</TabTrigger>
-            <TabTrigger value="meus" icon={<ListChecks className="h-4 w-4" />}>Meus Palpites</TabTrigger>
-            <TabTrigger value="tabela" icon={<TableIcon className="h-4 w-4" />}>Tabela</TabTrigger>
-            <TabTrigger value="comentarios" icon={<MessageSquare className="h-4 w-4" />}>Comentários</TabTrigger>
-            {authProfile.role === "admin" && (
-              <>
-                <TabTrigger value="usuarios" icon={<Users className="h-4 w-4" />}>Usuários</TabTrigger>
-                <TabTrigger value="admin" icon={<Shield className="h-4 w-4" />}>Admin</TabTrigger>
-              </>
-            )}
-          </TabsList>
+    <div className="vivicopa-site flex min-h-screen flex-col bg-brand-soft">
+      <Tabs value={aba} onValueChange={setAba} className="flex min-h-screen w-full flex-col">
+        <Header
+          username={authProfile.username}
+          role={authProfile.role}
+          onLogout={async () => {
+            await supabase.auth.signOut();
+            setAuthProfile(null);
+            setAba("inicio");
+          }}
+          navigation={
+            <TabsList className="site-nav flex h-auto w-full flex-nowrap justify-start gap-x-7 bg-transparent p-0">
+              <TabTrigger value="inicio" icon={<HomeIcon className="h-4 w-4" />}>Início</TabTrigger>
+              <TabTrigger value="jogos" icon={<Calendar className="h-4 w-4" />}>Jogos</TabTrigger>
+              <TabTrigger value="calendario" icon={<CalendarDays className="h-4 w-4" />}>Calendário</TabTrigger>
+              <TabTrigger value="selecoes" icon={<Flag className="h-4 w-4" />}>Seleções</TabTrigger>
+              <TabTrigger value="grupos" icon={<Users className="h-4 w-4" />}>Comunidade</TabTrigger>
+              <TabTrigger value="meus" icon={<ListChecks className="h-4 w-4" />}>Palpites</TabTrigger>
+              <TabTrigger value="comentarios" icon={<MessageSquare className="h-4 w-4" />}>Comentários</TabTrigger>
+              <TabTrigger value="chaveamento" icon={<GitBranch className="h-4 w-4" />}>Chaves</TabTrigger>
+              <TabTrigger value="titulos" icon={<Award className="h-4 w-4" />}>Títulos</TabTrigger>
+              <TabTrigger value="tabela" icon={<TableIcon className="h-4 w-4" />}>Tabela</TabTrigger>
+              {authProfile.role === "admin" && (
+                <>
+                  <TabTrigger value="usuarios" icon={<Users className="h-4 w-4" />}>Usuários</TabTrigger>
+                  <TabTrigger value="admin" icon={<Shield className="h-4 w-4" />}>Admin</TabTrigger>
+                </>
+              )}
+            </TabsList>
+          }
+        />
+        <main className="site-main w-full flex-1">
 
-          <TabsContent value="inicio" className="mt-6">
+          <TabsContent value="inicio" className="mt-0">
             <Inicio palpites={palpites} onJogos={() => setAba("jogos")} onPalpite={() => setAba("jogos")} />
           </TabsContent>
 
-          <TabsContent value="jogos" className="mt-6">
+          <TabsContent value="jogos" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
             <JogosTab
               palpitesPorJogo={palpitesPorJogo}
               onPalpitar={(j) => abrirPalpite(j)}
@@ -269,27 +284,27 @@ function Vivicopa() {
             />
           </TabsContent>
 
-          <TabsContent value="calendario" className="mt-6">
+          <TabsContent value="calendario" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
             <CalendarioTab palpitesPorJogo={palpitesPorJogo} onPalpitar={(j) => abrirPalpite(j)} onComentarios={abrirComentarios} resultadosPorJogo={resultadosPorJogo} />
           </TabsContent>
 
-          <TabsContent value="selecoes" className="mt-6">
+          <TabsContent value="selecoes" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
             <SelecoesTab onAbrir={setSelecaoModal} />
           </TabsContent>
 
-          <TabsContent value="grupos" className="mt-6">
+          <TabsContent value="grupos" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
             <GruposTab onVerJogos={(g) => { setFiltroGrupoInicial(g); setAba("jogos"); }} />
           </TabsContent>
 
-          <TabsContent value="chaveamento" className="mt-6">
+          <TabsContent value="chaveamento" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
             <ChaveamentoAutomatico />
           </TabsContent>
 
-          <TabsContent value="titulos" className="mt-6">
+          <TabsContent value="titulos" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
             <TitulosTab />
           </TabsContent>
 
-          <TabsContent value="meus" className="mt-6">
+          <TabsContent value="meus" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
             <MeusPalpitesTab usuario={authProfile} palpites={palpites} resultadosPorJogo={resultadosPorJogo} onEditar={(p) => {
               const j = jogos.find((x) => x.id === p.jogoId);
               if (j) abrirPalpite(j, p);
@@ -304,26 +319,26 @@ function Vivicopa() {
             }} />
           </TabsContent>
 
-          <TabsContent value="tabela" className="mt-6">
+          <TabsContent value="tabela" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
             <TabelaTab palpites={palpites} />
           </TabsContent>
 
-          <TabsContent value="comentarios" className="mt-6">
+          <TabsContent value="comentarios" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
             <ComentariosTab palpites={palpites} />
           </TabsContent>
 
           {authProfile.role === "admin" && (
             <>
-              <TabsContent value="usuarios" className="mt-6">
+              <TabsContent value="usuarios" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
                 <UsersTab currentUser={authProfile} />
               </TabsContent>
-              <TabsContent value="admin" className="mt-6">
+              <TabsContent value="admin" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
                 <AdminTab />
               </TabsContent>
             </>
           )}
-        </Tabs>
-      </main>
+        </main>
+      </Tabs>
       <Footer />
 
       <PredictionModal jogo={jogoSel} open={modalOpen} onClose={() => setModalOpen(false)} onSaved={refresh} editar={editar} userId={authProfile.id} username={authProfile.username} />
@@ -815,62 +830,97 @@ function AdminTab() {
   const [logoUrl, setLogoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
   const [loginBackgroundUrl, setLoginBackgroundUrl] = useState(() => localStorage.getItem(LOGIN_BACKGROUND_KEY) ?? "");
   const [logoSize, setLogoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
-  const [logoHeaderSize, setLogoHeaderSize] = useState(() => Number(localStorage.getItem(LOGO_HEADER_SIZE_KEY) || 36));
+  const [logoHeaderSize, setLogoHeaderSize] = useState(() => Number(localStorage.getItem(LOGO_HEADER_SIZE_KEY) || 58));
   const [bannerUrl, setBannerUrl] = useState(() => localStorage.getItem(HEADER_BANNER_KEY) ?? "");
   const [heroBannerUrl, setHeroBannerUrl] = useState(() => localStorage.getItem(HERO_BANNER_KEY) ?? "");
   const [faviconUrl, setFaviconUrl] = useState(() => localStorage.getItem(FAVICON_URL_KEY) ?? "");
+  const initialTheme = readSiteTheme();
+  const [siteTitle, setSiteTitle] = useState(initialTheme.title);
+  const [siteSubtitle, setSiteSubtitle] = useState(initialTheme.subtitle);
+  const [sitePrimary, setSitePrimary] = useState(initialTheme.primary);
+  const [siteAccent, setSiteAccent] = useState(initialTheme.accent);
+  const [siteSurface, setSiteSurface] = useState(initialTheme.surface);
+  const [homeSecondaryImage, setHomeSecondaryImage] = useState(() => localStorage.getItem(HOME_SECONDARY_IMAGE_KEY) ?? "");
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const heroBannerInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
   const loginBackgroundInputRef = useRef<HTMLInputElement>(null);
+  const homeSecondaryInputRef = useRef<HTMLInputElement>(null);
 
-  const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setLogoUrl((ev.target?.result as string) ?? "");
-    reader.readAsDataURL(file);
-    e.target.value = "";
+  const storagePathFromUrl = (url: string): string | null => {
+    const marker = `/storage/v1/object/public/${STORAGE_BUCKET}/`;
+    const idx = url.indexOf(marker);
+    return idx >= 0 ? decodeURIComponent(url.slice(idx + marker.length)) : null;
   };
 
-  const handleBannerFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setBannerUrl((ev.target?.result as string) ?? "");
-    reader.readAsDataURL(file);
-    e.target.value = "";
+  const uploadImageToStorage = async (
+    file: File,
+    chave: string,
+    oldUrl: string,
+    setter: (url: string) => void,
+  ) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione um arquivo de imagem válido.");
+      return;
+    }
+    if (file.size > STORAGE_MAX_BYTES) {
+      toast.error("A imagem deve ter no máximo 5 MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      // Remove arquivo anterior do Storage (se for do nosso bucket)
+      if (oldUrl) {
+        const oldPath = storagePathFromUrl(oldUrl);
+        if (oldPath) await supabase.storage.from(STORAGE_BUCKET).remove([oldPath]);
+      }
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
+      const path = `${chave}/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(path, file, { contentType: file.type });
+      if (uploadError) {
+        toast.error("Erro ao fazer upload da imagem.");
+        return;
+      }
+      const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+      setter(data.publicUrl);
+    } finally {
+      setUploading(false);
+    }
   };
 
-  const handleHeroBannerFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setHeroBannerUrl((ev.target?.result as string) ?? "");
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
+  const makeFileHandler = (chave: string, oldUrl: string, setter: (url: string) => void) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.currentTarget.files?.[0];
+      e.currentTarget.value = "";
+      if (file) void uploadImageToStorage(file, chave, oldUrl, setter);
+    };
 
-
-  const handleLoginBackgroundFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setLoginBackgroundUrl((ev.target?.result as string) ?? "");
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
-
-  const handleFaviconFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setFaviconUrl((ev.target?.result as string) ?? "");
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
+  const handleLogoFile = makeFileHandler("logo_url", logoUrl, setLogoUrl);
+  const handleBannerFile = makeFileHandler("header_banner_url", bannerUrl, setBannerUrl);
+  const handleHeroBannerFile = makeFileHandler("hero_banner_url", heroBannerUrl, setHeroBannerUrl);
+  const handleHomeSecondaryFile = makeFileHandler("home_secondary_image", homeSecondaryImage, setHomeSecondaryImage);
+  const handleLoginBackgroundFile = makeFileHandler("login_background_url", loginBackgroundUrl, setLoginBackgroundUrl);
+  const handleFaviconFile = makeFileHandler("favicon_url", faviconUrl, setFaviconUrl);
   const salvarLogo = async () => {
+    const imageValues = [
+      logoUrl,
+      loginBackgroundUrl,
+      bannerUrl,
+      heroBannerUrl,
+      faviconUrl,
+      homeSecondaryImage,
+    ];
+    const validDataUrl = (value: string) =>
+      /^data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=\s]+$/i.test(value);
+    const validRemoteUrl = (value: string) => /^https?:\/\//i.test(value);
+    if (imageValues.some((value) => value && !validDataUrl(value) && !validRemoteUrl(value))) {
+      toast.error("Use uma URL http(s) válida ou carregue um arquivo de imagem.");
+      return;
+    }
     const rows = [
       { chave: "logo_url", valor: logoUrl, atualizado_em: new Date().toISOString() },
       { chave: "logo_size", valor: String(logoSize), atualizado_em: new Date().toISOString() },
@@ -879,6 +929,12 @@ function AdminTab() {
       { chave: "hero_banner_url", valor: heroBannerUrl, atualizado_em: new Date().toISOString() },
       { chave: "favicon_url", valor: faviconUrl, atualizado_em: new Date().toISOString() },
       { chave: "login_background_url", valor: loginBackgroundUrl, atualizado_em: new Date().toISOString() },
+      { chave: "site_title", valor: siteTitle.trim() || DEFAULT_SITE_THEME.title, atualizado_em: new Date().toISOString() },
+      { chave: "site_subtitle", valor: siteSubtitle.trim() || DEFAULT_SITE_THEME.subtitle, atualizado_em: new Date().toISOString() },
+      { chave: "site_primary", valor: sitePrimary, atualizado_em: new Date().toISOString() },
+      { chave: "site_accent", valor: siteAccent, atualizado_em: new Date().toISOString() },
+      { chave: "site_surface", valor: siteSurface, atualizado_em: new Date().toISOString() },
+      { chave: "home_secondary_image", valor: homeSecondaryImage, atualizado_em: new Date().toISOString() },
     ];
     const { error } = await supabase.from("app_config" as never).upsert(rows as never, { onConflict: "chave" });
     if (error) { toast.error("Erro ao salvar configurações."); return; }
@@ -889,50 +945,45 @@ function AdminTab() {
     if (heroBannerUrl) localStorage.setItem(HERO_BANNER_KEY, heroBannerUrl); else localStorage.removeItem(HERO_BANNER_KEY);
     if (faviconUrl) localStorage.setItem(FAVICON_URL_KEY, faviconUrl); else localStorage.removeItem(FAVICON_URL_KEY);
     if (loginBackgroundUrl) localStorage.setItem(LOGIN_BACKGROUND_KEY, loginBackgroundUrl); else localStorage.removeItem(LOGIN_BACKGROUND_KEY);
+    storeSiteTheme({
+      title: siteTitle.trim() || DEFAULT_SITE_THEME.title,
+      subtitle: siteSubtitle.trim() || DEFAULT_SITE_THEME.subtitle,
+      primary: sitePrimary,
+      accent: siteAccent,
+      surface: siteSurface,
+    });
+    if (homeSecondaryImage) localStorage.setItem(HOME_SECONDARY_IMAGE_KEY, homeSecondaryImage);
+    else localStorage.removeItem(HOME_SECONDARY_IMAGE_KEY);
     window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
     window.dispatchEvent(new CustomEvent("vivicopa:favicon-changed"));
     toast.success("Configurações salvas.");
   };
 
-  const removerLogo = async () => {
-    await supabase.from("app_config" as never).update({ valor: "", atualizado_em: new Date().toISOString() } as never).eq("chave" as never, "logo_url");
-    localStorage.removeItem(LOGO_URL_KEY);
-    setLogoUrl("");
-    window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
-    toast.success("Logo removida.");
+  const removerImagem = async (
+    chave: string,
+    url: string,
+    localKey: string,
+    setter: (v: string) => void,
+    evento?: string,
+    mensagem?: string,
+  ) => {
+    const path = storagePathFromUrl(url);
+    if (path) await supabase.storage.from(STORAGE_BUCKET).remove([path]);
+    await supabase.from("app_config" as never)
+      .update({ valor: "", atualizado_em: new Date().toISOString() } as never)
+      .eq("chave" as never, chave);
+    localStorage.removeItem(localKey);
+    setter("");
+    if (evento) window.dispatchEvent(new CustomEvent(evento));
+    toast.success(mensagem ?? "Imagem removida.");
   };
 
-  const removerBanner = async () => {
-    await supabase.from("app_config" as never).update({ valor: "", atualizado_em: new Date().toISOString() } as never).eq("chave" as never, "header_banner_url");
-    localStorage.removeItem(HEADER_BANNER_KEY);
-    setBannerUrl("");
-    window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
-    toast.success("Banner do cabeçalho removido.");
-  };
-
-  const removerHeroBanner = async () => {
-    await supabase.from("app_config" as never).update({ valor: "", atualizado_em: new Date().toISOString() } as never).eq("chave" as never, "hero_banner_url");
-    localStorage.removeItem(HERO_BANNER_KEY);
-    setHeroBannerUrl("");
-    window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
-    toast.success("Banner da tela inicial removido.");
-  };
-
-
-  const removerLoginBackground = async () => {
-    await supabase.from("app_config" as never).update({ valor: "", atualizado_em: new Date().toISOString() } as never).eq("chave" as never, "login_background_url");
-    localStorage.removeItem(LOGIN_BACKGROUND_KEY);
-    setLoginBackgroundUrl("");
-    toast.success("Fundo da tela de login removido.");
-  };
-
-  const removerFavicon = async () => {
-    await supabase.from("app_config" as never).update({ valor: "", atualizado_em: new Date().toISOString() } as never).eq("chave" as never, "favicon_url");
-    localStorage.removeItem(FAVICON_URL_KEY);
-    setFaviconUrl("");
-    window.dispatchEvent(new CustomEvent("vivicopa:favicon-changed"));
-    toast.success("Favicon removido.");
-  };
+  const removerLogo = () => removerImagem("logo_url", logoUrl, LOGO_URL_KEY, setLogoUrl, "vivicopa:logo-changed", "Logo removida.");
+  const removerBanner = () => removerImagem("header_banner_url", bannerUrl, HEADER_BANNER_KEY, setBannerUrl, "vivicopa:logo-changed", "Banner do cabeçalho removido.");
+  const removerHeroBanner = () => removerImagem("hero_banner_url", heroBannerUrl, HERO_BANNER_KEY, setHeroBannerUrl, "vivicopa:logo-changed", "Banner da tela inicial removido.");
+  const removerLoginBackground = () => removerImagem("login_background_url", loginBackgroundUrl, LOGIN_BACKGROUND_KEY, setLoginBackgroundUrl, undefined, "Fundo da tela de login removido.");
+  const removerFavicon = () => removerImagem("favicon_url", faviconUrl, FAVICON_URL_KEY, setFaviconUrl, "vivicopa:favicon-changed", "Favicon removido.");
+  const removerHomeSecondaryImage = () => removerImagem("home_secondary_image", homeSecondaryImage, HOME_SECONDARY_IMAGE_KEY, setHomeSecondaryImage, "vivicopa:logo-changed", "Imagem removida.");
   const trocarSenha = async (event: FormEvent) => {
     event.preventDefault();
     if (novaSenha.length < 6) {
@@ -961,6 +1012,85 @@ function AdminTab() {
 
   return (
     <div className="space-y-4">
+      <section className="site-admin-section border border-border bg-card p-5">
+        <div className="mb-5 flex items-center gap-2 text-xs font-black uppercase text-brand">
+          <ImageIcon className="h-4 w-4" /> Identidade visual do projeto
+        </div>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="site-title">Título do projeto</Label>
+              <Input id="site-title" value={siteTitle} onChange={(e) => setSiteTitle(e.target.value)} maxLength={40} />
+            </div>
+            <div>
+              <Label htmlFor="site-subtitle">Subtítulo</Label>
+              <Input id="site-subtitle" value={siteSubtitle} onChange={(e) => setSiteSubtitle(e.target.value)} maxLength={100} />
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {[
+                ["Cor principal", sitePrimary, setSitePrimary],
+                ["Cor de destaque", siteAccent, setSiteAccent],
+                ["Cor de fundo", siteSurface, setSiteSurface],
+              ].map(([label, value, setter]) => (
+                <label key={label as string} className="space-y-1 text-sm font-semibold">
+                  <span>{label as string}</span>
+                  <span className="flex h-10 items-center gap-2 border border-border bg-white px-2">
+                    <input
+                      type="color"
+                      value={value as string}
+                      onChange={(e) => (setter as (value: string) => void)(e.target.value)}
+                      className="h-7 w-9 cursor-pointer border-0 bg-transparent p-0"
+                    />
+                    <span className="text-xs uppercase text-muted-foreground">{value as string}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <Label>Imagem 2: próximos jogos</Label>
+              {homeSecondaryImage && (
+                <Button type="button" variant="ghost" size="sm" onClick={removerHomeSecondaryImage}>
+                  Remover
+                </Button>
+              )}
+            </div>
+            <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={homeSecondaryImage.startsWith("data:") ? "" : homeSecondaryImage}
+                onChange={(e) => setHomeSecondaryImage(e.target.value)}
+                placeholder="https://... ou carregue um arquivo"
+                className="flex-1"
+              />
+              <Button type="button" variant="outline" disabled={uploading} onClick={() => homeSecondaryInputRef.current?.click()}>
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Carregar arquivo"}
+              </Button>
+              <input ref={homeSecondaryInputRef} type="file" accept="image/*" className="hidden" onChange={handleHomeSecondaryFile} />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Usada ao lado da agenda. Prefira uma foto horizontal com até 5 MB.
+            </p>
+            {homeSecondaryImage.startsWith("data:") && (
+              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado — carregue um novo arquivo para migrar para o Storage.</p>
+            )}
+            <div
+              className="mt-3 aspect-[16/7] w-full border border-dashed border-border bg-brand-soft bg-cover bg-center"
+              style={homeSecondaryImage ? { backgroundImage: "url(" + homeSecondaryImage + ")" } : undefined}
+            >
+              {!homeSecondaryImage && <div className="flex h-full items-center justify-center text-xs font-semibold uppercase text-muted-foreground">Espaço da segunda imagem</div>}
+            </div>
+          </div>
+        </div>
+        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-border pt-4">
+          <Button type="button" onClick={salvarLogo}>
+            <Save className="mr-2 h-4 w-4" /> Salvar identidade e imagens
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            As imagens são armazenadas no Supabase Storage do projeto.
+          </span>
+        </div>
+      </section>
     <div className="grid gap-4 md:grid-cols-2">
       <form onSubmit={trocarSenha} className="rounded-2xl border border-border bg-card p-5 shadow-card">
         <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
@@ -997,8 +1127,8 @@ function AdminTab() {
                 placeholder="https://... ou carregue um arquivo"
                 className="flex-1"
               />
-              <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                Carregar arquivo
+              <Button type="button" variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Carregar arquivo"}
               </Button>
               <input
                 ref={fileInputRef}
@@ -1009,7 +1139,7 @@ function AdminTab() {
               />
             </div>
             {logoUrl.startsWith("data:") && (
-              <p className="mt-1 text-xs text-muted-foreground">Arquivo carregado localmente.</p>
+              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado — carregue um novo arquivo para migrar para o Storage.</p>
             )}
           </div>
 
@@ -1059,8 +1189,8 @@ function AdminTab() {
                 placeholder="https://... ou carregue um arquivo"
                 className="flex-1"
               />
-              <Button type="button" variant="outline" onClick={() => loginBackgroundInputRef.current?.click()}>
-                Carregar arquivo
+              <Button type="button" variant="outline" disabled={uploading} onClick={() => loginBackgroundInputRef.current?.click()}>
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Carregar arquivo"}
               </Button>
               <input
                 ref={loginBackgroundInputRef}
@@ -1074,7 +1204,7 @@ function AdminTab() {
               A imagem ocupará todo o fundo da página, com corte proporcional para preencher a tela.
             </p>
             {loginBackgroundUrl.startsWith("data:") && (
-              <p className="mt-1 text-xs text-muted-foreground">Arquivo carregado localmente.</p>
+              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado — carregue um novo arquivo para migrar para o Storage.</p>
             )}
             {loginBackgroundUrl && (
               <div className="mt-3 space-y-2">
@@ -1105,8 +1235,8 @@ function AdminTab() {
                 placeholder="https://... ou carregue um arquivo"
                 className="flex-1"
               />
-              <Button type="button" variant="outline" onClick={() => faviconInputRef.current?.click()}>
-                Carregar arquivo
+              <Button type="button" variant="outline" disabled={uploading} onClick={() => faviconInputRef.current?.click()}>
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Carregar arquivo"}
               </Button>
               <input
                 ref={faviconInputRef}
@@ -1132,7 +1262,7 @@ function AdminTab() {
               )}
             </div>
             {faviconUrl.startsWith("data:") && (
-              <p className="mt-1 text-xs text-muted-foreground">Arquivo carregado localmente.</p>
+              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado — carregue um novo arquivo para migrar para o Storage.</p>
             )}
           </div>
           <div className="flex gap-2">
@@ -1151,8 +1281,8 @@ function AdminTab() {
                 placeholder="https://... ou carregue um arquivo"
                 className="flex-1"
               />
-              <Button type="button" variant="outline" onClick={() => bannerInputRef.current?.click()}>
-                Carregar arquivo
+              <Button type="button" variant="outline" disabled={uploading} onClick={() => bannerInputRef.current?.click()}>
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Carregar arquivo"}
               </Button>
               <input
                 ref={bannerInputRef}
@@ -1163,7 +1293,7 @@ function AdminTab() {
               />
             </div>
             {bannerUrl.startsWith("data:") && (
-              <p className="mt-1 text-xs text-muted-foreground">Arquivo carregado localmente.</p>
+              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado — carregue um novo arquivo para migrar para o Storage.</p>
             )}
             {bannerUrl && (
               <div className="mt-3 space-y-2">
@@ -1214,11 +1344,18 @@ function AdminTab() {
 
     <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
       <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
-        <ImageIcon className="h-3.5 w-3.5" /> Banner da tela inicial (retângulo azul)
+        <ImageIcon className="h-3.5 w-3.5" /> Imagem 1: destaque principal da página inicial
       </div>
       <div className="space-y-4">
         <div>
-          <Label>Imagem de fundo (arquivo ou URL)</Label>
+          <div className="flex items-center justify-between gap-3">
+            <Label>Imagem de fundo (arquivo ou URL)</Label>
+            {heroBannerUrl && (
+              <Button type="button" variant="ghost" size="sm" onClick={removerHeroBanner}>
+                Remover
+              </Button>
+            )}
+          </div>
           <div className="mt-1.5 flex gap-2">
             <Input
               value={heroBannerUrl.startsWith("data:") ? "" : heroBannerUrl}
@@ -1226,8 +1363,8 @@ function AdminTab() {
               placeholder="https://... ou carregue um arquivo"
               className="flex-1"
             />
-            <Button type="button" variant="outline" onClick={() => heroBannerInputRef.current?.click()}>
-              Carregar arquivo
+            <Button type="button" variant="outline" disabled={uploading} onClick={() => heroBannerInputRef.current?.click()}>
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Carregar arquivo"}
             </Button>
             <input
               ref={heroBannerInputRef}
@@ -1238,30 +1375,29 @@ function AdminTab() {
             />
           </div>
           {heroBannerUrl.startsWith("data:") && (
-            <p className="mt-1 text-xs text-muted-foreground">Arquivo carregado localmente.</p>
+            <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado — carregue um novo arquivo para migrar para o Storage.</p>
           )}
         </div>
         {heroBannerUrl && (
           <div className="space-y-3">
             <div
-              className="relative flex h-28 items-start overflow-hidden rounded-2xl p-6"
+              className="relative flex aspect-[16/7] items-start overflow-hidden border border-border p-6"
               style={{ backgroundImage: `url(${heroBannerUrl})`, backgroundSize: "cover", backgroundPosition: "center" }}
             >
-              <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.60) 0%, rgba(0,0,0,0.35) 100%)" }} />
+              <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(238,233,220,0.96) 0%, rgba(238,233,220,0.75) 40%, transparent 72%)" }} />
               <div className="relative z-10">
-                <div className="text-xs font-medium text-white/80">Copa do Mundo FIFA 2026</div>
-                <div className="text-xl font-extrabold text-white">Bem-vindo à Vivicopa</div>
+                <div className="site-display text-2xl font-black uppercase leading-none text-brand">{siteTitle}</div>
+                <div className="mt-1 text-xs font-bold text-foreground/80">{siteSubtitle}</div>
                 <div className="mt-2 flex gap-2">
-                  <span className="rounded-md bg-white px-2 py-0.5 text-xs font-semibold text-brand-dark">Ver jogos</span>
-                  <span className="rounded-md border border-white/40 bg-white/10 px-2 py-0.5 text-xs font-semibold text-white">Dar meu palpite</span>
+                  <span className="bg-[#174b66] px-2 py-1 text-[9px] font-bold uppercase text-white">Ver jogos</span>
+                  <span className="bg-[var(--site-accent)] px-2 py-1 text-[9px] font-bold uppercase text-white">Fazer palpite</span>
                 </div>
               </div>
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={removerHeroBanner}>Remover banner</Button>
           </div>
         )}
         <p className="text-xs text-muted-foreground">
-          Clique em "Salvar configurações" no painel acima para aplicar.
+          Prefira uma foto horizontal ampla com o assunto principal à direita. Clique em "Salvar identidade e imagens" para aplicar.
         </p>
       </div>
     </div>
@@ -1494,168 +1630,171 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
 }
 
 // ---------- INÍCIO ----------
+function EditorialMatchRow({ jogo, flagMap, live = false }: { jogo: PartidaDestaque; flagMap: Record<string, string>; live?: boolean }) {
+  const hora = jogo.inicia_em
+    ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })
+    : "";
+  const hasScore = live || ["FT", "AET", "PEN", "HT", "ET"].includes(jogo.status);
+  return (
+    <div className={"editorial-match-row grid grid-cols-[72px_1fr_auto_1fr] items-center gap-4 border-b border-black/10 last:border-b-0 " + (live ? "bg-red-50/80" : "bg-white/45")}>
+      <div className={"flex h-full min-h-14 items-center justify-center text-base font-black tabular-nums " + (live ? "bg-red-600 text-white" : "bg-brand text-white")}>
+        {live ? "LIVE" : hora}
+      </div>
+      <div className="flex min-w-0 items-center gap-2">
+        <FlagBox url={flagMap[jogo.time_a]} label={jogo.time_a} className="h-7 w-10 border border-black/10" />
+        <span className="truncate text-[11px] font-black uppercase sm:text-xs">{jogo.time_a}</span>
+      </div>
+      <div className={"px-2 text-center text-sm font-black " + (live ? "text-red-600" : "text-foreground")}>
+        {hasScore ? String(jogo.placar_a) + " - " + String(jogo.placar_b) : "X"}
+      </div>
+      <div className="flex min-w-0 items-center justify-end gap-2">
+        <span className="truncate text-right text-[11px] font-black uppercase sm:text-xs">{jogo.time_b}</span>
+        <FlagBox url={flagMap[jogo.time_b]} label={jogo.time_b} className="h-7 w-10 border border-black/10" />
+      </div>
+    </div>
+  );
+}
+
 function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos: () => void; onPalpite: () => void }) {
   const [heroBannerUrl, setHeroBannerUrl] = useState(() =>
     typeof window !== "undefined" ? (localStorage.getItem(HERO_BANNER_KEY) ?? "") : "",
   );
+  const [secondaryImage, setSecondaryImage] = useState(() =>
+    typeof window !== "undefined" ? (localStorage.getItem(HOME_SECONDARY_IMAGE_KEY) ?? "") : "",
+  );
+  const [theme, setTheme] = useState(readSiteTheme);
 
   useEffect(() => {
-    const sync = () => setHeroBannerUrl(localStorage.getItem(HERO_BANNER_KEY) ?? "");
-    window.addEventListener("vivicopa:logo-changed", sync);
-    return () => window.removeEventListener("vivicopa:logo-changed", sync);
+    const syncBrand = () => {
+      setHeroBannerUrl(localStorage.getItem(HERO_BANNER_KEY) ?? "");
+      setSecondaryImage(localStorage.getItem(HOME_SECONDARY_IMAGE_KEY) ?? "");
+    };
+    const syncTheme = () => setTheme(readSiteTheme());
+    window.addEventListener("vivicopa:logo-changed", syncBrand);
+    window.addEventListener("vivicopa:theme-changed", syncTheme);
+    return () => {
+      window.removeEventListener("vivicopa:logo-changed", syncBrand);
+      window.removeEventListener("vivicopa:theme-changed", syncTheme);
+    };
   }, []);
 
   const { jogosAoVivo, jogosHoje, tituloSecao, flagMap } = useJogosHoje();
-
-  const proximo = useMemo(() => {
-    const hoje = new Date().toISOString().slice(0, 10);
-    return [...jogos].sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora))
-      .find((j) => j.data >= hoje) ?? jogos[0];
-  }, []);
-  const pa = getSelecao(proximo.selecaoA);
-  const pb = getSelecao(proximo.selecaoB);
+  const destaques = [
+    { id: "usa", nome: "Estados Unidos" },
+    { id: "can", nome: "Canadá" },
+    { id: "mex", nome: "México" },
+    { id: "arg", nome: "Argentina" },
+  ];
 
   return (
-    <div className="space-y-6">
-      <div
-        className={`relative overflow-hidden rounded-3xl p-8 text-white shadow-brand ${heroBannerUrl ? "" : "bg-gradient-hero"}`}
-        style={heroBannerUrl ? { backgroundImage: `url(${heroBannerUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+    <div className="editorial-home">
+      <section
+        className={"editorial-hero relative min-h-[500px] w-full overflow-hidden bg-cover bg-center " + (heroBannerUrl ? "has-image" : "is-empty")}
+        style={heroBannerUrl ? { backgroundImage: "url(" + heroBannerUrl + ")" } : undefined}
       >
-        {heroBannerUrl && (
-          <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.60) 0%, rgba(0,0,0,0.35) 100%)" }} />
-        )}
-        <div className="relative z-10 pb-12">
-          <div className="flex items-center gap-2 text-sm font-medium opacity-90">
-            <Trophy className="h-4 w-4" /> Copa do Mundo FIFA 2026
-          </div>
-          <h1 className="mt-2 text-4xl font-extrabold leading-tight md:text-5xl">Bem-vindo à Vivicopa</h1>
-          <p className="mt-2 max-w-xl text-white/90">
-            Vamos palpitar juntos!
+        <div className="editorial-hero-wash absolute inset-0" />
+        <div className="editorial-hero-copy relative z-10 flex min-h-[500px] max-w-[46rem] flex-col justify-center px-6 py-14 sm:px-10 lg:px-12">
+          <h1 className="site-display max-w-[7ch] text-6xl font-black uppercase leading-[0.82] text-brand sm:text-7xl lg:text-[7.2rem]">
+            {theme.title}
+          </h1>
+          <p className="site-display mt-5 text-xl font-black uppercase text-[var(--site-accent)] sm:text-2xl">
+            A Copa que nasceu para a resenha
           </p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Button onClick={onJogos} className="bg-white text-brand-dark hover:bg-white/90">Ver jogos</Button>
-            <Button onClick={onPalpite} variant="outline" className="border-white/40 bg-white/10 text-white hover:bg-white/20">
-              Dar meu palpite
+          <p className="mt-3 max-w-sm text-base font-bold leading-snug text-foreground/90">
+            {theme.subtitle}
+          </p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Button onClick={onJogos} className="h-10 min-w-36 rounded-none bg-[#174b66] px-6 text-[10px] font-black uppercase text-white hover:opacity-90">
+              Ver jogos
+            </Button>
+            <Button onClick={onPalpite} className="h-10 min-w-36 rounded-none bg-[var(--site-accent)] px-6 text-[10px] font-black uppercase text-white hover:opacity-90">
+              Fazer palpite
             </Button>
           </div>
         </div>
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden py-2"
-          style={{
-            maskImage: "linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)",
-            WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)",
-          }}
-        >
-          <div
-            className="flex gap-2"
-            style={{ animation: "vivicopa-marquee 50s linear infinite", width: "max-content" }}
-          >
-            {[...selecoes, ...selecoes].map((s, i) => (
-              <img
-                key={`${s.id}-${i}`}
-                src={flagUrl(s.id, 80)}
-                alt=""
-                className="h-5 w-8 flex-shrink-0 rounded-sm object-cover opacity-35 ring-1 ring-white/30"
-                loading="lazy"
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
-          <MapPin className="h-3.5 w-3.5" /> Países-sede da Copa 2026
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {PAISES_SEDE.map((p) => (
-            <div key={p.id} className="flex flex-col items-center gap-2 rounded-xl bg-brand-soft p-3 text-center">
-              <img src={flagUrl(p.id, 160)} alt={flagAlt(p.id)} className="h-14 w-20 rounded-md object-cover shadow-md ring-1 ring-border" />
-              <div className="text-sm font-bold text-brand-dark">{p.nome}</div>
-              <Badge className="bg-gradient-brand text-[10px] text-white hover:opacity-90">Anfitrião</Badge>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Seleções" value={selecoes.length} />
-        <StatCard label="Jogos (fase de grupos)" value={jogos.length} />
-        <StatCard label="Palpites cadastrados" value={palpites.length} />
-        <StatCard label="Grupos" value={grupos.length} />
-      </div>
-
-      {jogosAoVivo.length > 0 && (
-        <div className="rounded-2xl border border-red-200 bg-card p-5 shadow-card">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wide text-red-500">Jogos ao vivo</span>
-            <span className="flex items-center gap-1 text-[10px] font-bold text-red-500">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
-              </span>
-              Ao vivo
-            </span>
-          </div>
-          <div className="flex flex-col gap-2">
-            {jogosAoVivo.map((j) => <JogoRow key={j.id} jogo={j} flagMap={flagMap} />)}
-          </div>
-        </div>
-      )}
-
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wide text-brand">{tituloSecao}</span>
-        </div>
-        {jogosHoje.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            {jogosHoje.map((j) => <JogoRow key={j.id} jogo={j} flagMap={flagMap} />)}
-          </div>
-        ) : (
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-            <div className="flex flex-col items-center text-center">
-              <img src={flagUrl(proximo.selecaoA, 160)} alt={flagAlt(proximo.selecaoA)} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
-              <div className="mt-2 text-sm font-bold text-brand-dark">{pa?.nome}</div>
-            </div>
-            <div className="text-center text-xs text-muted-foreground">
-              <div className="text-lg font-extrabold text-brand">vs</div>
-              <div className="mt-1">{proximo.data}</div>
-              <div>{proximo.hora}</div>
-              <div className="mt-1 max-w-[140px] text-[11px]">{proximo.estadio}</div>
-            </div>
-            <div className="flex flex-col items-center text-center">
-              <img src={flagUrl(proximo.selecaoB, 160)} alt={flagAlt(proximo.selecaoB)} className="h-16 w-24 rounded-md object-cover shadow-md ring-1 ring-border" />
-              <div className="mt-2 text-sm font-bold text-brand-dark">{pb?.nome}</div>
-            </div>
+        {!heroBannerUrl && (
+          <div className="editorial-image-placeholder absolute bottom-5 right-5 max-w-52 border border-brand/30 bg-[var(--site-surface)]/90 px-4 py-3 text-center text-[10px] font-black uppercase text-brand">
+            Espaço reservado para a imagem principal. Configure no painel Admin.
           </div>
         )}
-      </div>
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
-          <Flag className="h-3.5 w-3.5" /> Seleções participantes
+      </section>
+
+      <section className="editorial-section paper-surface px-5 py-5 sm:px-8 lg:px-7">
+        <div className="mb-3 flex items-end justify-between border-b border-black/25 pb-2">
+          <h2 className="site-section-title text-base font-black uppercase text-foreground">Destaques</h2>
+          <button type="button" onClick={onJogos} className="text-xs font-black uppercase text-brand">Ver todos</button>
         </div>
-        <div className="grid grid-cols-6 gap-2 sm:grid-cols-8 md:grid-cols-12">
-          {selecoes.map((s) => (
-            <div key={s.id} className="flex flex-col items-center gap-1" title={s.nome}>
-              <img src={flagUrl(s.id, 80)} alt={flagAlt(s.id)} loading="lazy" className="h-8 w-12 rounded-sm object-cover ring-1 ring-border" />
-              <div className="truncate text-[10px] text-muted-foreground">{s.nome}</div>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {destaques.map((p) => (
+            <div key={p.id} className="editorial-highlight-card border border-black/8 px-4 py-3 text-center">
+              <img src={flagUrl(p.id, 160)} alt={flagAlt(p.id)} className="mx-auto h-10 w-16 object-cover shadow-sm" />
+              <div className="mt-2 text-[11px] font-black uppercase">{p.nome}</div>
+              <span className="mt-1.5 inline-block bg-[#174b66] px-3 py-1 text-[8px] font-black uppercase text-white">Artigo</span>
             </div>
           ))}
         </div>
-      </div>
+      </section>
+
+      <section className="editorial-stats grid grid-cols-2 bg-brand text-white md:grid-cols-4">
+        <StatBand label="Seleções" value={selecoes.length} />
+        <StatBand label="Jogos (fase de grupos)" value={jogos.length} />
+        <StatBand label="Palpites cadastrados" value={palpites.length} />
+        <StatBand label="Grupos" value={grupos.length} />
+      </section>
+
+      {jogosAoVivo.length > 0 && (
+        <section className="editorial-section border-b border-red-200 bg-red-50 px-5 py-6 sm:px-8 lg:px-12">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-black uppercase text-red-700">Jogos ao vivo</h2>
+            <span className="flex items-center gap-2 text-xs font-black uppercase text-red-600">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-red-600" /> Atualização automática
+            </span>
+          </div>
+          <div className="border border-red-200">
+            {jogosAoVivo.map((jogo) => <EditorialMatchRow key={jogo.id} jogo={jogo} flagMap={flagMap} live />)}
+          </div>
+        </section>
+      )}
+
+      <section className="grid min-h-[300px] lg:grid-cols-[3fr_2fr]">
+        <div className="paper-surface px-5 py-6 sm:px-8 lg:px-7">
+          <div className="mb-3 flex items-center justify-between border-b border-black/20 pb-2">
+            <h2 className="site-section-title text-lg font-black uppercase">{tituloSecao}</h2>
+          </div>
+          <div className="border border-black/10">
+            {jogosHoje.length > 0 ? (
+              jogosHoje.slice(0, 4).map((jogo) => <EditorialMatchRow key={jogo.id} jogo={jogo} flagMap={flagMap} />)
+            ) : (
+              <div className="px-5 py-12 text-center text-sm font-semibold text-muted-foreground">Nenhum jogo programado neste momento.</div>
+            )}
+          </div>
+        </div>
+        <div
+          className={"editorial-secondary-image relative min-h-[280px] bg-cover bg-center " + (secondaryImage ? "has-image" : "is-empty")}
+          style={secondaryImage ? { backgroundImage: "url(" + secondaryImage + ")" } : undefined}
+        >
+          <button type="button" onClick={onJogos} className="absolute bottom-4 right-5 z-10 text-[9px] font-black uppercase text-foreground/65">
+            Ver calendário
+          </button>
+          {!secondaryImage && (
+            <div className="absolute inset-0 flex items-center justify-center border-l border-black/10 p-8 text-center text-[10px] font-black uppercase text-muted-foreground">
+              Espaço reservado para a imagem secundária. Configure no painel Admin.
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatBand({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
-      <div className="text-3xl font-extrabold text-brand-dark">{value}</div>
-      <div className="text-xs text-muted-foreground">{label}</div>
+    <div className="border-b border-r border-white/15 px-7 py-4">
+      <div className="site-display text-3xl font-black leading-none text-[var(--site-accent)]">{value}</div>
+      <div className="mt-1.5 text-[9px] font-bold uppercase tracking-wide text-white/90">{label}</div>
     </div>
   );
 }
-
 
 function jogoSlot(jogo: Jogo) {
   return `${jogo.data}T${jogo.hora}`;
@@ -1802,7 +1941,7 @@ function JogosTab({ palpitesPorJogo, onPalpitar, onComentarios, resultadosPorJog
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="games-grid grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {lista.map((j) => (
           <GameCard key={j.id} jogo={j} qtdPalpites={palpitesPorJogo.get(j.id) ?? 0}
             resultado={resultadosPorJogo.get(j.id)} onPalpitar={onPalpitar} onComentarios={onComentarios} />
@@ -1932,7 +2071,7 @@ function GruposTab({ onVerJogos }: { onVerJogos: (grupo: string) => void }) {
   const { classificacaoPorGrupo, flagMapGrupos } = useClassificacaoGrupos();
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div className="games-grid grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {grupos.map((g) => {
         const tabela = classificacaoPorGrupo[`GROUP_${g}`] ?? [];
         return (
