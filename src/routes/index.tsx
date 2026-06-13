@@ -837,6 +837,8 @@ function AdminTab() {
   const [novaSenha, setNovaSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
+  const [confirmandoLimpeza, setConfirmandoLimpeza] = useState(false);
+  const [limpando, setLimpando] = useState(false);
 
   const [logoUrl, setLogoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
   const [loginBackgroundUrl, setLoginBackgroundUrl] = useState(() => localStorage.getItem(LOGIN_BACKGROUND_KEY) ?? "");
@@ -1451,6 +1453,46 @@ function AdminTab() {
           Prefira uma foto horizontal ampla com o assunto principal à direita. Clique em "Salvar identidade e imagens" para aplicar.
         </p>
       </div>
+    </div>
+
+    <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
+      <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wide text-red-700">
+        <Trash2 className="h-3.5 w-3.5" /> Zona de perigo
+      </div>
+      <p className="mb-4 text-sm text-red-700">
+        Esta ação apaga <strong>todos os palpites e comentários</strong> de todos os usuários permanentemente. Não pode ser desfeita.
+      </p>
+      {!confirmandoLimpeza ? (
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={() => setConfirmandoLimpeza(true)}
+        >
+          <Trash2 className="mr-2 h-4 w-4" /> Apagar todos os palpites e comentários
+        </Button>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-red-300 bg-red-100 p-4">
+          <span className="text-sm font-bold text-red-800">Tem certeza? Esta ação é irreversível.</span>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={limpando}
+            onClick={async () => {
+              setLimpando(true);
+              const { error } = await supabase.rpc("apagar_todos_palpites" as never);
+              setLimpando(false);
+              setConfirmandoLimpeza(false);
+              if (error) { toast.error("Erro ao apagar: " + error.message); return; }
+              toast.success("Todos os palpites e comentários foram apagados.");
+            }}
+          >
+            {limpando ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Apagando...</> : "Sim, apagar tudo"}
+          </Button>
+          <Button type="button" variant="outline" onClick={() => setConfirmandoLimpeza(false)}>
+            Cancelar
+          </Button>
+        </div>
+      )}
     </div>
     </div>
   );
