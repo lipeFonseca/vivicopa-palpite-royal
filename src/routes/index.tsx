@@ -369,11 +369,11 @@ function Vivicopa() {
 
 function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [resending, setResending] = useState(false);
   const [logoUrl, setLogoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
   const [logoSize, setLogoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
 
@@ -389,24 +389,24 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
       });
   }, []);
 
-  const displayNameFromEmail = (value: string, userId?: string) => {
-    const localPart = normalizeEmail(value).split("@")[0] ?? "usuario";
-    const cleaned = localPart.replace(/[^a-z0-9_.-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-    const base = cleaned.length >= 3 ? cleaned.slice(0, 24) : "usuario";
-    return userId ? `${base}-${userId.slice(0, 6)}` : base;
-  };
-
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    const normalizedUsername = normalizeUsername(username);
     const normalizedEmail = normalizeEmail(email);
+
+    if (!isValidUsername(normalizedUsername)) {
+      toast.error("Usuario deve ter 3 a 32 caracteres e usar apenas letras, numeros, ponto, hifen ou underline.");
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error("A senha precisa ter pelo menos 6 caracteres.");
+      return;
+    }
 
     if (mode === "signup") {
       if (!isValidEmail(normalizedEmail)) {
-        toast.error("Informe um e-mail valido para criar sua conta.");
-        return;
-      }
-      if (password.length < 6) {
-        toast.error("A senha precisa ter pelo menos 6 caracteres.");
+        toast.error("Informe um e-mail valido para cadastro.");
         return;
       }
       if (password !== confirmPassword) {
@@ -415,94 +415,37 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
       }
 
       setLoading(true);
-      const { data, error } = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password,
-        options: {
-          data: {
-            username: displayNameFromEmail(normalizedEmail),
-            role: "user",
-          },
+      const { error: createError } = await supabase.functions.invoke("create-managed-user", {
+        body: {
+          publicSignup: true,
+          username: normalizedUsername,
+          email: normalizedEmail,
+          password,
         },
       });
 
-      if (!error && data.user && data.session) {
-        const username = displayNameFromEmail(normalizedEmail, data.user.id);
-        await supabase.from("profiles").upsert({
-          id: data.user.id,
-          username,
-          email: normalizedEmail,
-          role: "user",
-          updated_at: new Date().toISOString(),
-        });
-      }
-
-      setLoading(false);
-
-      if (error) {
-        toast.error(error.message);
+      if (createError) {
+        setLoading(false);
+        toast.error(createError.message);
         return;
       }
-
-      if (!data.session) {
-        toast.success("Conta criada. Confira sua caixa de entrada e spam para confirmar o e-mail antes de entrar.");
-        setMode("login");
-        setPassword("");
-        setConfirmPassword("");
-        return;
-      }
-
-      toast.success("Conta criada com sucesso.");
-      onLoggedIn();
-      return;
+    } else {
+      setLoading(true);
     }
 
-    const loginEmail = isValidEmail(normalizedEmail)
-      ? normalizedEmail
-      : isValidUsername(normalizeUsername(email))
-        ? usernameToEmail(normalizeUsername(email))
-        : "";
-
-    if (!loginEmail) {
-      toast.error("Informe um e-mail valido.");
-      return;
-    }
-
-    setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
-      email: loginEmail,
+      email: usernameToEmail(normalizedUsername),
       password,
     });
     setLoading(false);
 
     if (error) {
-      const message = error.message.toLowerCase().includes("invalid login credentials")
-        ? "E-mail ou senha incorretos. Se voce acabou de criar a conta, confirme o e-mail recebido antes de entrar."
-        : error.message;
-      toast.error(message);
+      toast.error("Usuario ou senha incorretos.");
       return;
     }
 
+    if (mode === "signup") toast.success("Conta criada com sucesso.");
     onLoggedIn();
-  };
-
-  const handleResendConfirmation = async () => {
-    const normalizedEmail = normalizeEmail(email);
-    if (!isValidEmail(normalizedEmail)) {
-      toast.error("Informe um e-mail valido para reenviar a confirmacao.");
-      return;
-    }
-
-    setResending(true);
-    const { error } = await supabase.auth.resend({ type: "signup", email: normalizedEmail });
-    setResending(false);
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
-    toast.success("E-mail de confirmacao reenviado. Confira sua caixa de entrada e spam.");
   };
 
   const isSignup = mode === "signup";
@@ -527,7 +470,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
           </div>
           <h1 className="text-2xl font-extrabold text-brand-dark">{isSignup ? "Criar conta" : "Login Vivicopa"}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {isSignup ? "Cadastre-se com e-mail valido e senha." : "Entre com seu e-mail e senha para acessar os palpites."}
+            {isSignup ? "Crie seu usuario e informe um e-mail de contato." : "Entre com usuario e senha para acessar os palpites."}
           </p>
         </div>
 
@@ -550,17 +493,30 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
 
         <div className="space-y-3">
           <div>
-            <Label htmlFor="login-email">E-mail</Label>
+            <Label htmlFor="login-usuario">Usuario</Label>
             <Input
-              id="login-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-              placeholder="voce@email.com"
+              id="login-usuario"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+              placeholder="ex: maria"
               required
             />
           </div>
+          {isSignup && (
+            <div>
+              <Label htmlFor="cadastro-email">E-mail</Label>
+              <Input
+                id="cadastro-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                placeholder="voce@email.com"
+                required
+              />
+            </div>
+          )}
           <div>
             <Label htmlFor="login-senha">Senha</Label>
             <Input
@@ -590,13 +546,8 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
         <Button type="submit" className="mt-5 w-full bg-gradient-brand text-white hover:opacity-90" disabled={loading}>
           {loading ? (isSignup ? "Criando..." : "Entrando...") : (isSignup ? "Criar conta" : "Entrar")}
         </Button>
-        {!isSignup && (
-          <Button type="button" variant="ghost" className="mt-2 w-full text-xs" onClick={handleResendConfirmation} disabled={resending}>
-            {resending ? "Reenviando..." : "Reenviar confirmacao de e-mail"}
-          </Button>
-        )}
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          {isSignup ? "Seu e-mail sera usado apenas para acesso ao Vivicopa." : "Ainda nao tem conta? Use a aba Criar conta."}
+          {isSignup ? "O e-mail sera usado apenas para comunicacoes futuras." : "Ainda nao tem conta? Use a aba Criar conta."}
         </p>
         <Toaster />
       </form>
@@ -2248,6 +2199,7 @@ function TitulosTab() {
     </div>
   );
 }
+
 
 
 

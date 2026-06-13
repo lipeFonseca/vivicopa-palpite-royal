@@ -7,14 +7,23 @@ const corsHeaders = {
 };
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_.-]{3,32}$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const INTERNAL_AUTH_DOMAIN = "vivicopa.internal";
 
 function json(body: unknown, status = 200) {
   return Response.json(body, { status, headers: corsHeaders });
 }
 
+function normalizeUsername(username: string) {
+  return username.trim().toLowerCase();
+}
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
 function usernameToEmail(username: string) {
-  return `${username.trim().toLowerCase()}@${INTERNAL_AUTH_DOMAIN}`;
+  return `${normalizeUsername(username)}@${INTERNAL_AUTH_DOMAIN}`;
 }
 
 Deno.serve(async (req) => {
@@ -34,10 +43,6 @@ Deno.serve(async (req) => {
     return json({ error: "Supabase server secrets nao configurados" }, 500);
   }
 
-  if (!authHeader?.startsWith("Bearer ")) {
-    return json({ error: "Sessao invalida" }, 401);
-  }
-
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       persistSession: false,
@@ -45,30 +50,11 @@ Deno.serve(async (req) => {
     },
   });
 
-  const token = authHeader.replace("Bearer ", "");
-  const { data: requester, error: requesterError } = await admin.auth.getUser(token);
-
-  if (requesterError || !requester.user) {
-    return json({ error: "Sessao invalida" }, 401);
-  }
-
-  const { data: requesterProfile, error: profileError } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("id", requester.user.id)
-    .maybeSingle();
-
-  if (profileError) {
-    return json({ error: profileError.message }, 500);
-  }
-
-  if (requesterProfile?.role !== "admin") {
-    return json({ error: "Apenas administradores podem criar usuarios" }, 403);
-  }
-
   const body = await req.json().catch(() => null);
-  const username = String(body?.username ?? "").trim().toLowerCase();
+  const username = normalizeUsername(String(body?.username ?? ""));
   const password = String(body?.password ?? "");
+  const contactEmail = normalizeEmail(String(body?.email ?? ""));
+  const publicSignup = body?.publicSignup === true;
 
   if (!USERNAME_PATTERN.test(username)) {
     return json(
@@ -81,6 +67,37 @@ Deno.serve(async (req) => {
     return json({ error: "Senha precisa ter entre 6 e 128 caracteres" }, 400);
   }
 
+  if (publicSignup && !EMAIL_PATTERN.test(contactEmail)) {
+    return json({ error: "Informe um e-mail valido" }, 400);
+  }
+
+  if (!publicSignup) {
+    if (!authHeader?.startsWith("Bearer ")) {
+      return json({ error: "Sessao invalida" }, 401);
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: requester, error: requesterError } = await admin.auth.getUser(token);
+
+    if (requesterError || !requester.user) {
+      return json({ error: "Sessao invalida" }, 401);
+    }
+
+    const { data: requesterProfile, error: profileError } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", requester.user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      return json({ error: profileError.message }, 500);
+    }
+
+    if (requesterProfile?.role !== "admin") {
+      return json({ error: "Apenas administradores podem criar usuarios" }, 403);
+    }
+  }
+
   const { data: created, error: createError } = await admin.auth.admin.createUser({
     email: usernameToEmail(username),
     password,
@@ -89,10 +106,17 @@ Deno.serve(async (req) => {
       role: "user",
       username,
     },
+    user_metadata: {
+      username,
+      contact_email: publicSignup ? contactEmail : null,
+    },
   });
 
   if (createError) {
-    return json({ error: createError.message }, 400);
+    const message = createError.message.toLowerCase().includes("already")
+      ? "Este usuario ja existe. Escolha outro nome de usuario."
+      : createError.message;
+    return json({ error: message }, 400);
   }
 
   if (!created.user) {
@@ -102,7 +126,9 @@ Deno.serve(async (req) => {
   const { error: profileUpsertError } = await admin.from("profiles").upsert({
     id: created.user.id,
     username,
+    email: publicSignup ? contactEmail : null,
     role: "user",
+    updated_at: new Date().toISOString(),
   });
 
   if (profileUpsertError) {
