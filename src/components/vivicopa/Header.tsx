@@ -1,90 +1,107 @@
-import { Trophy } from "lucide-react";
-import { useEffect, useState } from "react";
+import { LogOut, Trophy, UserRound } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { readSiteTheme } from "@/lib/siteTheme";
 
 const LOGO_URL_KEY = "vivicopa:logo-url";
 const LOGO_HEADER_SIZE_KEY = "vivicopa:logo-header-size";
 const HEADER_BANNER_KEY = "vivicopa:header-banner-url";
 
-export function Header() {
+type HeaderProps = {
+  navigation: ReactNode;
+  username: string;
+  role: "admin" | "user";
+  onLogout: () => void | Promise<void>;
+};
+
+export function Header({ navigation, username, role, onLogout }: HeaderProps) {
   const [logoUrl, setLogoUrl] = useState(() =>
     typeof window !== "undefined" ? (localStorage.getItem(LOGO_URL_KEY) ?? "") : "",
   );
   const [logoHeaderSize, setLogoHeaderSize] = useState(() =>
-    typeof window !== "undefined" ? Number(localStorage.getItem(LOGO_HEADER_SIZE_KEY) || 36) : 36,
+    typeof window !== "undefined" ? Number(localStorage.getItem(LOGO_HEADER_SIZE_KEY) || 58) : 58,
   );
   const [bannerUrl, setBannerUrl] = useState(() =>
     typeof window !== "undefined" ? (localStorage.getItem(HEADER_BANNER_KEY) ?? "") : "",
   );
+  const [theme, setTheme] = useState(readSiteTheme);
 
   useEffect(() => {
-    const sync = () => {
+    const syncBrand = () => {
       setLogoUrl(localStorage.getItem(LOGO_URL_KEY) ?? "");
-      setLogoHeaderSize(Number(localStorage.getItem(LOGO_HEADER_SIZE_KEY) || 36));
+      setLogoHeaderSize(Number(localStorage.getItem(LOGO_HEADER_SIZE_KEY) || 58));
       setBannerUrl(localStorage.getItem(HEADER_BANNER_KEY) ?? "");
     };
-    window.addEventListener("vivicopa:logo-changed", sync);
-    return () => window.removeEventListener("vivicopa:logo-changed", sync);
+    const syncTheme = () => setTheme(readSiteTheme());
+    window.addEventListener("vivicopa:logo-changed", syncBrand);
+    window.addEventListener("vivicopa:theme-changed", syncTheme);
+    return () => {
+      window.removeEventListener("vivicopa:logo-changed", syncBrand);
+      window.removeEventListener("vivicopa:theme-changed", syncTheme);
+    };
   }, []);
 
-  const scale = logoHeaderSize / 36;
   const hasBanner = Boolean(bannerUrl);
 
   return (
     <header
-      className="relative sticky top-0 z-40 border-b border-border"
+      className="site-header relative z-40 border-b border-black/20"
       style={
         hasBanner
-          ? { backgroundImage: `url(${bannerUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
-          : { background: "rgba(255,255,255,0.92)", backdropFilter: "blur(12px)" }
+          ? {
+              backgroundImage: "url(" + bannerUrl + ")",
+              backgroundPosition: "center",
+              backgroundSize: "cover",
+            }
+          : undefined
       }
     >
-      {hasBanner && (
-        <div
-          className="absolute inset-0"
-          style={{ background: "linear-gradient(135deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.25) 100%)" }}
-        />
-      )}
-
-      <div className="relative mx-auto flex max-w-6xl items-center px-4 py-3">
-        <div className="flex items-center" style={{ gap: Math.round(scale * 8) }}>
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt="Logo Vivicopa"
-              style={{ width: logoHeaderSize, height: logoHeaderSize }}
-              className="rounded-xl object-contain drop-shadow-md"
-            />
-          ) : (
-            <div
-              className="flex shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white shadow-brand"
-              style={{ width: Math.round(scale * 36), height: Math.round(scale * 36) }}
-            >
-              <Trophy style={{ width: Math.round(scale * 20), height: Math.round(scale * 20) }} />
-            </div>
-          )}
-
-          <div className="leading-tight">
-            <div
-              className="font-bold"
-              style={{
-                fontSize: Math.round(scale * 18),
-                color: hasBanner ? "#fff" : "var(--color-brand-dark, #1e3a5f)",
-                textShadow: hasBanner ? "0 1px 4px rgba(0,0,0,0.4)" : undefined,
-              }}
-            >
-              Vivicopa
-            </div>
-            <div
-              className="hidden sm:block"
-              style={{
-                fontSize: Math.round(scale * 12),
-                color: hasBanner ? "rgba(255,255,255,0.85)" : "var(--color-muted-foreground, #6b7280)",
-                textShadow: hasBanner ? "0 1px 3px rgba(0,0,0,0.35)" : undefined,
-              }}
-            >
-              Palpites, resenhas e emoção em cada jogo.
-            </div>
+      {hasBanner && <div className="absolute inset-0 bg-[var(--site-surface)]/90" />}
+      <div className="site-header-inner relative grid min-h-[90px] w-full items-center gap-x-8 px-5 sm:px-8 lg:px-10">
+        <div className="site-brand flex min-w-0 items-center gap-4">
+          <div className="site-brand-mark flex shrink-0 items-center justify-center bg-brand text-[var(--site-surface)]">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={"Logo " + theme.title}
+                style={{ maxHeight: logoHeaderSize, maxWidth: Math.max(72, logoHeaderSize * 1.45) }}
+                className="h-auto w-auto object-contain"
+              />
+            ) : (
+              <div className="px-3 py-2 text-center">
+                <Trophy className="mx-auto mb-1 h-5 w-5" />
+                <span className="site-display block max-w-24 text-xl font-black uppercase leading-[0.82]">
+                  {theme.title}
+                </span>
+              </div>
+            )}
           </div>
+          <p className="site-brand-tagline hidden max-w-32 text-[10px] font-black uppercase leading-tight text-foreground/80 xl:block">
+            A copa que nasceu para a resenha
+          </p>
+        </div>
+
+        <div className="site-header-navigation min-w-0">{navigation}</div>
+
+        <div className="site-user-wrap flex items-center justify-end">
+          <button
+            type="button"
+            onClick={onLogout}
+            className="site-user-button group flex items-center gap-2 text-left"
+            aria-label={"Sair da conta de " + username}
+            title={"Sair da conta de " + username}
+          >
+            <span className="site-user-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-brand text-brand transition group-hover:bg-brand group-hover:text-white">
+              <UserRound className="h-6 w-6" />
+            </span>
+            <span className="hidden max-w-24 leading-tight 2xl:block">
+              <span className="block truncate text-[11px] font-black uppercase text-brand-dark">
+                {username}
+              </span>
+              <span className="flex items-center gap-1 text-[9px] font-bold uppercase text-foreground/55">
+                {role === "admin" ? "Admin" : "Conta"} <LogOut className="h-2.5 w-2.5" />
+              </span>
+            </span>
+          </button>
         </div>
       </div>
     </header>
