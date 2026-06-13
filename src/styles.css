@@ -149,7 +149,7 @@
 }
 
 .site-header-inner {
-  grid-template-columns: minmax(210px, 0.75fr) minmax(0, 3fr) minmax(48px, auto);
+  grid-template-columns: minmax(90px, auto) minmax(0, 1fr) minmax(48px, auto);
 }
 
 .site-brand-mark {
@@ -164,7 +164,7 @@
 }
 
 .site-nav {
-  justify-content: center;
+  justify-content: flex-start;
   border-radius: 0 !important;
   overflow-x: auto;
   scrollbar-width: none;

@@ -56,7 +56,7 @@ export function Header({ navigation, username, role, onLogout }: HeaderProps) {
       }
     >
       {hasBanner && <div className="absolute inset-0 bg-[var(--site-surface)]/90" />}
-      <div className="site-header-inner relative grid min-h-[90px] w-full items-center gap-x-8 px-5 sm:px-8 lg:px-10">
+      <div className="site-header-inner relative grid min-h-[90px] w-full items-center gap-x-3 px-5 sm:px-8 lg:px-10">
         <div className="site-brand flex min-w-0 items-center gap-4">
           <div className="site-brand-mark flex shrink-0 items-center justify-center bg-brand text-[var(--site-surface)]">
             {logoUrl ? (
@@ -75,9 +75,6 @@ export function Header({ navigation, username, role, onLogout }: HeaderProps) {
               </div>
             )}
           </div>
-          <p className="site-brand-tagline hidden max-w-32 text-[10px] font-black uppercase leading-tight text-foreground/80 xl:block">
-            A copa que nasceu para a resenha
-          </p>
         </div>
 
         <div className="site-header-navigation min-w-0">{navigation}</div>
