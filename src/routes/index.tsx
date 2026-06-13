@@ -242,7 +242,10 @@ function Vivicopa() {
             <TabTrigger value="tabela" icon={<TableIcon className="h-4 w-4" />}>Tabela</TabTrigger>
             <TabTrigger value="comentarios" icon={<MessageSquare className="h-4 w-4" />}>Comentários</TabTrigger>
             {authProfile.role === "admin" && (
-              <TabTrigger value="admin" icon={<Shield className="h-4 w-4" />}>Admin</TabTrigger>
+              <>
+                <TabTrigger value="usuarios" icon={<Users className="h-4 w-4" />}>Usuários</TabTrigger>
+                <TabTrigger value="admin" icon={<Shield className="h-4 w-4" />}>Admin</TabTrigger>
+              </>
             )}
           </TabsList>
 
@@ -305,9 +308,14 @@ function Vivicopa() {
           </TabsContent>
 
           {authProfile.role === "admin" && (
-            <TabsContent value="admin" className="mt-6">
-              <AdminTab currentUser={authProfile} />
-            </TabsContent>
+            <>
+              <TabsContent value="usuarios" className="mt-6">
+                <UsersTab currentUser={authProfile} />
+              </TabsContent>
+              <TabsContent value="admin" className="mt-6">
+                <AdminTab />
+              </TabsContent>
+            </>
           )}
         </Tabs>
       </main>
@@ -724,13 +732,70 @@ function AdminUsersPanel({ currentUserId }: { currentUserId: string }) {
     </div>
   );
 }
-function AdminTab({ currentUser }: { currentUser: AuthProfile }) {
-  const [novaSenha, setNovaSenha] = useState("");
-  const [confirmarSenha, setConfirmarSenha] = useState("");
+function UsersTab({ currentUser }: { currentUser: AuthProfile }) {
   const [novoUsuario, setNovoUsuario] = useState("");
   const [senhaUsuario, setSenhaUsuario] = useState("");
-  const [savingPassword, setSavingPassword] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
+
+  const criarUsuario = async (event: FormEvent) => {
+    event.preventDefault();
+    const username = normalizeUsername(novoUsuario);
+    if (!isValidUsername(username)) {
+      toast.error("Usuario deve ter 3 a 32 caracteres e usar apenas letras, numeros, ponto, hifen ou underline.");
+      return;
+    }
+    if (senhaUsuario.length < 6) {
+      toast.error("A senha precisa ter pelo menos 6 caracteres.");
+      return;
+    }
+
+    setCreatingUser(true);
+    try {
+      const { error } = await supabase.functions.invoke("create-managed-user", {
+        body: { username, password: senhaUsuario },
+      });
+      if (error) throw error;
+      setNovoUsuario("");
+      setSenhaUsuario("");
+      window.dispatchEvent(new CustomEvent("vivicopa:users-changed"));
+      toast.success(`Usuario ${username} criado.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nao foi possivel criar o usuario.");
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <form onSubmit={criarUsuario} className="rounded-2xl border border-border bg-card p-5 shadow-card">
+        <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
+          <UserPlus className="h-3.5 w-3.5" /> Criar usuário
+        </div>
+        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+          <div>
+            <Label htmlFor="usuarios-novo-usuario">Usuário</Label>
+            <Input id="usuarios-novo-usuario" value={novoUsuario} onChange={(e) => setNovoUsuario(e.target.value)} placeholder="ex: maria" />
+          </div>
+          <div>
+            <Label htmlFor="usuarios-senha-inicial">Senha inicial</Label>
+            <Input id="usuarios-senha-inicial" type="password" value={senhaUsuario} onChange={(e) => setSenhaUsuario(e.target.value)} />
+          </div>
+          <Button type="submit" disabled={creatingUser}>
+            <UserPlus className="mr-1 h-4 w-4" />
+            {creatingUser ? "Criando..." : "Criar usuário"}
+          </Button>
+        </div>
+      </form>
+
+      <AdminUsersPanel currentUserId={currentUser.id} />
+    </div>
+  );
+}
+function AdminTab() {
+  const [novaSenha, setNovaSenha] = useState("");
+  const [confirmarSenha, setConfirmarSenha] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
 
   const [logoUrl, setLogoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
   const [logoSize, setLogoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
@@ -858,34 +923,6 @@ function AdminTab({ currentUser }: { currentUser: AuthProfile }) {
     toast.success("Senha alterada.");
   };
 
-  const criarUsuario = async (event: FormEvent) => {
-    event.preventDefault();
-    const username = normalizeUsername(novoUsuario);
-    if (!isValidUsername(username)) {
-      toast.error("Usuario deve ter 3 a 32 caracteres e usar apenas letras, numeros, ponto, hifen ou underline.");
-      return;
-    }
-    if (senhaUsuario.length < 6) {
-      toast.error("A senha precisa ter pelo menos 6 caracteres.");
-      return;
-    }
-
-    setCreatingUser(true);
-    try {
-      const { error } = await supabase.functions.invoke("create-managed-user", {
-        body: { username, password: senhaUsuario },
-      });
-      if (error) throw error;
-      setNovoUsuario("");
-      setSenhaUsuario("");
-      window.dispatchEvent(new CustomEvent("vivicopa:users-changed"));
-      toast.success(`Usuario ${username} criado.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Nao foi possivel criar o usuario.");
-    } finally {
-      setCreatingUser(false);
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -906,25 +943,6 @@ function AdminTab({ currentUser }: { currentUser: AuthProfile }) {
         </div>
         <Button type="submit" className="mt-4 w-full" disabled={savingPassword}>
           {savingPassword ? "Salvando..." : "Alterar senha"}
-        </Button>
-      </form>
-
-      <form onSubmit={criarUsuario} className="rounded-2xl border border-border bg-card p-5 shadow-card">
-        <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
-          <UserPlus className="h-3.5 w-3.5" /> Criar usuario
-        </div>
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="novo-usuario">Usuario</Label>
-            <Input id="novo-usuario" value={novoUsuario} onChange={(e) => setNovoUsuario(e.target.value)} placeholder="ex: maria" />
-          </div>
-          <div>
-            <Label htmlFor="senha-usuario">Senha inicial</Label>
-            <Input id="senha-usuario" type="password" value={senhaUsuario} onChange={(e) => setSenhaUsuario(e.target.value)} />
-          </div>
-        </div>
-        <Button type="submit" className="mt-4 w-full" disabled={creatingUser}>
-          {creatingUser ? "Criando..." : "Criar usuario"}
         </Button>
       </form>
     </div>
@@ -2402,19 +2420,4 @@ function TitulosTab() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
