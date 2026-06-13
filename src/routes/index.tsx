@@ -373,6 +373,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [logoUrl, setLogoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
   const [logoSize, setLogoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
 
@@ -444,7 +445,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
       }
 
       if (!data.session) {
-        toast.success("Conta criada. Confira seu e-mail para confirmar o acesso.");
+        toast.success("Conta criada. Confira sua caixa de entrada e spam para confirmar o e-mail antes de entrar.");
         setMode("login");
         setPassword("");
         setConfirmPassword("");
@@ -475,11 +476,33 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
     setLoading(false);
 
     if (error) {
-      toast.error(error.message);
+      const message = error.message.toLowerCase().includes("invalid login credentials")
+        ? "E-mail ou senha incorretos. Se voce acabou de criar a conta, confirme o e-mail recebido antes de entrar."
+        : error.message;
+      toast.error(message);
       return;
     }
 
     onLoggedIn();
+  };
+
+  const handleResendConfirmation = async () => {
+    const normalizedEmail = normalizeEmail(email);
+    if (!isValidEmail(normalizedEmail)) {
+      toast.error("Informe um e-mail valido para reenviar a confirmacao.");
+      return;
+    }
+
+    setResending(true);
+    const { error } = await supabase.auth.resend({ type: "signup", email: normalizedEmail });
+    setResending(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("E-mail de confirmacao reenviado. Confira sua caixa de entrada e spam.");
   };
 
   const isSignup = mode === "signup";
@@ -567,6 +590,11 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
         <Button type="submit" className="mt-5 w-full bg-gradient-brand text-white hover:opacity-90" disabled={loading}>
           {loading ? (isSignup ? "Criando..." : "Entrando...") : (isSignup ? "Criar conta" : "Entrar")}
         </Button>
+        {!isSignup && (
+          <Button type="button" variant="ghost" className="mt-2 w-full text-xs" onClick={handleResendConfirmation} disabled={resending}>
+            {resending ? "Reenviando..." : "Reenviar confirmacao de e-mail"}
+          </Button>
+        )}
         <p className="mt-3 text-center text-xs text-muted-foreground">
           {isSignup ? "Seu e-mail sera usado apenas para acesso ao Vivicopa." : "Ainda nao tem conta? Use a aba Criar conta."}
         </p>
@@ -2220,6 +2248,8 @@ function TitulosTab() {
     </div>
   );
 }
+
+
 
 
 
