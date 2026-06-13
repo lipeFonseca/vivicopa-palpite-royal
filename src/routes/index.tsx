@@ -430,6 +430,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
         await supabase.from("profiles").upsert({
           id: data.user.id,
           username,
+          email: normalizedEmail,
           role: "user",
           updated_at: new Date().toISOString(),
         });
@@ -2219,5 +2220,7 @@ function TitulosTab() {
     </div>
   );
 }
+
+
 
 
