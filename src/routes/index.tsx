@@ -20,7 +20,7 @@ import { ChaveamentoAutomatico } from "@/components/vivicopa/ChaveamentoAutomati
 import { supabase } from "@/integrations/supabase/client";
 import { selecoes, jogos, grupos, getSelecao, type Jogo, type Selecao } from "@/data/worldcup2026";
 import { getStats } from "@/data/selecaoStats";
-import { isValidUsername, normalizeUsername, usernameToEmail } from "@/lib/auth";
+import { isValidEmail, isValidUsername, normalizeEmail, normalizeUsername, usernameToEmail } from "@/lib/auth";
 import { carregarPalpites, excluirPalpite, type Palpite } from "@/lib/storage";
 import { flagUrl, flagAlt, flagUrlFromFifaCode } from "@/lib/flags";
 import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
@@ -368,8 +368,10 @@ function Vivicopa() {
 }
 
 function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
-  const [username, setUsername] = useState("admin");
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [logoUrl, setLogoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
   const [logoSize, setLogoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
@@ -386,17 +388,87 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
       });
   }, []);
 
+  const displayNameFromEmail = (value: string, userId?: string) => {
+    const localPart = normalizeEmail(value).split("@")[0] ?? "usuario";
+    const cleaned = localPart.replace(/[^a-z0-9_.-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    const base = cleaned.length >= 3 ? cleaned.slice(0, 24) : "usuario";
+    return userId ? `${base}-${userId.slice(0, 6)}` : base;
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    const normalized = normalizeUsername(username);
-    if (!isValidUsername(normalized)) {
-      toast.error("Usuario deve ter 3 a 32 caracteres.");
+    const normalizedEmail = normalizeEmail(email);
+
+    if (mode === "signup") {
+      if (!isValidEmail(normalizedEmail)) {
+        toast.error("Informe um e-mail valido para criar sua conta.");
+        return;
+      }
+      if (password.length < 6) {
+        toast.error("A senha precisa ter pelo menos 6 caracteres.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        toast.error("As senhas nao conferem.");
+        return;
+      }
+
+      setLoading(true);
+      const { data, error } = await supabase.auth.signUp({
+        email: normalizedEmail,
+        password,
+        options: {
+          data: {
+            username: displayNameFromEmail(normalizedEmail),
+            role: "user",
+          },
+        },
+      });
+
+      if (!error && data.user && data.session) {
+        const username = displayNameFromEmail(normalizedEmail, data.user.id);
+        await supabase.from("profiles").upsert({
+          id: data.user.id,
+          username,
+          role: "user",
+          updated_at: new Date().toISOString(),
+        });
+      }
+
+      setLoading(false);
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      if (!data.session) {
+        toast.success("Conta criada. Confira seu e-mail para confirmar o acesso.");
+        setMode("login");
+        setPassword("");
+        setConfirmPassword("");
+        return;
+      }
+
+      toast.success("Conta criada com sucesso.");
+      onLoggedIn();
+      return;
+    }
+
+    const loginEmail = isValidEmail(normalizedEmail)
+      ? normalizedEmail
+      : isValidUsername(normalizeUsername(email))
+        ? usernameToEmail(normalizeUsername(email))
+        : "";
+
+    if (!loginEmail) {
+      toast.error("Informe um e-mail valido.");
       return;
     }
 
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
-      email: usernameToEmail(normalized),
+      email: loginEmail,
       password,
     });
     setLoading(false);
@@ -408,6 +480,8 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
 
     onLoggedIn();
   };
+
+  const isSignup = mode === "signup";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-brand-soft px-4">
@@ -427,18 +501,40 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
               </div>
             )}
           </div>
-          <h1 className="text-2xl font-extrabold text-brand-dark">Login Vivicopa</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Entre com usuario e senha para acessar os palpites.</p>
+          <h1 className="text-2xl font-extrabold text-brand-dark">{isSignup ? "Criar conta" : "Login Vivicopa"}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {isSignup ? "Cadastre-se com e-mail valido e senha." : "Entre com seu e-mail e senha para acessar os palpites."}
+          </p>
+        </div>
+
+        <div className="mb-4 grid grid-cols-2 rounded-xl bg-brand-soft p-1">
+          <button
+            type="button"
+            onClick={() => setMode("login")}
+            className={`rounded-lg px-3 py-2 text-sm font-bold transition ${!isSignup ? "bg-white text-brand shadow-card" : "text-muted-foreground"}`}
+          >
+            Entrar
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("signup")}
+            className={`rounded-lg px-3 py-2 text-sm font-bold transition ${isSignup ? "bg-white text-brand shadow-card" : "text-muted-foreground"}`}
+          >
+            Criar conta
+          </button>
         </div>
 
         <div className="space-y-3">
           <div>
-            <Label htmlFor="login-usuario">Usuario</Label>
+            <Label htmlFor="login-email">E-mail</Label>
             <Input
-              id="login-usuario"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
+              id="login-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              placeholder="voce@email.com"
+              required
             />
           </div>
           <div>
@@ -448,23 +544,36 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
+              autoComplete={isSignup ? "new-password" : "current-password"}
+              required
             />
           </div>
+          {isSignup && (
+            <div>
+              <Label htmlFor="confirmar-cadastro-senha">Confirmar senha</Label>
+              <Input
+                id="confirmar-cadastro-senha"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+                required
+              />
+            </div>
+          )}
         </div>
 
         <Button type="submit" className="mt-5 w-full bg-gradient-brand text-white hover:opacity-90" disabled={loading}>
-          {loading ? "Entrando..." : "Entrar"}
+          {loading ? (isSignup ? "Criando..." : "Entrando...") : (isSignup ? "Criar conta" : "Entrar")}
         </Button>
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          Use as credenciais fornecidas pelo administrador do projeto.
+          {isSignup ? "Seu e-mail sera usado apenas para acesso ao Vivicopa." : "Ainda nao tem conta? Use a aba Criar conta."}
         </p>
         <Toaster />
       </form>
     </div>
   );
 }
-
 function AdminTab() {
   const [novaSenha, setNovaSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
@@ -2110,4 +2219,5 @@ function TitulosTab() {
     </div>
   );
 }
+
 
