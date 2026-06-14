@@ -522,119 +522,64 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
 
   return (
     <div
-      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#11182d] bg-cover bg-center bg-no-repeat px-4 py-8"
+      className="relative flex min-h-screen items-center justify-center bg-brand-soft bg-cover bg-center bg-no-repeat px-4 py-8"
       style={loginBackgroundUrl ? { backgroundImage: "url(\"" + loginBackgroundUrl + "\")" } : undefined}
     >
-      <style>{`
-        @keyframes vivicopa-login-float {
-          0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-          50% { transform: translate3d(0, -18px, 0) scale(1.05); }
-        }
-        @keyframes vivicopa-login-shift {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        @keyframes vivicopa-login-sheen {
-          0% { transform: translateX(-140%) skewX(-18deg); }
-          100% { transform: translateX(170%) skewX(-18deg); }
-        }
-      `}</style>
-      <div className="absolute inset-0 bg-[#11182d]" aria-hidden="true" />
-      {loginBackgroundUrl && <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,15,30,0.76),rgba(9,15,30,0.86))]" aria-hidden="true" />}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(106,163,197,0.14),transparent_30%),radial-gradient(circle_at_top_right,rgba(121,111,255,0.2),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(193,136,92,0.12),transparent_28%)]" aria-hidden="true" />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute left-[10%] top-[10%] h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(98,177,211,0.22),rgba(98,177,211,0))] blur-3xl"
-        style={{ animation: "vivicopa-login-float 8s ease-in-out infinite" }}
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute bottom-[10%] right-[10%] h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(124,111,252,0.22),rgba(124,111,252,0))] blur-3xl"
-        style={{ animation: "vivicopa-login-float 10s ease-in-out infinite reverse" }}
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute bottom-[6%] left-[18%] h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(193,136,92,0.18),rgba(193,136,92,0))] blur-3xl"
-        style={{ animation: "vivicopa-login-float 12s ease-in-out infinite" }}
-      />
-      <form
-        onSubmit={handleSubmit}
-        className="relative z-10 w-full max-w-[28rem] overflow-hidden rounded-[2rem] border border-white/10 bg-[rgba(64,78,112,0.24)] p-7 text-white shadow-[0_26px_64px_rgba(0,0,0,0.46),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-[22px] supports-[backdrop-filter]:bg-[rgba(64,78,112,0.18)]"
-      >
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-90"
-          style={{
-            background:
-              "linear-gradient(145deg, rgba(95,155,192,0.42) 0%, rgba(118,116,233,0.48) 34%, rgba(121,126,139,0.28) 68%, rgba(165,118,90,0.34) 100%)",
-            backgroundSize: "240% 240%",
-            animation: "vivicopa-login-shift 18s ease infinite",
-          }}
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-0 w-32 bg-[linear-gradient(120deg,transparent,rgba(255,255,255,0.12),transparent)] opacity-55"
-          style={{ animation: "vivicopa-login-sheen 6.6s ease-in-out infinite" }}
-        />
-        <div className="absolute inset-[1px] rounded-[1.9rem] border border-white/8" aria-hidden="true" />
-        <div className="relative z-10">
-          <div className="mb-6 text-center">
-          <div className="mx-auto mb-4 flex items-center justify-center">
+      {loginBackgroundUrl && <div className="absolute inset-0 bg-black/35" aria-hidden="true" />}
+      <form onSubmit={handleSubmit} className="relative z-10 w-full max-w-sm rounded-2xl border border-white/70 bg-card/95 p-6 shadow-brand backdrop-blur-sm">
+        <div className="mb-5 text-center">
+          <div className="mx-auto mb-3 flex items-center justify-center">
             {logoUrl ? (
               <img
                 src={logoUrl}
                 alt="Logo Vivicopa"
-                style={{ width: Math.max(logoSize - 10, 64), height: Math.max(logoSize - 10, 64) }}
-                className="object-contain opacity-95 drop-shadow-[0_8px_18px_rgba(0,0,0,0.24)]"
+                style={{ width: logoSize, height: logoSize }}
+                className="object-contain"
               />
             ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-brand text-white shadow-[0_10px_24px_rgba(0,0,0,0.24)]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-brand text-white">
                 <Shield className="h-6 w-6" />
               </div>
             )}
           </div>
-          <h1 className="text-[2.1rem] font-extrabold tracking-tight text-[#8483ff] drop-shadow-[0_0_18px_rgba(132,131,255,0.16)]">
-            {isSignup ? "Criar conta" : "Login Vivicopa"}
-          </h1>
-          <p className="mt-1 text-sm text-white/78">
+          <h1 className="text-2xl font-extrabold text-brand-dark">{isSignup ? "Criar conta" : "Login Vivicopa"}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             {isSignup ? "Crie seu usuario e informe um e-mail de contato." : "Entre com usuario e senha para acessar os palpites."}
           </p>
         </div>
 
-        <div className="mb-5 grid grid-cols-2 rounded-2xl border border-white/8 bg-[rgba(20,28,46,0.36)] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <div className="mb-4 grid grid-cols-2 rounded-xl bg-brand-soft p-1">
           <button
             type="button"
             onClick={() => setMode("login")}
-            className={`rounded-xl px-3 py-2.5 text-sm font-bold transition ${!isSignup ? "bg-[rgba(255,255,255,0.9)] text-[#162440] shadow-[0_10px_22px_rgba(8,16,35,0.18)]" : "text-white/70"}`}
+            className={`rounded-lg px-3 py-2 text-sm font-bold transition ${!isSignup ? "bg-white text-brand shadow-card" : "text-muted-foreground"}`}
           >
             Entrar
           </button>
           <button
             type="button"
             onClick={() => setMode("signup")}
-            className={`rounded-xl px-3 py-2.5 text-sm font-bold transition ${isSignup ? "bg-[rgba(255,255,255,0.9)] text-[#162440] shadow-[0_10px_22px_rgba(8,16,35,0.18)]" : "text-white/70"}`}
+            className={`rounded-lg px-3 py-2 text-sm font-bold transition ${isSignup ? "bg-white text-brand shadow-card" : "text-muted-foreground"}`}
           >
             Criar conta
           </button>
         </div>
 
-        <div className="space-y-3.5">
+        <div className="space-y-3">
           <div>
-            <Label htmlFor="login-usuario" className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] text-white/78">Usuario</Label>
+            <Label htmlFor="login-usuario">Usuario</Label>
             <Input
               id="login-usuario"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
               placeholder="ex: maria"
-              className="h-14 rounded-2xl border border-white/6 bg-[#2c3446]/94 px-4 text-base text-white placeholder:text-[#9fa8b9] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
               required
             />
           </div>
           {isSignup && (
             <div>
-              <Label htmlFor="cadastro-email" className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] text-white/78">E-mail</Label>
+              <Label htmlFor="cadastro-email">E-mail</Label>
               <Input
                 id="cadastro-email"
                 type="email"
@@ -642,47 +587,43 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
                 placeholder="voce@email.com"
-                className="h-14 rounded-2xl border border-white/6 bg-[#2c3446]/94 px-4 text-base text-white placeholder:text-[#9fa8b9] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
                 required
               />
             </div>
           )}
           <div>
-            <Label htmlFor="login-senha" className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] text-white/78">Senha</Label>
+            <Label htmlFor="login-senha">Senha</Label>
             <Input
               id="login-senha"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete={isSignup ? "new-password" : "current-password"}
-              className="h-14 rounded-2xl border border-white/6 bg-[#2c3446]/94 px-4 text-base text-white placeholder:text-[#9fa8b9] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
               required
             />
           </div>
           {isSignup && (
             <div>
-              <Label htmlFor="confirmar-cadastro-senha" className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.14em] text-white/78">Confirmar senha</Label>
+              <Label htmlFor="confirmar-cadastro-senha">Confirmar senha</Label>
               <Input
                 id="confirmar-cadastro-senha"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 autoComplete="new-password"
-                className="h-14 rounded-2xl border border-white/6 bg-[#2c3446]/94 px-4 text-base text-white placeholder:text-[#9fa8b9] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
                 required
               />
             </div>
           )}
         </div>
 
-        <Button type="submit" className="mt-6 h-14 w-full rounded-2xl border-0 bg-[linear-gradient(90deg,#8d8fff_0%,#6366f1_100%)] text-base font-extrabold text-white shadow-[0_14px_28px_rgba(99,102,241,0.3)] hover:opacity-95" disabled={loading}>
+        <Button type="submit" className="mt-5 w-full bg-gradient-brand text-white hover:opacity-90" disabled={loading}>
           {loading ? (isSignup ? "Criando..." : "Entrando...") : (isSignup ? "Criar conta" : "Entrar")}
         </Button>
-        <p className="mt-4 text-center text-xs text-white/68">
+        <p className="mt-3 text-center text-xs text-muted-foreground">
           {isSignup ? "O e-mail sera usado apenas para comunicacoes futuras." : "Ainda nao tem conta? Use a aba Criar conta."}
         </p>
         <Toaster />
-        </div>
       </form>
     </div>
   );
