@@ -1838,15 +1838,14 @@ function EditorialMatchRow({
     : "";
   const hasScore = live || ["FT", "AET", "PEN", "HT", "ET"].includes(jogo.status);
   const bloqueado = jogoLocal ? palpiteBloqueadoParaJogo(jogoLocal) : false;
-  const ctaLabel = bloqueado ? "Ver comentários" : "Palpitar agora";
 
   return (
-    <div className={"editorial-match-row grid grid-cols-[72px_minmax(0,1fr)_88px_minmax(0,1fr)] items-center gap-x-3 gap-y-3 border-b border-black/10 px-3 py-3 last:border-b-0 md:grid-cols-[72px_minmax(0,1fr)_96px_minmax(0,1fr)_170px] " + (live ? "bg-red-50/80" : "bg-white/45")}>
+    <div className={"editorial-match-row grid grid-cols-[72px_minmax(0,1fr)_72px_minmax(0,1fr)] items-center gap-x-2 gap-y-3 border-b border-black/10 px-3 py-3 last:border-b-0 md:grid-cols-[72px_minmax(0,1fr)_78px_minmax(0,1fr)_216px] " + (live ? "bg-red-50/80" : "bg-white/45")}>
       <div className={"flex h-full min-h-14 items-center justify-center text-base font-black tabular-nums " + (live ? "bg-red-600 text-white" : "bg-brand text-white")}>
         {live ? "LIVE" : hora}
       </div>
 
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-center justify-end gap-2">
         <FlagBox url={flagMap[jogo.time_a]} label={getCanonicalTeamName(jogo.time_a)} className="h-9 w-14 border border-black/10 shadow-sm md:h-10 md:w-16" />
         <span className="truncate text-[11px] font-black uppercase tracking-[0.02em] sm:text-xs">{getCanonicalTeamName(jogo.time_a)}</span>
       </div>
@@ -1861,23 +1860,32 @@ function EditorialMatchRow({
         )}
       </div>
 
-      <div className="flex min-w-0 items-center justify-end gap-3">
+      <div className="flex min-w-0 items-center gap-2">
         <span className="truncate text-right text-[11px] font-black uppercase tracking-[0.02em] sm:text-xs">{getCanonicalTeamName(jogo.time_b)}</span>
         <FlagBox url={flagMap[jogo.time_b]} label={getCanonicalTeamName(jogo.time_b)} className="h-9 w-14 border border-black/10 shadow-sm md:h-10 md:w-16" />
       </div>
 
       {jogoLocal && (onPalpitar || onComentarios) && (
-        <div className="col-span-full flex justify-end md:col-span-1 md:justify-stretch">
+        <div className="col-span-full flex gap-2 md:col-span-1 md:justify-stretch">
           <Button
             type="button"
             size="sm"
-            className="h-10 w-full rounded-none border border-[#c89d2e] bg-[linear-gradient(180deg,#d8b04a_0%,#c99a2d_100%)] px-4 text-[10px] font-black uppercase tracking-[0.04em] text-white shadow-[0_4px_12px_rgba(201,154,45,0.25)] hover:brightness-105 md:min-w-[170px]"
+            variant="outline"
+            className="h-10 flex-1 rounded-none border border-[#1f4d35] bg-[linear-gradient(180deg,#295f43_0%,#1f4d35_100%)] px-3 text-[9px] font-black uppercase tracking-[0.04em] text-white shadow-[0_4px_12px_rgba(31,77,53,0.22)] hover:brightness-105"
+            onClick={() => onComentarios?.(jogoLocal)}
+          >
+            Comentários
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={bloqueado}
+            className="h-10 flex-1 rounded-none border border-[#c89d2e] bg-[linear-gradient(180deg,#d8b04a_0%,#c99a2d_100%)] px-3 text-[9px] font-black uppercase tracking-[0.04em] text-white shadow-[0_4px_12px_rgba(201,154,45,0.25)] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-55"
             onClick={() => {
-              if (bloqueado) onComentarios?.(jogoLocal);
-              else onPalpitar?.(jogoLocal);
+              if (!bloqueado) onPalpitar?.(jogoLocal);
             }}
           >
-            {ctaLabel}
+            {bloqueado ? "Encerrado" : "Palpitar"}
           </Button>
         </div>
       )}
