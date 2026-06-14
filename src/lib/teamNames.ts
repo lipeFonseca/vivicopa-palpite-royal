@@ -30,7 +30,7 @@ const aliasesById: Record<string, string[]> = {
   irn: ["Iran", "Irã"],
   nzl: ["New Zealand", "Nova Zelândia"],
   esp: ["Spain", "Espanha"],
-  cpv: ["Cape Verde", "Cabo Verde"],
+  cpv: ["Cape Verde", "Cape Verde Islands", "Cabo Verde"],
   ksa: ["Saudi Arabia", "Arábia Saudita"],
   uru: ["Uruguay", "Uruguai"],
   fra: ["France", "França"],

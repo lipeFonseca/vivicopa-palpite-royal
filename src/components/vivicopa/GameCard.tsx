@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Calendar, MapPin, MessageSquare, Clock, ChevronDown, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StylizedVersus } from "@/components/vivicopa/StylizedVersus";
 import type { Jogo } from "@/data/worldcup2026";
 import { getSelecao } from "@/data/worldcup2026";
 import { flagUrl, flagAlt } from "@/lib/flags";
@@ -79,8 +80,8 @@ export function GameCard({ jogo, qtdPalpites, resultado, onPalpitar, onComentari
               {resultado?.placar_a} – {resultado?.placar_b}
             </div>
           ) : (
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              vs
+            <div className="flex items-center justify-center">
+              <StylizedVersus compact />
             </div>
           )}
           {statusLabel && (

@@ -3,6 +3,7 @@ export const SITE_SUBTITLE_KEY = "vivicopa:site-subtitle";
 export const SITE_PRIMARY_KEY = "vivicopa:site-primary";
 export const SITE_ACCENT_KEY = "vivicopa:site-accent";
 export const SITE_SURFACE_KEY = "vivicopa:site-surface";
+export const SITE_TITLE_TRACKING_KEY = "vivicopa:site-title-tracking";
 export const HOME_SECONDARY_IMAGE_KEY = "vivicopa:home-secondary-image";
 
 export const DEFAULT_SITE_THEME = {
@@ -11,6 +12,7 @@ export const DEFAULT_SITE_THEME = {
   primary: "#1f4d35",
   accent: "#c59a3a",
   surface: "#eee9dc",
+  titleTracking: 0.046,
 };
 
 export function readSiteTheme() {
@@ -21,6 +23,7 @@ export function readSiteTheme() {
     primary: localStorage.getItem(SITE_PRIMARY_KEY) || DEFAULT_SITE_THEME.primary,
     accent: localStorage.getItem(SITE_ACCENT_KEY) || DEFAULT_SITE_THEME.accent,
     surface: localStorage.getItem(SITE_SURFACE_KEY) || DEFAULT_SITE_THEME.surface,
+    titleTracking: Number(localStorage.getItem(SITE_TITLE_TRACKING_KEY) || DEFAULT_SITE_THEME.titleTracking),
   };
 }
 
@@ -37,6 +40,7 @@ export function applySiteTheme() {
   root.style.setProperty("--ring", theme.primary);
   root.style.setProperty("--site-accent", theme.accent);
   root.style.setProperty("--site-surface", theme.surface);
+  root.style.setProperty("--site-title-tracking", `${theme.titleTracking}em`);
   root.style.setProperty(
     "--gradient-brand",
     "linear-gradient(135deg, " + theme.primary + ", " + theme.primary + ")",
@@ -54,12 +58,14 @@ export function storeSiteTheme(values: {
   primary: string;
   accent: string;
   surface: string;
+  titleTracking: number;
 }) {
   localStorage.setItem(SITE_TITLE_KEY, values.title);
   localStorage.setItem(SITE_SUBTITLE_KEY, values.subtitle);
   localStorage.setItem(SITE_PRIMARY_KEY, values.primary);
   localStorage.setItem(SITE_ACCENT_KEY, values.accent);
   localStorage.setItem(SITE_SURFACE_KEY, values.surface);
+  localStorage.setItem(SITE_TITLE_TRACKING_KEY, String(values.titleTracking));
   applySiteTheme();
   window.dispatchEvent(new CustomEvent("vivicopa:theme-changed"));
 }

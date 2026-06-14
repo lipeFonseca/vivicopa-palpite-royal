@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import type { Jogo } from "@/data/worldcup2026";
 import { getSelecao } from "@/data/worldcup2026";
+import { StylizedVersus } from "@/components/vivicopa/StylizedVersus";
 import { salvarPalpite, atualizarPalpite, type Palpite } from "@/lib/storage";
 import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
 
@@ -93,7 +94,9 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
               </Label>
               <Input type="number" min={0} value={placarA} disabled={bloqueado} onChange={(e) => setPlacarA(Number(e.target.value))} />
             </div>
-            <div className="pb-2 text-lg font-bold text-brand">x</div>
+            <div className="flex items-center justify-center pb-2">
+              <StylizedVersus compact />
+            </div>
             <div>
               <Label className="flex items-center gap-1">
                 <span>{b?.bandeiraEmoji}</span> {b?.nome}

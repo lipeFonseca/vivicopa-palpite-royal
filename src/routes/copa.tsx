@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { StylizedVersus } from "@/components/vivicopa/StylizedVersus";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -386,7 +387,7 @@ function PartidaCard({
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
         <div className="text-right font-semibold">{partida.time_a}</div>
         <div className="text-2xl font-extrabold tabular-nums">
-          {partida.placar_a} <span className="text-muted-foreground">x</span> {partida.placar_b}
+          {partida.placar_a} <span className="text-muted-foreground">–</span> {partida.placar_b}
         </div>
         <div className="font-semibold">{partida.time_b}</div>
       </div>
@@ -657,7 +658,7 @@ function ChaveCard({
                 onChange={(e) => setA(Number(e.target.value))}
                 className="h-8 w-12 px-1 text-center text-sm"
               />
-              <span className="text-[10px] text-muted-foreground">x</span>
+              <StylizedVersus compact className="scale-75" />
               <Input
                 type="number"
                 min={0}

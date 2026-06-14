@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { Footer } from "@/components/vivicopa/Footer";
 import { GameCard, type GameResult } from "@/components/vivicopa/GameCard";
 import { PredictionModal } from "@/components/vivicopa/PredictionModal";
 import { ChaveamentoAutomatico } from "@/components/vivicopa/ChaveamentoAutomatico";
+import { StylizedVersus } from "@/components/vivicopa/StylizedVersus";
 import { supabase } from "@/integrations/supabase/client";
 import { selecoes, jogos, grupos, getSelecao, type Jogo, type Selecao } from "@/data/worldcup2026";
 import { getStats } from "@/data/selecaoStats";
@@ -24,8 +25,8 @@ import { isValidEmail, isValidUsername, normalizeEmail, normalizeUsername, usern
 import { carregarPalpites, excluirPalpite, type Palpite } from "@/lib/storage";
 import { flagUrl, flagAlt, flagUrlFromFifaCode } from "@/lib/flags";
 import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
-import { getCanonicalTeamName, getTeamAliases } from "@/lib/teamNames";
-import { applySiteTheme, DEFAULT_SITE_THEME, HOME_SECONDARY_IMAGE_KEY, readSiteTheme, SITE_ACCENT_KEY, SITE_PRIMARY_KEY, SITE_SUBTITLE_KEY, SITE_SURFACE_KEY, SITE_TITLE_KEY, storeSiteTheme } from "@/lib/siteTheme";
+import { getCanonicalTeamName, getTeamAliases, resolveTeamIdByName } from "@/lib/teamNames";
+import { applySiteTheme, DEFAULT_SITE_THEME, HOME_SECONDARY_IMAGE_KEY, readSiteTheme, SITE_ACCENT_KEY, SITE_PRIMARY_KEY, SITE_SUBTITLE_KEY, SITE_SURFACE_KEY, SITE_TITLE_KEY, SITE_TITLE_TRACKING_KEY, storeSiteTheme } from "@/lib/siteTheme";
 
 const STORAGE_BUCKET = "imagens-app";
 const STORAGE_MAX_BYTES = 5_000_000;
@@ -200,6 +201,7 @@ function Vivicopa() {
       ["site_primary", SITE_PRIMARY_KEY],
       ["site_accent", SITE_ACCENT_KEY],
       ["site_surface", SITE_SURFACE_KEY],
+      ["site_title_tracking", SITE_TITLE_TRACKING_KEY],
       ["home_secondary_image", HOME_SECONDARY_IMAGE_KEY],
     ] as const;
     themeKeys.forEach(([dbKey, storageKey]) => {
@@ -264,7 +266,7 @@ function Vivicopa() {
               <TabTrigger value="jogos" icon={<Calendar className="h-4 w-4" />}>Jogos</TabTrigger>
               <TabTrigger value="calendario" icon={<CalendarDays className="h-4 w-4" />}>Calendário</TabTrigger>
               <TabTrigger value="selecoes" icon={<Flag className="h-4 w-4" />}>Seleções</TabTrigger>
-              <TabTrigger value="grupos" icon={<Users className="h-4 w-4" />}>Comunidade</TabTrigger>
+              <TabTrigger value="grupos" icon={<Users className="h-4 w-4" />}>Grupos</TabTrigger>
               <TabTrigger value="meus" icon={<ListChecks className="h-4 w-4" />}>Palpites</TabTrigger>
               <TabTrigger value="comentarios" icon={<MessageSquare className="h-4 w-4" />}>Comentários</TabTrigger>
               <TabTrigger value="chaveamento" icon={<GitBranch className="h-4 w-4" />}>Chaves</TabTrigger>
@@ -282,7 +284,12 @@ function Vivicopa() {
         <main className="site-main w-full flex-1">
 
           <TabsContent value="inicio" className="mt-0">
-            <Inicio palpites={palpites} onJogos={() => setAba("jogos")} onPalpite={() => setAba("jogos")} />
+            <Inicio
+              palpites={palpites}
+              onJogos={() => setAba("jogos")}
+              onPalpite={(jogo) => jogo ? abrirPalpite(jogo) : setAba("jogos")}
+              onComentarios={abrirComentarios}
+            />
           </TabsContent>
 
           <TabsContent value="jogos" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
@@ -856,6 +863,7 @@ function AdminTab() {
   const [sitePrimary, setSitePrimary] = useState(initialTheme.primary);
   const [siteAccent, setSiteAccent] = useState(initialTheme.accent);
   const [siteSurface, setSiteSurface] = useState(initialTheme.surface);
+  const [siteTitleTracking, setSiteTitleTracking] = useState(initialTheme.titleTracking);
   const [homeSecondaryImage, setHomeSecondaryImage] = useState(() => localStorage.getItem(HOME_SECONDARY_IMAGE_KEY) ?? "");
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -952,6 +960,7 @@ function AdminTab() {
       { chave: "site_primary", valor: sitePrimary, atualizado_em: new Date().toISOString() },
       { chave: "site_accent", valor: siteAccent, atualizado_em: new Date().toISOString() },
       { chave: "site_surface", valor: siteSurface, atualizado_em: new Date().toISOString() },
+      { chave: "site_title_tracking", valor: String(siteTitleTracking), atualizado_em: new Date().toISOString() },
       { chave: "home_secondary_image", valor: homeSecondaryImage, atualizado_em: new Date().toISOString() },
     ];
     const { error } = await supabase.from("app_config" as never).upsert(rows as never, { onConflict: "chave" });
@@ -971,6 +980,7 @@ function AdminTab() {
       primary: sitePrimary,
       accent: siteAccent,
       surface: siteSurface,
+      titleTracking: siteTitleTracking,
     });
     if (homeSecondaryImage) localStorage.setItem(HOME_SECONDARY_IMAGE_KEY, homeSecondaryImage);
     else localStorage.removeItem(HOME_SECONDARY_IMAGE_KEY);
@@ -1046,7 +1056,15 @@ function AdminTab() {
               <Label htmlFor="site-subtitle">Subtítulo</Label>
               <Input id="site-subtitle" value={siteSubtitle} onChange={(e) => setSiteSubtitle(e.target.value)} maxLength={100} />
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="pt-2">
+              <div className="mb-1 flex items-center justify-between text-xs font-semibold">
+                <span>Espaçamento entre letras do título</span>
+                <span className="text-brand">{siteTitleTracking.toFixed(3)}em</span>
+              </div>
+              <Slider min={0} max={0.12} step={0.002} value={[siteTitleTracking]} onValueChange={([v]) => setSiteTitleTracking(v)} />
+              <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground"><span>Mais fechado</span><span>Mais aberto</span></div>
+            </div>
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
               {[
                 ["Cor principal", sitePrimary, setSitePrimary],
                 ["Cor de destaque", siteAccent, setSiteAccent],
@@ -1092,7 +1110,7 @@ function AdminTab() {
               Usada ao lado da agenda. Prefira uma foto horizontal com até 5 MB.
             </p>
             {homeSecondaryImage.startsWith("data:") && (
-              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado — carregue um novo arquivo para migrar para o Storage.</p>
+              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado â€” carregue um novo arquivo para migrar para o Storage.</p>
             )}
             <div
               className="mt-3 aspect-[16/7] w-full border border-dashed border-border bg-brand-soft bg-cover"
@@ -1177,7 +1195,7 @@ function AdminTab() {
               />
             </div>
             {logoUrl.startsWith("data:") && (
-              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado — carregue um novo arquivo para migrar para o Storage.</p>
+              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado â€” carregue um novo arquivo para migrar para o Storage.</p>
             )}
           </div>
 
@@ -1242,7 +1260,7 @@ function AdminTab() {
               A imagem ocupará todo o fundo da página, com corte proporcional para preencher a tela.
             </p>
             {loginBackgroundUrl.startsWith("data:") && (
-              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado — carregue um novo arquivo para migrar para o Storage.</p>
+              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado â€” carregue um novo arquivo para migrar para o Storage.</p>
             )}
             {loginBackgroundUrl && (
               <div className="mt-3 space-y-2">
@@ -1300,7 +1318,7 @@ function AdminTab() {
               )}
             </div>
             {faviconUrl.startsWith("data:") && (
-              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado — carregue um novo arquivo para migrar para o Storage.</p>
+              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado â€” carregue um novo arquivo para migrar para o Storage.</p>
             )}
           </div>
           <div className="flex gap-2">
@@ -1331,7 +1349,7 @@ function AdminTab() {
               />
             </div>
             {bannerUrl.startsWith("data:") && (
-              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado — carregue um novo arquivo para migrar para o Storage.</p>
+              <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado â€” carregue um novo arquivo para migrar para o Storage.</p>
             )}
             {bannerUrl && (
               <div className="mt-3 space-y-2">
@@ -1413,7 +1431,7 @@ function AdminTab() {
             />
           </div>
           {heroBannerUrl.startsWith("data:") && (
-            <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado — carregue um novo arquivo para migrar para o Storage.</p>
+            <p className="mt-1 text-xs text-amber-600">Imagem em Base64 legado â€” carregue um novo arquivo para migrar para o Storage.</p>
           )}
         </div>
         {heroBannerUrl && (
@@ -1424,7 +1442,7 @@ function AdminTab() {
             >
               <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, rgba(238,233,220,0.96) 0%, rgba(238,233,220,0.75) 40%, transparent 72%)" }} />
               <div className="relative z-10">
-                <div className="site-display text-2xl font-black uppercase leading-none text-brand">{siteTitle}</div>
+                <div className="site-display text-2xl font-black uppercase leading-none text-brand" style={{ letterSpacing: `${siteTitleTracking}em` }}>{siteTitle}</div>
                 <div className="mt-1 text-xs font-bold text-foreground/80">{siteSubtitle}</div>
                 <div className="mt-2 flex gap-2">
                   <span className="bg-[#174b66] px-2 py-1 text-[9px] font-bold uppercase text-white">Ver jogos</span>
@@ -1687,10 +1705,10 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
         <div className="min-w-0 text-center">
           {isLive || isFinished ? (
             <span className={`text-xl font-extrabold tabular-nums sm:text-2xl ${isLive ? "text-red-500" : "text-muted-foreground"}`}>
-              {jogo.placar_a} – {jogo.placar_b}
+              {jogo.placar_a} â€“ {jogo.placar_b}
             </span>
           ) : (
-            <span className="text-xl font-extrabold text-muted-foreground sm:text-2xl">vs</span>
+            <StylizedVersus compact />
           )}
         </div>
 
@@ -1699,24 +1717,24 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
         </div>
       </div>
 
-      {/* Goal events — shown when there are scored goals */}
+      {/* Goal events â€” shown when there are scored goals */}
       {(goalsA.length > 0 || goalsB.length > 0) && (
         <div className="grid grid-cols-[1fr_auto_1fr] gap-x-2 border-t border-red-100 px-3 pb-2.5 pt-1.5 text-[10px] text-muted-foreground">
           <div className="space-y-0.5 text-right">
             {goalsA.map((g, i) => (
               <div key={i}>
-                {g.marcador_nome ?? "—"}
+                {g.marcador_nome ?? "â€”"}
                 {g.tipo === "OWN" ? " (cg)" : g.tipo === "PENALTY" ? " (pen)" : ""}{" "}
                 <span className="font-semibold text-foreground/70">{g.minuto}{g.acrescimos ? `+${g.acrescimos}` : ""}'</span>
               </div>
             ))}
           </div>
-          <div className="flex items-start justify-center pt-0.5 text-base leading-none">⚽</div>
+          <div className="flex items-start justify-center pt-0.5 text-base leading-none">âš½</div>
           <div className="space-y-0.5">
             {goalsB.map((g, i) => (
               <div key={i}>
                 <span className="font-semibold text-foreground/70">{g.minuto}{g.acrescimos ? `+${g.acrescimos}` : ""}'</span>{" "}
-                {g.marcador_nome ?? "—"}
+                {g.marcador_nome ?? "â€”"}
                 {g.tipo === "OWN" ? " (cg)" : g.tipo === "PENALTY" ? " (pen)" : ""}
               </div>
             ))}
@@ -1728,13 +1746,29 @@ function JogoRow({ jogo, flagMap }: { jogo: PartidaDestaque; flagMap: Record<str
 }
 
 // ---------- INÍCIO ----------
-function EditorialMatchRow({ jogo, flagMap, live = false }: { jogo: PartidaDestaque; flagMap: Record<string, string>; live?: boolean }) {
+function EditorialMatchRowLegacy({
+  jogo,
+  flagMap,
+  live = false,
+  jogoLocal,
+  onPalpitar,
+  onComentarios,
+}: {
+  jogo: PartidaDestaque;
+  flagMap: Record<string, string>;
+  live?: boolean;
+  jogoLocal?: Jogo;
+  onPalpitar?: (jogo: Jogo) => void;
+  onComentarios?: (jogo: Jogo) => void;
+}) {
   const hora = jogo.inicia_em
     ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })
     : "";
   const hasScore = live || ["FT", "AET", "PEN", "HT", "ET"].includes(jogo.status);
+  const bloqueado = jogoLocal ? palpiteBloqueadoParaJogo(jogoLocal) : false;
+  const ctaLabel = bloqueado ? "Ver comentários" : "Palpitar agora";
   return (
-    <div className={"editorial-match-row grid grid-cols-[72px_1fr_auto_1fr] items-center gap-4 border-b border-black/10 last:border-b-0 " + (live ? "bg-red-50/80" : "bg-white/45")}>
+    <div className={"editorial-match-row grid grid-cols-[72px_1fr_auto_1fr] items-center gap-4 border-b border-black/10 px-3 py-3 last:border-b-0 " + (live ? "bg-red-50/80" : "bg-white/45")}>
       <div className={"flex h-full min-h-14 items-center justify-center text-base font-black tabular-nums " + (live ? "bg-red-600 text-white" : "bg-brand text-white")}>
         {live ? "LIVE" : hora}
       </div>
@@ -1749,11 +1783,103 @@ function EditorialMatchRow({ jogo, flagMap, live = false }: { jogo: PartidaDesta
         <span className="truncate text-right text-[11px] font-black uppercase sm:text-xs">{getCanonicalTeamName(jogo.time_b)}</span>
         <FlagBox url={flagMap[jogo.time_b]} label={getCanonicalTeamName(jogo.time_b)} className="h-7 w-10 border border-black/10" />
       </div>
+      {jogoLocal && (onPalpitar || onComentarios) && (
+        <div className="col-span-full flex justify-end">
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 rounded-none bg-[var(--site-accent)] px-4 text-[10px] font-black uppercase text-white hover:opacity-90"
+            onClick={() => {
+              if (bloqueado) onComentarios?.(jogoLocal);
+              else onPalpitar?.(jogoLocal);
+            }}
+          >
+            {ctaLabel}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
 
-function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos: () => void; onPalpite: () => void }) {
+function EditorialMatchRow({
+  jogo,
+  flagMap,
+  live = false,
+  jogoLocal,
+  onPalpitar,
+  onComentarios,
+}: {
+  jogo: PartidaDestaque;
+  flagMap: Record<string, string>;
+  live?: boolean;
+  jogoLocal?: Jogo;
+  onPalpitar?: (jogo: Jogo) => void;
+  onComentarios?: (jogo: Jogo) => void;
+}) {
+  const hora = jogo.inicia_em
+    ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })
+    : "";
+  const hasScore = live || ["FT", "AET", "PEN", "HT", "ET"].includes(jogo.status);
+  const bloqueado = jogoLocal ? palpiteBloqueadoParaJogo(jogoLocal) : false;
+  const ctaLabel = bloqueado ? "Ver comentários" : "Palpitar agora";
+
+  return (
+    <div className={"editorial-match-row grid grid-cols-[72px_minmax(0,1fr)_88px_minmax(0,1fr)] items-center gap-x-3 gap-y-3 border-b border-black/10 px-3 py-3 last:border-b-0 md:grid-cols-[72px_minmax(0,1fr)_96px_minmax(0,1fr)_170px] " + (live ? "bg-red-50/80" : "bg-white/45")}>
+      <div className={"flex h-full min-h-14 items-center justify-center text-base font-black tabular-nums " + (live ? "bg-red-600 text-white" : "bg-brand text-white")}>
+        {live ? "LIVE" : hora}
+      </div>
+
+      <div className="flex min-w-0 items-center gap-3">
+        <FlagBox url={flagMap[jogo.time_a]} label={getCanonicalTeamName(jogo.time_a)} className="h-9 w-14 border border-black/10 shadow-sm md:h-10 md:w-16" />
+        <span className="truncate text-[11px] font-black uppercase tracking-[0.02em] sm:text-xs">{getCanonicalTeamName(jogo.time_a)}</span>
+      </div>
+
+      <div className={"px-1 text-center text-sm font-black " + (live ? "text-red-600" : "text-foreground")}>
+        {hasScore ? (
+          String(jogo.placar_a) + " - " + String(jogo.placar_b)
+        ) : (
+          <div className="flex items-center justify-center">
+            <StylizedVersus />
+          </div>
+        )}
+      </div>
+
+      <div className="flex min-w-0 items-center justify-end gap-3">
+        <span className="truncate text-right text-[11px] font-black uppercase tracking-[0.02em] sm:text-xs">{getCanonicalTeamName(jogo.time_b)}</span>
+        <FlagBox url={flagMap[jogo.time_b]} label={getCanonicalTeamName(jogo.time_b)} className="h-9 w-14 border border-black/10 shadow-sm md:h-10 md:w-16" />
+      </div>
+
+      {jogoLocal && (onPalpitar || onComentarios) && (
+        <div className="col-span-full flex justify-end md:col-span-1 md:justify-stretch">
+          <Button
+            type="button"
+            size="sm"
+            className="h-10 w-full rounded-none border border-[#c89d2e] bg-[linear-gradient(180deg,#d8b04a_0%,#c99a2d_100%)] px-4 text-[10px] font-black uppercase tracking-[0.04em] text-white shadow-[0_4px_12px_rgba(201,154,45,0.25)] hover:brightness-105 md:min-w-[170px]"
+            onClick={() => {
+              if (bloqueado) onComentarios?.(jogoLocal);
+              else onPalpitar?.(jogoLocal);
+            }}
+          >
+            {ctaLabel}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Inicio({
+  palpites,
+  onJogos,
+  onPalpite,
+  onComentarios,
+}: {
+  palpites: Palpite[];
+  onJogos: () => void;
+  onPalpite: (jogo?: Jogo) => void;
+  onComentarios: (jogo: Jogo) => void;
+}) {
   const [heroBannerUrl, setHeroBannerUrl] = useState(() =>
     typeof window !== "undefined" ? (localStorage.getItem(HERO_BANNER_KEY) ?? "") : "",
   );
@@ -1785,12 +1911,25 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
   }, []);
 
   const { jogosAoVivo, jogosHoje, tituloSecao, flagMap } = useJogosHoje();
-  const destaques = [
-    { id: "usa", nome: "Estados Unidos" },
-    { id: "can", nome: "Canadá" },
-    { id: "mex", nome: "México" },
-    { id: "arg", nome: "Argentina" },
-  ];
+  const { classificacaoPorGrupo } = useClassificacaoGrupos();
+  const jogosHome = useMemo(() => [...jogosAoVivo, ...jogosHoje], [jogosAoVivo, jogosHoje]);
+  const partidasPorJogo = useMemo(() => mapearPartidasPorJogos(jogosHome), [jogosHome]);
+  const jogoLocalPorPartidaId = useMemo(() => {
+    const map = new Map<string, Jogo>();
+    partidasPorJogo.forEach((partida, jogoId) => {
+      const jogoLocal = jogos.find((item) => item.id === jogoId);
+      if (jogoLocal) map.set(partida.id, jogoLocal);
+    });
+    return map;
+  }, [partidasPorJogo]);
+  const classificadosPorGrupo = useMemo(
+    () =>
+      grupos.map((grupo) => ({
+        grupo,
+        classificados: (classificacaoPorGrupo[grupo] ?? []).slice(0, 2),
+      })),
+    [classificacaoPorGrupo],
+  );
 
   return (
     <div className="editorial-home">
@@ -1799,21 +1938,21 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
         style={heroBannerUrl ? { backgroundImage: "url(" + heroBannerUrl + ")", backgroundPosition: `${heroBannerPos.x}% ${heroBannerPos.y}%` } : undefined}
       >
         <div className="editorial-hero-wash absolute inset-0" />
-        <div className="editorial-hero-copy relative z-10 flex min-h-[500px] max-w-[46rem] flex-col justify-center px-6 py-14 sm:px-10 lg:px-12">
-          <h1 className="site-display max-w-[7ch] text-6xl font-black uppercase leading-[0.82] text-brand sm:text-7xl lg:text-[7.2rem]">
+        <div className="editorial-hero-copy relative z-10 flex min-h-[500px] max-w-[48rem] flex-col justify-center px-6 py-14 sm:px-10 lg:px-12">
+          <h1 className="site-display max-w-[7ch] text-6xl font-black uppercase leading-[0.96] text-brand sm:text-7xl lg:text-[7.2rem]" style={{ letterSpacing: `${theme.titleTracking}em` }}>
             {theme.title}
           </h1>
-          <p className="site-display mt-5 text-xl font-black uppercase text-[var(--site-accent)] sm:text-2xl">
+          <p className="site-display mt-6 text-xl font-black uppercase tracking-[0.02em] text-[var(--site-accent)] sm:text-2xl">
             A Copa que nasceu para a resenha
           </p>
-          <p className="mt-3 max-w-sm text-base font-bold leading-snug text-foreground/90">
+          <p className="mt-4 max-w-md text-base font-bold leading-relaxed text-foreground/90">
             {theme.subtitle}
           </p>
-          <div className="mt-7 flex flex-wrap gap-3">
+          <div className="mt-8 flex flex-wrap gap-3">
             <Button onClick={onJogos} className="h-10 min-w-36 rounded-none bg-[#174b66] px-6 text-[10px] font-black uppercase text-white hover:opacity-90">
               Ver jogos
             </Button>
-            <Button onClick={onPalpite} className="h-10 min-w-36 rounded-none bg-[var(--site-accent)] px-6 text-[10px] font-black uppercase text-white hover:opacity-90">
+            <Button onClick={() => onPalpite()} className="h-10 min-w-36 rounded-none bg-[var(--site-accent)] px-6 text-[10px] font-black uppercase text-white hover:opacity-90">
               Fazer palpite
             </Button>
           </div>
@@ -1830,14 +1969,47 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
           <h2 className="site-section-title text-base font-black uppercase text-foreground">Destaques</h2>
           <button type="button" onClick={onJogos} className="text-xs font-black uppercase text-brand">Ver todos</button>
         </div>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          {destaques.map((p) => (
-            <div key={p.id} className="editorial-highlight-card border border-black/8 px-4 py-3 text-center">
-              <img src={flagUrl(p.id, 160)} alt={flagAlt(p.id)} className="mx-auto h-10 w-16 object-cover shadow-sm" />
-              <div className="mt-2 text-[11px] font-black uppercase">{p.nome}</div>
-              <span className="mt-1.5 inline-block bg-[#174b66] px-3 py-1 text-[8px] font-black uppercase text-white">Artigo</span>
-            </div>
-          ))}
+        <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {PAISES_SEDE.map((p) => (
+              <div key={p.id} className="editorial-highlight-card border border-black/8 px-4 py-3 text-center">
+                <img src={flagUrl(p.id, 160)} alt={flagAlt(p.id)} className="mx-auto h-10 w-16 object-cover shadow-sm" />
+                <div className="mt-2 text-[11px] font-black uppercase">{p.nome}</div>
+                <span className="mt-1.5 inline-block bg-[#174b66] px-3 py-1 text-[8px] font-black uppercase text-white">Anfitrião</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {classificadosPorGrupo.map(({ grupo, classificados }) => (
+              <div key={grupo} className="rounded-xl border border-black/8 bg-white/70 px-4 py-3">
+                <div className="mb-2 flex items-center justify-between border-b border-black/10 pb-2">
+                  <span className="text-[11px] font-black uppercase text-brand-dark">Grupo {grupo}</span>
+                  <span className="text-[9px] font-bold uppercase text-muted-foreground">Top 2</span>
+                </div>
+                <div className="space-y-2">
+                  {classificados.map((time, index) => {
+                    const selecaoId = resolveTeamIdByName(time.nome) ?? "";
+                    const nome = getCanonicalTeamName(time.nome);
+                    return (
+                      <div key={`${grupo}-${time.nome}`} className="flex items-center justify-between rounded-lg bg-brand-soft/40 px-3 py-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="text-[10px] font-black text-brand">{index + 1}º</span>
+                          {selecaoId ? (
+                            <img src={flagUrl(selecaoId, 80)} alt={flagAlt(selecaoId)} className="h-4 w-6 rounded-sm object-cover shadow-sm" />
+                          ) : (
+                            <div className="h-4 w-6 rounded-sm border border-black/10 bg-brand-soft" />
+                          )}
+                          <span className="truncate text-[11px] font-black uppercase text-foreground">{nome}</span>
+                        </div>
+                        <span className="text-[11px] font-black text-brand-dark">{time.pts} pts</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -1857,7 +2029,17 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
             </span>
           </div>
           <div className="border border-red-200">
-            {jogosAoVivo.map((jogo) => <EditorialMatchRow key={jogo.id} jogo={jogo} flagMap={flagMap} live />)}
+            {jogosAoVivo.map((jogo) => (
+              <EditorialMatchRow
+                key={jogo.id}
+                jogo={jogo}
+                flagMap={flagMap}
+                live
+                jogoLocal={jogoLocalPorPartidaId.get(jogo.id)}
+                onPalpitar={onPalpite}
+                onComentarios={onComentarios}
+              />
+            ))}
           </div>
         </section>
       )}
@@ -1869,7 +2051,16 @@ function Inicio({ palpites, onJogos, onPalpite }: { palpites: Palpite[]; onJogos
           </div>
           <div className="border border-black/10">
             {jogosHoje.length > 0 ? (
-              jogosHoje.slice(0, 4).map((jogo) => <EditorialMatchRow key={jogo.id} jogo={jogo} flagMap={flagMap} />)
+              jogosHoje.slice(0, 4).map((jogo) => (
+                <EditorialMatchRow
+                  key={jogo.id}
+                  jogo={jogo}
+                  flagMap={flagMap}
+                  jogoLocal={jogoLocalPorPartidaId.get(jogo.id)}
+                  onPalpitar={onPalpite}
+                  onComentarios={onComentarios}
+                />
+              ))
             ) : (
               <div className="px-5 py-12 text-center text-sm font-semibold text-muted-foreground">Nenhum jogo programado neste momento.</div>
             )}
@@ -2112,7 +2303,15 @@ function useClassificacaoGrupos() {
       .from("partidas")
       .select("time_a,time_b,placar_a,placar_b,status,grupo")
       .not("grupo", "is", null);
-    setPartidasGrupo(((data ?? []) as Array<{ time_a: string; time_b: string; placar_a: number; placar_b: number; status: string; grupo: string; }>).map((p) => ({ ...p, grupo: grupoApiParaLocal(p.grupo) ?? p.grupo })));
+    setPartidasGrupo(
+      ((data ?? []) as Array<{ time_a: string; time_b: string; placar_a: number; placar_b: number; status: string; grupo: string; }>)
+        .map((p) => ({
+          ...p,
+          time_a: getCanonicalTeamName(p.time_a) || p.time_a,
+          time_b: getCanonicalTeamName(p.time_b) || p.time_b,
+          grupo: grupoApiParaLocal(p.grupo) ?? p.grupo,
+        })),
+    );
   }, []);
 
   useEffect(() => {
@@ -2144,6 +2343,25 @@ function useClassificacaoGrupos() {
     const FINISHED = new Set(["FT", "AET", "PEN"]);
     const tabelas: Record<string, Record<string, EntradaClassificacao>> = {};
 
+    grupos.forEach((grupo) => {
+      tabelas[grupo] = {};
+      selecoes
+        .filter((selecao) => selecao.grupo === grupo)
+        .forEach((selecao) => {
+          tabelas[grupo][selecao.nome] = {
+            nome: selecao.nome,
+            j: 0,
+            v: 0,
+            e: 0,
+            d: 0,
+            gp: 0,
+            gc: 0,
+            sg: 0,
+            pts: 0,
+          };
+        });
+    });
+
     for (const p of partidasGrupo) {
       if (!p.grupo) continue;
       if (!tabelas[p.grupo]) tabelas[p.grupo] = {};
@@ -2166,7 +2384,13 @@ function useClassificacaoGrupos() {
     const sorted: Record<string, EntradaClassificacao[]> = {};
     for (const [grupo, tabela] of Object.entries(tabelas)) {
       sorted[grupo] = Object.values(tabela).sort((x, y) =>
-        y.pts !== x.pts ? y.pts - x.pts : y.sg !== x.sg ? y.sg - x.sg : y.gp - x.gp
+        y.pts !== x.pts
+          ? y.pts - x.pts
+          : y.sg !== x.sg
+            ? y.sg - x.sg
+            : y.gp !== x.gp
+              ? y.gp - x.gp
+              : x.nome.localeCompare(y.nome)
       );
     }
     return sorted;
@@ -2182,7 +2406,7 @@ function GruposTab({ onVerJogos }: { onVerJogos: (grupo: string) => void }) {
   return (
     <div className="games-grid grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {grupos.map((g) => {
-        const tabela = classificacaoPorGrupo[`GROUP_${g}`] ?? [];
+        const tabela = classificacaoPorGrupo[g] ?? [];
         return (
           <div key={g} className="rounded-2xl border border-border bg-card p-4 shadow-card">
             <div className="mb-3 flex items-center justify-between">
@@ -2190,12 +2414,16 @@ function GruposTab({ onVerJogos }: { onVerJogos: (grupo: string) => void }) {
               <Badge className="bg-brand-light text-brand-dark hover:bg-brand-light">{tabela.length || 4} seleções</Badge>
             </div>
 
-            <div className="mb-1 grid grid-cols-[1.25rem_1fr_1.75rem_1.75rem_1.75rem_2rem] items-center gap-x-1 px-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="mb-1 grid grid-cols-[1.25rem_minmax(0,1fr)_1.6rem_1.6rem_1.6rem_1.6rem_1.8rem_1.8rem_2rem] items-center gap-x-1 px-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
               <span>#</span>
               <span>Seleção</span>
               <span className="text-center">J</span>
-              <span className="text-center">SG</span>
+              <span className="text-center">V</span>
+              <span className="text-center">E</span>
+              <span className="text-center">D</span>
               <span className="text-center">GP</span>
+              <span className="text-center">GC</span>
+              <span className="text-center">SG</span>
               <span className="text-center font-bold">Pts</span>
             </div>
 
@@ -2203,7 +2431,7 @@ function GruposTab({ onVerJogos }: { onVerJogos: (grupo: string) => void }) {
               {tabela.map((entry, idx) => (
                 <li
                   key={entry.nome}
-                  className={`grid grid-cols-[1.25rem_1fr_1.75rem_1.75rem_1.75rem_2rem] items-center gap-x-1 rounded-lg px-2 py-1.5 text-xs ${
+                  className={`grid grid-cols-[1.25rem_minmax(0,1fr)_1.6rem_1.6rem_1.6rem_1.6rem_1.8rem_1.8rem_2rem] items-center gap-x-1 rounded-lg px-2 py-1.5 text-xs ${
                     idx < 2 ? "bg-green-50 ring-1 ring-green-100" : "bg-brand-soft/40"
                   }`}
                 >
@@ -2215,8 +2443,12 @@ function GruposTab({ onVerJogos }: { onVerJogos: (grupo: string) => void }) {
                     <span className="truncate font-medium">{getCanonicalTeamName(entry.nome)}</span>
                   </div>
                   <span className="text-center text-[11px]">{entry.j}</span>
-                  <span className="text-center text-[11px]">{entry.sg > 0 ? `+${entry.sg}` : entry.sg}</span>
+                  <span className="text-center text-[11px]">{entry.v}</span>
+                  <span className="text-center text-[11px]">{entry.e}</span>
+                  <span className="text-center text-[11px]">{entry.d}</span>
                   <span className="text-center text-[11px]">{entry.gp}</span>
+                  <span className="text-center text-[11px]">{entry.gc}</span>
+                  <span className="text-center text-[11px]">{entry.sg > 0 ? `+${entry.sg}` : entry.sg}</span>
                   <span className={`text-center text-[11px] font-extrabold tabular-nums ${entry.pts > 0 ? "text-brand" : ""}`}>
                     {entry.pts}
                   </span>
@@ -2270,7 +2502,7 @@ function MeusPalpitesTab({ usuario, palpites, onEditar, onExcluir, resultadosPor
                 </div>
                 <div className="flex items-center justify-around text-center">
                   <PalpiteTime selecaoId={p.selecaoA} nome={a?.nome} />
-                  <div className="text-2xl font-extrabold text-brand">{p.placarA} x {p.placarB}</div>
+                  <div className="text-2xl font-extrabold text-brand">{p.placarA} – {p.placarB}</div>
                   <PalpiteTime selecaoId={p.selecaoB} nome={b?.nome} />
                 </div>
                 {p.comentario && <div className="mt-2 rounded-lg bg-brand-soft p-2 text-sm italic">"{p.comentario}"</div>}
@@ -2344,7 +2576,7 @@ function TabelaTab({ palpites }: { palpites: Palpite[] }) {
               <SelectItem value="todos">Todos</SelectItem>
               {jogos.map((j) => {
                 const a = getSelecao(j.selecaoA); const b = getSelecao(j.selecaoB);
-                return <SelectItem key={j.id} value={j.id}>{a?.nome} x {b?.nome}</SelectItem>;
+                return <SelectItem key={j.id} value={j.id}>{a?.nome} VS {b?.nome}</SelectItem>;
               })}
             </SelectContent>
           </Select>
@@ -2370,12 +2602,12 @@ function TabelaTab({ palpites }: { palpites: Palpite[] }) {
                   <Td>
                     <div className="flex min-w-[240px] flex-wrap items-center gap-1.5">
                       <TabelaTime selecaoId={p.selecaoA} nome={a?.nome} />
-                      <span className="px-0.5 text-xs font-semibold text-muted-foreground">x</span>
+                      <span className="px-0.5 text-xs font-semibold text-muted-foreground">VS</span>
                       <TabelaTime selecaoId={p.selecaoB} nome={b?.nome} />
                     </div>
                   </Td>
                   <Td>{j?.data}</Td>
-                  <Td className="font-bold text-brand">{p.placarA} x {p.placarB}</Td>
+                  <Td className="font-bold text-brand">{p.placarA} – {p.placarB}</Td>
                   <Td className="max-w-[200px] truncate italic text-muted-foreground">{p.comentario || "—"}</Td>
                   <Td className="text-xs text-muted-foreground">{new Date(p.dataCriacao).toLocaleDateString("pt-BR")}</Td>
                 </tr>
@@ -2463,7 +2695,7 @@ function ComentariosTab({ palpites }: { palpites: Palpite[] }) {
               <SelectItem value="todos">Todos</SelectItem>
               {jogos.map((j) => {
                 const a = getSelecao(j.selecaoA); const b = getSelecao(j.selecaoB);
-                return <SelectItem key={j.id} value={j.id}>{a?.nome} x {b?.nome}</SelectItem>;
+                return <SelectItem key={j.id} value={j.id}>{a?.nome} VS {b?.nome}</SelectItem>;
               })}
             </SelectContent>
           </Select>
@@ -2481,7 +2713,7 @@ function ComentariosTab({ palpites }: { palpites: Palpite[] }) {
                 <div className="text-muted-foreground">{new Date(p.dataCriacao).toLocaleDateString("pt-BR")}</div>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
-                Grupo {j?.grupo} · {a?.bandeiraEmoji} {a?.nome} x {b?.nome} {b?.bandeiraEmoji}
+                Grupo {j?.grupo} · {a?.bandeiraEmoji} {a?.nome} VS {b?.nome} {b?.bandeiraEmoji}
               </div>
               <div className="mt-2 rounded-lg bg-brand-soft p-3 text-sm italic">"{p.comentario}"</div>
             </div>
@@ -2502,7 +2734,7 @@ function ComentariosJogo({ jogo, palpites }: { jogo: Jogo; palpites: Palpite[] }
         <div key={p.id} className="rounded-lg border border-border p-3">
           <div className="flex justify-between text-xs">
             <span className="font-semibold text-brand-dark">{p.usuario}</span>
-            <span className="text-muted-foreground">{p.placarA} x {p.placarB}</span>
+            <span className="text-muted-foreground">{p.placarA} – {p.placarB}</span>
           </div>
           <div className="mt-1 text-sm italic">"{p.comentario}"</div>
         </div>
@@ -2626,7 +2858,7 @@ function CalendarioTab({ palpitesPorJogo, onPalpitar, onComentarios, resultadosP
                             {resultado?.placar_a} – {resultado?.placar_b}
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground">x</span>
+                          <StylizedVersus compact />
                         )}
                       </div>
                       <div className="flex flex-col items-center text-center">
@@ -2635,7 +2867,7 @@ function CalendarioTab({ palpitesPorJogo, onPalpitar, onComentarios, resultadosP
                       </div>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground" title={`${j.estadio} — ${j.cidade}`}>
+                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground" title={`${j.estadio} â€” ${j.cidade}`}>
                         <MapPin className="h-3 w-3 text-brand" />
                         <span className="max-w-[110px] truncate">{j.cidade}</span>
                       </div>
@@ -2749,3 +2981,4 @@ function TitulosTab() {
     </div>
   );
 }
+
