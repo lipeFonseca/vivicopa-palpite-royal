@@ -522,12 +522,62 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
 
   return (
     <div
-      className="relative flex min-h-screen items-center justify-center bg-brand-soft bg-cover bg-center bg-no-repeat px-4 py-8"
+      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-brand-soft bg-cover bg-center bg-no-repeat px-4 py-8"
       style={loginBackgroundUrl ? { backgroundImage: "url(\"" + loginBackgroundUrl + "\")" } : undefined}
     >
-      {loginBackgroundUrl && <div className="absolute inset-0 bg-black/35" aria-hidden="true" />}
-      <form onSubmit={handleSubmit} className="relative z-10 w-full max-w-sm rounded-2xl border border-white/35 bg-white/72 p-6 shadow-[0_18px_50px_rgba(12,32,20,0.26)] backdrop-blur-md supports-[backdrop-filter]:bg-white/58">
-        <div className="mb-5 text-center">
+      <style>{`
+        @keyframes vivicopa-login-float {
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+          50% { transform: translate3d(0, -18px, 0) scale(1.05); }
+        }
+        @keyframes vivicopa-login-shift {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        @keyframes vivicopa-login-sheen {
+          0% { transform: translateX(-140%) skewX(-18deg); }
+          100% { transform: translateX(170%) skewX(-18deg); }
+        }
+      `}</style>
+      {loginBackgroundUrl && <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.18),transparent_32%),linear-gradient(135deg,rgba(4,20,12,0.62),rgba(16,52,33,0.42)_42%,rgba(197,154,58,0.18)_100%)]" aria-hidden="true" />}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-[12%] top-[14%] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(197,154,58,0.34),rgba(197,154,58,0))] blur-3xl"
+        style={{ animation: "vivicopa-login-float 8s ease-in-out infinite" }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-[12%] right-[11%] h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(31,77,53,0.36),rgba(31,77,53,0))] blur-3xl"
+        style={{ animation: "vivicopa-login-float 10s ease-in-out infinite reverse" }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.16),rgba(255,255,255,0))] blur-3xl"
+        style={{ animation: "vivicopa-login-float 12s ease-in-out infinite" }}
+      />
+      <form
+        onSubmit={handleSubmit}
+        className="relative z-10 w-full max-w-sm overflow-hidden rounded-[1.75rem] border border-white/35 bg-white/70 p-6 shadow-[0_22px_60px_rgba(8,27,18,0.34)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/52"
+      >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-90"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(255,255,255,0.28), rgba(255,255,255,0.08), rgba(197,154,58,0.12), rgba(31,77,53,0.1))",
+            backgroundSize: "220% 220%",
+            animation: "vivicopa-login-shift 14s ease infinite",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-[linear-gradient(120deg,transparent,rgba(255,255,255,0.32),transparent)] opacity-60"
+          style={{ animation: "vivicopa-login-sheen 5.8s ease-in-out infinite" }}
+        />
+        <div className="absolute inset-[1px] rounded-[1.65rem] border border-white/18" aria-hidden="true" />
+        <div className="relative z-10">
+          <div className="mb-5 text-center">
           <div className="mx-auto mb-3 flex items-center justify-center">
             {logoUrl ? (
               <img
@@ -548,7 +598,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
           </p>
         </div>
 
-        <div className="mb-4 grid grid-cols-2 rounded-xl bg-brand-soft p-1">
+        <div className="mb-4 grid grid-cols-2 rounded-xl border border-white/35 bg-white/42 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]">
           <button
             type="button"
             onClick={() => setMode("login")}
@@ -624,6 +674,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
           {isSignup ? "O e-mail sera usado apenas para comunicacoes futuras." : "Ainda nao tem conta? Use a aba Criar conta."}
         </p>
         <Toaster />
+        </div>
       </form>
     </div>
   );
