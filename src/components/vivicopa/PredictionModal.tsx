@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import type { Jogo } from "@/data/worldcup2026";
 import { getSelecao } from "@/data/worldcup2026";
 import { StylizedVersus } from "@/components/vivicopa/StylizedVersus";
-import { salvarPalpite, atualizarPalpite, type Palpite } from "@/lib/storage";
+import { atualizarPalpite, salvarPalpite, type Palpite } from "@/lib/storage";
 import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
 
 interface Props {
@@ -24,18 +23,15 @@ interface Props {
 export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, username }: Props) {
   const [placarA, setPlacarA] = useState(0);
   const [placarB, setPlacarB] = useState(0);
-  const [comentario, setComentario] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     if (editar) {
       setPlacarA(editar.placarA);
       setPlacarB(editar.placarB);
-      setComentario(editar.comentario ?? "");
     } else {
       setPlacarA(0);
       setPlacarB(0);
-      setComentario("");
     }
   }, [editar, open]);
 
@@ -49,16 +45,17 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
       toast.error("Palpites encerrados para este jogo.");
       return;
     }
+
     setSalvando(true);
     const palpite: Palpite = {
       id: editar?.id ?? crypto.randomUUID(),
+      usuarioId: userId,
       usuario: username,
       jogoId: jogo.id,
       selecaoA: jogo.selecaoA,
       selecaoB: jogo.selecaoB,
       placarA: Number(placarA) || 0,
       placarB: Number(placarB) || 0,
-      comentario: comentario.trim() || undefined,
       dataCriacao: editar?.dataCriacao ?? new Date().toISOString(),
     };
 
@@ -76,7 +73,7 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-brand-dark">
@@ -103,10 +100,6 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
               </Label>
               <Input type="number" min={0} value={placarB} disabled={bloqueado} onChange={(e) => setPlacarB(Number(e.target.value))} />
             </div>
-          </div>
-          <div>
-            <Label htmlFor="coment">Comentário (opcional)</Label>
-            <Textarea id="coment" value={comentario} disabled={bloqueado} onChange={(e) => setComentario(e.target.value)} placeholder="Mande sua resenha..." />
           </div>
           {bloqueado && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">

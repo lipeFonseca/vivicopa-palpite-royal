@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/sonner";
@@ -23,6 +24,7 @@ import { selecoes, jogos, grupos, getSelecao, type Jogo, type Selecao } from "@/
 import { getStats } from "@/data/selecaoStats";
 import { isValidEmail, isValidUsername, normalizeEmail, normalizeUsername, usernameToEmail } from "@/lib/auth";
 import { carregarPalpites, excluirPalpite, type Palpite } from "@/lib/storage";
+import { carregarComentarios, excluirComentario, salvarComentario, type ComentarioJogo } from "@/lib/comments";
 import { flagUrl, flagAlt, flagUrlFromFifaCode } from "@/lib/flags";
 import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
 import { getCanonicalTeamName, getTeamAliases, resolveTeamIdByName } from "@/lib/teamNames";
@@ -115,6 +117,7 @@ function Vivicopa() {
   const [authProfile, setAuthProfile] = useState<AuthProfile | null>(null);
   const [aba, setAba] = useState("inicio");
   const [palpites, setPalpites] = useState<Palpite[]>([]);
+  const [comentarios, setComentarios] = useState<ComentarioJogo[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [jogoSel, setJogoSel] = useState<Jogo | null>(null);
   const [editar, setEditar] = useState<Palpite | null>(null);
@@ -164,7 +167,14 @@ function Vivicopa() {
     return () => data.subscription.unsubscribe();
   }, []);
 
-  const refresh = async () => { setPalpites(await carregarPalpites()); };
+  const refresh = async (userId: string) => {
+    const [palpitesCarregados, comentariosCarregados] = await Promise.all([
+      carregarPalpites(userId),
+      carregarComentarios(),
+    ]);
+    setPalpites(palpitesCarregados);
+    setComentarios(comentariosCarregados);
+  };
 
   const carregarConfig = async () => {
     const { data } = await supabase.from("app_config" as never).select("chave, valor");
@@ -215,7 +225,7 @@ function Vivicopa() {
   };
 
   useEffect(() => {
-    if (authProfile) { refresh(); }
+    if (authProfile) { refresh(authProfile.id); }
   }, [authProfile?.id]);
 
   const palpitesPorJogo = useMemo(() => {
@@ -334,16 +344,16 @@ function Vivicopa() {
                 return;
               }
               await excluirPalpite(p.id, authProfile.id);
-              await refresh();
+              await refresh(authProfile.id);
             }} />
           </TabsContent>
 
           <TabsContent value="tabela" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
-            <TabelaTab palpites={palpites} />
+            <TabelaTab usuario={authProfile} palpites={palpites} />
           </TabsContent>
 
           <TabsContent value="comentarios" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
-            <ComentariosTab palpites={palpites} />
+            <ComentariosTab comentarios={comentarios} />
           </TabsContent>
 
           {authProfile.role === "admin" && (
@@ -360,7 +370,7 @@ function Vivicopa() {
       </Tabs>
       <Footer />
 
-      <PredictionModal jogo={jogoSel} open={modalOpen} onClose={() => setModalOpen(false)} onSaved={refresh} editar={editar} userId={authProfile.id} username={authProfile.username} />
+      <PredictionModal jogo={jogoSel} open={modalOpen} onClose={() => setModalOpen(false)} onSaved={() => refresh(authProfile.id)} editar={editar} userId={authProfile.id} username={authProfile.username} />
 
       <Dialog open={!!comentariosJogo} onOpenChange={(o) => !o && setComentariosJogo(null)}>
         <DialogContent className="max-w-lg">
@@ -368,7 +378,13 @@ function Vivicopa() {
             <DialogTitle className="text-brand-dark">Comentários do jogo</DialogTitle>
           </DialogHeader>
           {comentariosJogo && (
-            <ComentariosJogo jogo={comentariosJogo} palpites={palpites} />
+            <ComentariosJogo
+              jogo={comentariosJogo}
+              comentarios={comentarios}
+              userId={authProfile.id}
+              username={authProfile.username}
+              onSaved={() => refresh(authProfile.id)}
+            />
           )}
         </DialogContent>
       </Dialog>
@@ -2016,7 +2032,7 @@ function Inicio({
       <section className="editorial-stats grid grid-cols-2 bg-brand text-white md:grid-cols-4">
         <StatBand label="Seleções" value={selecoes.length} />
         <StatBand label="Jogos (fase de grupos)" value={jogos.length} />
-        <StatBand label="Palpites cadastrados" value={palpites.length} />
+        <StatBand label="Meus palpites" value={palpites.length} />
         <StatBand label="Grupos" value={grupos.length} />
       </section>
 
@@ -2505,7 +2521,6 @@ function MeusPalpitesTab({ usuario, palpites, onEditar, onExcluir, resultadosPor
                   <div className="text-2xl font-extrabold text-brand">{p.placarA} – {p.placarB}</div>
                   <PalpiteTime selecaoId={p.selecaoB} nome={b?.nome} />
                 </div>
-                {p.comentario && <div className="mt-2 rounded-lg bg-brand-soft p-2 text-sm italic">"{p.comentario}"</div>}
                 <div className="mt-3 flex gap-2">
                   <Button size="sm" variant="outline" className="flex-1" disabled={bloqueado} onClick={() => onEditar(p)}>Editar</Button>
                   <Button size="sm" variant="destructive" className="flex-1" disabled={bloqueado} onClick={() => onExcluir(p)}>Excluir</Button>
@@ -2523,8 +2538,7 @@ function MeusPalpitesTab({ usuario, palpites, onEditar, onExcluir, resultadosPor
 }
 
 // ---------- TABELA ----------
-function TabelaTab({ palpites }: { palpites: Palpite[] }) {
-  const [fUsuario, setFUsuario] = useState("");
+function TabelaTab({ usuario, palpites }: { usuario: AuthProfile; palpites: Palpite[] }) {
   const [fGrupo, setFGrupo] = useState("todos");
   const [fSelecao, setFSelecao] = useState("todas");
   const [fJogo, setFJogo] = useState("todos");
@@ -2533,21 +2547,22 @@ function TabelaTab({ palpites }: { palpites: Palpite[] }) {
     return palpites.filter((p) => {
       const j = jogos.find((x) => x.id === p.jogoId);
       if (!j) return false;
-      if (fUsuario && !p.usuario.toLowerCase().includes(fUsuario.toLowerCase())) return false;
       if (fGrupo !== "todos" && j.grupo !== fGrupo) return false;
       if (fSelecao !== "todas" && p.selecaoA !== fSelecao && p.selecaoB !== fSelecao) return false;
       if (fJogo !== "todos" && p.jogoId !== fJogo) return false;
       return true;
     }).sort((a, b) => b.dataCriacao.localeCompare(a.dataCriacao));
-  }, [palpites, fUsuario, fGrupo, fSelecao, fJogo]);
+  }, [palpites, fGrupo, fSelecao, fJogo]);
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-3 shadow-card md:grid-cols-4">
-        <div>
-          <Label className="text-xs">Usuário</Label>
-          <Input value={fUsuario} onChange={(e) => setFUsuario(e.target.value)} placeholder="Buscar nome..." />
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
+        <div className="text-xs font-semibold uppercase tracking-wide text-brand">Palpites privados</div>
+        <div className="mt-1 text-sm text-muted-foreground">
+          Apenas <span className="font-semibold text-brand-dark">{usuario.username}</span> visualiza estes palpites.
         </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-3 shadow-card md:grid-cols-4">
         <div>
           <Label className="text-xs">Grupo</Label>
           <Select value={fGrupo} onValueChange={setFGrupo}>
@@ -2587,8 +2602,7 @@ function TabelaTab({ palpites }: { palpites: Palpite[] }) {
         <table className="w-full text-sm">
           <thead className="bg-gradient-brand text-white">
             <tr className="text-left">
-              <Th>Usuário</Th><Th>Grupo</Th><Th>Jogo</Th><Th>Data</Th>
-              <Th>Palpite</Th><Th>Comentário</Th><Th>Registro</Th>
+              <Th>Grupo</Th><Th>Jogo</Th><Th>Data</Th><Th>Palpite</Th><Th>Registro</Th>
             </tr>
           </thead>
           <tbody>
@@ -2597,7 +2611,6 @@ function TabelaTab({ palpites }: { palpites: Palpite[] }) {
               const a = getSelecao(p.selecaoA); const b = getSelecao(p.selecaoB);
               return (
                 <tr key={p.id} className="border-t border-border odd:bg-brand-soft/50">
-                  <Td className="font-semibold">{p.usuario}</Td>
                   <Td>{j?.grupo}</Td>
                   <Td>
                     <div className="flex min-w-[240px] flex-wrap items-center gap-1.5">
@@ -2608,13 +2621,12 @@ function TabelaTab({ palpites }: { palpites: Palpite[] }) {
                   </Td>
                   <Td>{j?.data}</Td>
                   <Td className="font-bold text-brand">{p.placarA} – {p.placarB}</Td>
-                  <Td className="max-w-[200px] truncate italic text-muted-foreground">{p.comentario || "—"}</Td>
                   <Td className="text-xs text-muted-foreground">{new Date(p.dataCriacao).toLocaleDateString("pt-BR")}</Td>
                 </tr>
               );
             })}
             {lista.length === 0 && (
-              <tr><td colSpan={7} className="py-10 text-center text-muted-foreground">Nenhum palpite ainda.</td></tr>
+              <tr><td colSpan={5} className="py-10 text-center text-muted-foreground">Nenhum palpite ainda.</td></tr>
             )}
           </tbody>
         </table>
@@ -2670,13 +2682,12 @@ function Td({ children, className = "" }: { children: React.ReactNode; className
 }
 
 // ---------- COMENTÁRIOS ----------
-function ComentariosTab({ palpites }: { palpites: Palpite[] }) {
+function ComentariosTab({ comentarios }: { comentarios: ComentarioJogo[] }) {
   const [fJogo, setFJogo] = useState("todos");
   const [fUsuario, setFUsuario] = useState("");
-  const com = palpites.filter((p) => p.comentario && p.comentario.trim() !== "");
-  const lista = com.filter((p) => {
-    if (fJogo !== "todos" && p.jogoId !== fJogo) return false;
-    if (fUsuario && !p.usuario.toLowerCase().includes(fUsuario.toLowerCase())) return false;
+  const lista = comentarios.filter((comentario) => {
+    if (fJogo !== "todos" && comentario.jogoId !== fJogo) return false;
+    if (fUsuario && !comentario.usuario.toLowerCase().includes(fUsuario.toLowerCase())) return false;
     return true;
   });
 
@@ -2705,7 +2716,8 @@ function ComentariosTab({ palpites }: { palpites: Palpite[] }) {
       <div className="space-y-3">
         {lista.map((p) => {
           const j = jogos.find((x) => x.id === p.jogoId);
-          const a = getSelecao(p.selecaoA); const b = getSelecao(p.selecaoB);
+          const a = j ? getSelecao(j.selecaoA) : null;
+          const b = j ? getSelecao(j.selecaoB) : null;
           return (
             <div key={p.id} className="rounded-2xl border border-border bg-card p-4 shadow-card">
               <div className="flex items-center justify-between text-xs">
@@ -2715,7 +2727,7 @@ function ComentariosTab({ palpites }: { palpites: Palpite[] }) {
               <div className="mt-1 text-xs text-muted-foreground">
                 Grupo {j?.grupo} · {a?.bandeiraEmoji} {a?.nome} VS {b?.nome} {b?.bandeiraEmoji}
               </div>
-              <div className="mt-2 rounded-lg bg-brand-soft p-3 text-sm italic">"{p.comentario}"</div>
+              <div className="mt-2 rounded-lg bg-brand-soft p-3 text-sm italic">"{p.mensagem}"</div>
             </div>
           );
         })}
@@ -2725,18 +2737,82 @@ function ComentariosTab({ palpites }: { palpites: Palpite[] }) {
   );
 }
 
-function ComentariosJogo({ jogo, palpites }: { jogo: Jogo; palpites: Palpite[] }) {
-  const lista = palpites.filter((p) => p.jogoId === jogo.id && p.comentario && p.comentario.trim() !== "");
-  if (lista.length === 0) return <div className="py-6 text-center text-muted-foreground">Sem comentários ainda.</div>;
+function ComentariosJogo({
+  jogo,
+  comentarios,
+  userId,
+  username,
+  onSaved,
+}: {
+  jogo: Jogo;
+  comentarios: ComentarioJogo[];
+  userId: string;
+  username: string;
+  onSaved: () => void;
+}) {
+  const [mensagem, setMensagem] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const lista = comentarios.filter((comentario) => comentario.jogoId === jogo.id);
+
+  const enviarComentario = async () => {
+    const conteudo = mensagem.trim();
+    if (!conteudo) return;
+    setEnviando(true);
+    try {
+      await salvarComentario({
+        id: crypto.randomUUID(),
+        usuario: username,
+        jogoId: jogo.id,
+        mensagem: conteudo,
+      }, userId);
+      setMensagem("");
+      onSaved();
+    } catch {
+      toast.error("Erro ao enviar comentário. Tente novamente.");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      <div className="rounded-lg border border-border bg-brand-soft/40 p-3">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand">Nova mensagem</div>
+        <Textarea
+          value={mensagem}
+          onChange={(e) => setMensagem(e.target.value)}
+          placeholder="Mande sua resenha para esse jogo..."
+          rows={3}
+        />
+        <div className="mt-2 flex justify-end">
+          <Button onClick={enviarComentario} disabled={enviando || !mensagem.trim()} className="bg-gradient-brand text-white hover:opacity-90">
+            {enviando ? "Enviando..." : "Comentar"}
+          </Button>
+        </div>
+      </div>
+      {lista.length === 0 && <div className="py-6 text-center text-muted-foreground">Sem comentários ainda.</div>}
       {lista.map((p) => (
         <div key={p.id} className="rounded-lg border border-border p-3">
           <div className="flex justify-between text-xs">
             <span className="font-semibold text-brand-dark">{p.usuario}</span>
-            <span className="text-muted-foreground">{p.placarA} – {p.placarB}</span>
+            <span className="text-muted-foreground">{new Date(p.dataCriacao).toLocaleString("pt-BR")}</span>
           </div>
-          <div className="mt-1 text-sm italic">"{p.comentario}"</div>
+          <div className="mt-1 text-sm italic">"{p.mensagem}"</div>
+          {p.usuarioId === userId && (
+            <div className="mt-2 flex justify-end">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs text-muted-foreground"
+                onClick={async () => {
+                  await excluirComentario(p.id, userId);
+                  onSaved();
+                }}
+              >
+                Excluir
+              </Button>
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -2880,7 +2956,7 @@ function CalendarioTab({ palpitesPorJogo, onPalpitar, onComentarios, resultadosP
                         </Button>
                       </div>
                       {(palpitesPorJogo.get(j.id) ?? 0) > 0 && (
-                        <span className="text-[10px] font-semibold text-brand">{palpitesPorJogo.get(j.id)} palpite(s)</span>
+                        <span className="text-[10px] font-semibold text-brand">Seu palpite registrado</span>
                       )}
                     </div>
                   </div>

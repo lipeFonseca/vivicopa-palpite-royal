@@ -58,7 +58,7 @@ export function GameCard({ jogo, qtdPalpites, resultado, onPalpitar, onComentari
         <span
           className={`px-2 py-0.5 text-[10px] font-black uppercase ${temPalpite ? "bg-[var(--site-accent)] text-white" : "bg-white/15 text-white"}`}
         >
-          {qtdPalpites} palpite{qtdPalpites === 1 ? "" : "s"}
+          {temPalpite ? "Seu palpite" : "Sem palpite"}
         </span>
       </div>
 
