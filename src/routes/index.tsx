@@ -1845,7 +1845,7 @@ function EditorialMatchRow({
         {live ? "LIVE" : hora}
       </div>
 
-      <div className="flex min-w-0 items-center justify-end gap-2">
+      <div className="grid w-full max-w-[250px] grid-cols-[64px_minmax(0,1fr)] items-center justify-self-end gap-2">
         <FlagBox url={flagMap[jogo.time_a]} label={getCanonicalTeamName(jogo.time_a)} className="h-9 w-14 border border-black/10 shadow-sm md:h-10 md:w-16" />
         <span className="truncate text-[11px] font-black uppercase tracking-[0.02em] sm:text-xs">{getCanonicalTeamName(jogo.time_a)}</span>
       </div>
@@ -1860,7 +1860,7 @@ function EditorialMatchRow({
         )}
       </div>
 
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="grid w-full max-w-[250px] grid-cols-[minmax(0,1fr)_64px] items-center justify-self-start gap-2">
         <span className="truncate text-right text-[11px] font-black uppercase tracking-[0.02em] sm:text-xs">{getCanonicalTeamName(jogo.time_b)}</span>
         <FlagBox url={flagMap[jogo.time_b]} label={getCanonicalTeamName(jogo.time_b)} className="h-9 w-14 border border-black/10 shadow-sm md:h-10 md:w-16" />
       </div>
