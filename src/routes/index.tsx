@@ -2761,7 +2761,26 @@ function ComentariosJogo({
   const [mensagem, setMensagem] = useState("");
   const [enviando, setEnviando] = useState(false);
   const lista = comentarios.filter((comentario) => comentario.jogoId === jogo.id);
-  const emojisRapidos = ["🔥", "⚽", "👏", "😂", "😱", "🙌", "🇧🇷", "💬"];
+  const emojisRapidos = [
+    "🔥",
+    "⚽",
+    "😍",
+    "😂",
+    "🤣",
+    "👏",
+    "🙌",
+    "😱",
+    "😡",
+    "😭",
+    "🥶",
+    "🤡",
+    "🤯",
+    "🏆",
+    "🇧🇷",
+    "💚",
+    "💛",
+    "💬",
+  ];
 
   const inserirEmoji = (emoji: string) => {
     setMensagem((atual) => {
@@ -2800,7 +2819,7 @@ function ComentariosJogo({
               key={emoji}
               type="button"
               onClick={() => inserirEmoji(emoji)}
-              className="inline-flex h-8 min-w-8 items-center justify-center rounded-full border border-border bg-white px-2 text-base transition hover:border-brand hover:bg-brand-soft"
+              className="inline-flex h-8 min-w-8 items-center justify-center rounded-full border border-border bg-white px-2 text-[1.05rem] leading-none transition hover:border-brand hover:bg-brand-soft"
               aria-label={`Adicionar ${emoji}`}
               title={`Adicionar ${emoji}`}
             >
@@ -2811,7 +2830,7 @@ function ComentariosJogo({
         <Textarea
           value={mensagem}
           onChange={(e) => setMensagem(e.target.value)}
-          placeholder="Mande sua resenha para esse jogo... emojis também funcionam 😉"
+          placeholder="Mande sua resenha para esse jogo... emojis também funcionam 😄"
           rows={3}
         />
         <div className="mt-2 flex justify-end">
