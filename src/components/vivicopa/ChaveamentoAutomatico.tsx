@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { flagAlt, flagUrl } from "@/lib/flags";
+import { getCanonicalTeamName, resolveTeamIdByName } from "@/lib/teamNames";
 
 type PartidaMataMata = {
   id: string;
@@ -25,42 +26,6 @@ const FASE_LABEL: Record<string, string> = {
   SEMI_FINALS: "Semifinais",
   THIRD_PLACE: "Disputa do 3º lugar",
   FINAL: "Final",
-};
-
-const TIME_ID_POR_NOME: Record<string, string> = {
-  "South Africa": "rsa",
-  "South Korea": "kor",
-  "Czechia": "cze",
-  "Bosnia-Herzegovina": "bih",
-  "Switzerland": "sui",
-  "United States": "usa",
-  "Germany": "ger",
-  "Netherlands": "ned",
-  "Belgium": "bel",
-  "Spain": "esp",
-  "Uruguay": "uru",
-  "France": "fra",
-  "Norway": "nor",
-  "Argentina": "arg",
-  "Portugal": "por",
-  "Colombia": "col",
-  "England": "eng",
-  "Croatia": "cro",
-  "Mexico": "mex",
-  "Brazil": "bra",
-  "Morocco": "mar",
-  "Paraguay": "par",
-  "Ecuador": "ecu",
-  "Senegal": "sen",
-  "Algeria": "alg",
-  "Ghana": "gha",
-  "Japan": "jpn",
-  "Canada": "can",
-  "Tunisia": "tun",
-  "Egypt": "egy",
-  "Jordan": "jor",
-  "Turkey": "tur",
-  "Australia": "aus",
 };
 
 function faseLabel(fase: string) {
@@ -295,8 +260,9 @@ function ChaveCard({ partida, destaque = false }: { partida: PartidaMataMata; de
 
 function EquipeLinha({ nome, placar, vencedor }: { nome: string; placar: number; vencedor: boolean }) {
   const indefinido = !nome || nome === "A definir";
-  const selecaoId = indefinido ? undefined : TIME_ID_POR_NOME[nome];
+  const selecaoId = indefinido ? undefined : resolveTeamIdByName(nome);
   const bandeira = selecaoId ? flagUrl(selecaoId, 80) : "";
+  const nomeExibido = indefinido ? "A definir" : getCanonicalTeamName(nome);
 
   return (
     <div className={`mt-1 flex items-center justify-between rounded-md px-2 py-1.5 text-sm ${vencedor ? "bg-green-500/10 font-bold text-green-700" : "bg-muted/60"}`}>
@@ -309,7 +275,7 @@ function EquipeLinha({ nome, placar, vencedor }: { nome: string; placar: number;
             loading="lazy"
           />
         )}
-        <span className="truncate">{indefinido ? "A definir" : nome}</span>
+        <span className="truncate">{nomeExibido}</span>
       </span>
       <span className="font-extrabold tabular-nums">{placar}</span>
     </div>

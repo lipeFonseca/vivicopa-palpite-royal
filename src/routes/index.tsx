@@ -24,6 +24,7 @@ import { isValidEmail, isValidUsername, normalizeEmail, normalizeUsername, usern
 import { carregarPalpites, excluirPalpite, type Palpite } from "@/lib/storage";
 import { flagUrl, flagAlt, flagUrlFromFifaCode } from "@/lib/flags";
 import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
+import { getCanonicalTeamName, getTeamAliases } from "@/lib/teamNames";
 import { applySiteTheme, DEFAULT_SITE_THEME, HOME_SECONDARY_IMAGE_KEY, readSiteTheme, SITE_ACCENT_KEY, SITE_PRIMARY_KEY, SITE_SUBTITLE_KEY, SITE_SURFACE_KEY, SITE_TITLE_KEY, storeSiteTheme } from "@/lib/siteTheme";
 
 const STORAGE_BUCKET = "imagens-app";
@@ -1596,7 +1597,10 @@ function useJogosHoje() {
       .then(({ data }: { data: { nome: string; area_bandeira: string | null; escudo_url: string | null }[] | null }) => {
         if (!data) return;
         const map: Record<string, string> = {};
-        data.forEach((s) => { map[s.nome] = s.area_bandeira ?? s.escudo_url ?? ""; });
+        data.forEach((s) => {
+          const image = s.area_bandeira ?? s.escudo_url ?? "";
+          getTeamAliases(s.nome).forEach((alias) => { map[alias] = image; });
+        });
         setFlagMap(map);
       })
       .catch(() => {});
@@ -1628,11 +1632,12 @@ function FlagBox({ url, label, className }: { url?: string; label: string; class
 }
 
 function FlagNameButton({ url, label }: { url?: string; label: string }) {
+  const labelExibido = getCanonicalTeamName(label);
   return (
     <div className="flex flex-col items-center gap-1.5">
-      <FlagBox url={url} label={label} className="h-16 w-24 rounded-md sm:h-32 sm:w-48" />
+      <FlagBox url={url} label={labelExibido} className="h-16 w-24 rounded-md sm:h-32 sm:w-48" />
       <span className="max-w-[6rem] truncate text-center text-xs font-semibold text-foreground sm:max-w-[12rem] sm:text-lg sm:font-bold">
-        {label}
+        {labelExibido}
       </span>
     </div>
   );
@@ -1734,15 +1739,15 @@ function EditorialMatchRow({ jogo, flagMap, live = false }: { jogo: PartidaDesta
         {live ? "LIVE" : hora}
       </div>
       <div className="flex min-w-0 items-center gap-2">
-        <FlagBox url={flagMap[jogo.time_a]} label={jogo.time_a} className="h-7 w-10 border border-black/10" />
-        <span className="truncate text-[11px] font-black uppercase sm:text-xs">{jogo.time_a}</span>
+        <FlagBox url={flagMap[jogo.time_a]} label={getCanonicalTeamName(jogo.time_a)} className="h-7 w-10 border border-black/10" />
+        <span className="truncate text-[11px] font-black uppercase sm:text-xs">{getCanonicalTeamName(jogo.time_a)}</span>
       </div>
       <div className={"px-2 text-center text-sm font-black " + (live ? "text-red-600" : "text-foreground")}>
         {hasScore ? String(jogo.placar_a) + " - " + String(jogo.placar_b) : "X"}
       </div>
       <div className="flex min-w-0 items-center justify-end gap-2">
-        <span className="truncate text-right text-[11px] font-black uppercase sm:text-xs">{jogo.time_b}</span>
-        <FlagBox url={flagMap[jogo.time_b]} label={jogo.time_b} className="h-7 w-10 border border-black/10" />
+        <span className="truncate text-right text-[11px] font-black uppercase sm:text-xs">{getCanonicalTeamName(jogo.time_b)}</span>
+        <FlagBox url={flagMap[jogo.time_b]} label={getCanonicalTeamName(jogo.time_b)} className="h-7 w-10 border border-black/10" />
       </div>
     </div>
   );
@@ -2117,7 +2122,10 @@ function useClassificacaoGrupos() {
       .then(({ data }: { data: { nome: string; area_bandeira: string | null; escudo_url: string | null }[] | null }) => {
         if (!data) return;
         const map: Record<string, string> = {};
-        data.forEach((s) => { map[s.nome] = s.area_bandeira ?? s.escudo_url ?? ""; });
+        data.forEach((s) => {
+          const image = s.area_bandeira ?? s.escudo_url ?? "";
+          getTeamAliases(s.nome).forEach((alias) => { map[alias] = image; });
+        });
         setFlagMapGrupos(map);
       });
 
@@ -2203,8 +2211,8 @@ function GruposTab({ onVerJogos }: { onVerJogos: (grupo: string) => void }) {
                     {idx + 1}
                   </span>
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <FlagBox url={flagMapGrupos[entry.nome]} label={entry.nome} className="h-4 w-6 rounded-sm" />
-                    <span className="truncate font-medium">{entry.nome}</span>
+                    <FlagBox url={flagMapGrupos[entry.nome]} label={getCanonicalTeamName(entry.nome)} className="h-4 w-6 rounded-sm" />
+                    <span className="truncate font-medium">{getCanonicalTeamName(entry.nome)}</span>
                   </div>
                   <span className="text-center text-[11px]">{entry.j}</span>
                   <span className="text-center text-[11px]">{entry.sg > 0 ? `+${entry.sg}` : entry.sg}</span>
@@ -2741,4 +2749,3 @@ function TitulosTab() {
     </div>
   );
 }
-
