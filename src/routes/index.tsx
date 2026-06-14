@@ -526,7 +526,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
       style={loginBackgroundUrl ? { backgroundImage: "url(\"" + loginBackgroundUrl + "\")" } : undefined}
     >
       {loginBackgroundUrl && <div className="absolute inset-0 bg-black/35" aria-hidden="true" />}
-      <form onSubmit={handleSubmit} className="relative z-10 w-full max-w-sm rounded-2xl border border-white/70 bg-card/95 p-6 shadow-brand backdrop-blur-sm">
+      <form onSubmit={handleSubmit} className="relative z-10 w-full max-w-sm rounded-2xl border border-white/35 bg-white/72 p-6 shadow-[0_18px_50px_rgba(12,32,20,0.26)] backdrop-blur-md supports-[backdrop-filter]:bg-white/58">
         <div className="mb-5 text-center">
           <div className="mx-auto mb-3 flex items-center justify-center">
             {logoUrl ? (
