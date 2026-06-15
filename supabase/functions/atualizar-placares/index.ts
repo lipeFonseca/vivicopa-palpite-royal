@@ -18,9 +18,47 @@ function addDays(d: Date, days: number) {
   return next;
 }
 
-function changed(apiMatch: Record<string, unknown>, stored?: { ultima_atualizacao_api: string | null }) {
+type ComparableStoredRow = {
+  ultima_atualizacao_api: string | null;
+  status?: string | null;
+  placar_a?: number | null;
+  placar_b?: number | null;
+  minuto?: number | null;
+  acrescimos?: number | null;
+  inicia_em?: string | null;
+  time_a?: string | null;
+  time_b?: string | null;
+};
+
+function changed(
+  apiMatch: Record<string, unknown>,
+  agora: number,
+  stored?: ComparableStoredRow,
+  mode: "scheduled" | "full" = "full",
+) {
   const apiLastUpdated = (apiMatch.lastUpdated as string | null) ?? null;
-  return !apiLastUpdated || !stored || stored.ultima_atualizacao_api !== apiLastUpdated;
+  if (!stored || !apiLastUpdated || stored.ultima_atualizacao_api !== apiLastUpdated) {
+    return true;
+  }
+
+  const next =
+    mode === "full"
+      ? mapFullRow(apiMatch, agora)
+      : mapScheduledRow(apiMatch, agora);
+
+  if (stored.status !== ((next.status as string | null) ?? null)) return true;
+  if (stored.placar_a !== ((next.placar_a as number | null) ?? null)) return true;
+  if (stored.placar_b !== ((next.placar_b as number | null) ?? null)) return true;
+  if (stored.inicia_em !== ((next.inicia_em as string | null) ?? null)) return true;
+  if (stored.time_a !== ((next.time_a as string | null) ?? null)) return true;
+  if (stored.time_b !== ((next.time_b as string | null) ?? null)) return true;
+
+  if (mode === "full") {
+    if (stored.minuto !== ((next.minuto as number | null) ?? null)) return true;
+    if (stored.acrescimos !== ((next.acrescimos as number | null) ?? null)) return true;
+  }
+
+  return false;
 }
 
 // ─── Selecao mapper (unchanged from original) ──────────────────────────────
@@ -108,12 +146,16 @@ Deno.serve(async (req) => {
     inicia_em: string | null;
     placar_a: number;
     placar_b: number;
+    minuto: number | null;
+    acrescimos: number | null;
+    time_a: string | null;
+    time_b: string | null;
     ultima_atualizacao_api: string | null;
   };
 
   const { data: stored } = await sb
     .from("partidas")
-    .select("id,status,inicia_em,placar_a,placar_b,ultima_atualizacao_api");
+    .select("id,status,inicia_em,placar_a,placar_b,minuto,acrescimos,time_a,time_b,ultima_atualizacao_api");
 
   const rows = (stored ?? []) as StoredRow[];
   const storedById = new Map(rows.map((r) => [r.id, r]));
@@ -145,7 +187,7 @@ Deno.serve(async (req) => {
   if (url.searchParams.get("mode") === "fast-live") {
     try {
       const liveData = await client.live(COMP) as Record<string, unknown>[];
-      const changedLive = liveData.filter((m) => changed(m, storedById.get(String(m.id))));
+      const changedLive = liveData.filter((m) => changed(m, agora, storedById.get(String(m.id)), "full"));
       if (changedLive.length) {
         await sb.from("partidas").upsert(changedLive.map((m) => mapFullRow(m, agora)));
         summary.live = changedLive.length;
@@ -154,12 +196,26 @@ Deno.serve(async (req) => {
       console.error("Fast live error:", (err as Error).message);
     }
 
+    const liveDetailBudget = Math.min(2, Math.max(0, client.info().remaining - 2));
+    const liveRowsToRefresh = liveRows.slice(0, liveDetailBudget);
+    for (const m of liveRowsToRefresh) {
+      try {
+        const match = await client.details(m.id) as Record<string, unknown>;
+        if (match && changed(match, agora, storedById.get(String(match.id)), "full")) {
+          await sb.from("partidas").upsert([mapFullRow(match, agora)]);
+          summary.live = (summary.live as number) + 1;
+        }
+      } catch (err) {
+        console.error(`Fast live detail error for ${m.id}:`, (err as Error).message);
+      }
+    }
+
     const fastReserve = Math.max(0, client.info().remaining - 1);
     const pendingFastRows = startedPendingRows.slice(0, Math.min(startedPendingRows.length, fastReserve));
     for (const m of pendingFastRows) {
       try {
         const match = await client.details(m.id) as Record<string, unknown>;
-        if (match && changed(match, storedById.get(String(match.id)))) {
+        if (match && changed(match, agora, storedById.get(String(match.id)), "full")) {
           await sb.from("partidas").upsert([mapFullRow(match, agora)]);
           summary.started_pending = (summary.started_pending as number) + 1;
         }
@@ -194,7 +250,7 @@ Deno.serve(async (req) => {
   if (liveRows.length > 0) {
     try {
       const liveData = await client.live(COMP) as Record<string, unknown>[];
-      const changedLive = liveData.filter((m) => changed(m, storedById.get(String(m.id))));
+      const changedLive = liveData.filter((m) => changed(m, agora, storedById.get(String(m.id)), "full"));
       if (changedLive.length) {
         await sb.from("partidas").upsert(changedLive.map((m) => mapFullRow(m, agora)));
         summary.live = changedLive.length;
@@ -214,7 +270,7 @@ Deno.serve(async (req) => {
   for (const m of preToFetch) {
     try {
       const match = await client.lineups(m.id) as Record<string, unknown>;
-      if (match && changed(match, storedById.get(String(match.id)))) {
+      if (match && changed(match, agora, storedById.get(String(match.id)), "full")) {
         await sb.from("partidas").upsert([mapFullRow(match, agora)]);
         summary.pre_match = (summary.pre_match as number) + 1;
       }
@@ -230,7 +286,7 @@ Deno.serve(async (req) => {
   for (const m of pendingToFetch) {
     try {
       const match = await client.details(m.id) as Record<string, unknown>;
-      if (match && changed(match, storedById.get(String(match.id)))) {
+      if (match && changed(match, agora, storedById.get(String(match.id)), "full")) {
         await sb.from("partidas").upsert([mapFullRow(match, agora)]);
         summary.started_pending = (summary.started_pending as number) + 1;
       }
@@ -245,7 +301,7 @@ Deno.serve(async (req) => {
   for (const m of suspToFetch) {
     try {
       const match = await client.details(m.id) as Record<string, unknown>;
-      if (match && changed(match, storedById.get(String(match.id)))) {
+      if (match && changed(match, agora, storedById.get(String(match.id)), "full")) {
         await sb.from("partidas").upsert([mapFullRow(match, agora)]);
         summary.suspicious = (summary.suspicious as number) + 1;
       }
@@ -267,7 +323,7 @@ Deno.serve(async (req) => {
       const from = fmt(new Date(agora - 6 * 3_600_000));
       const to = fmt(addDays(new Date(agora + 18 * 3_600_000), 1));
       const scheduledData = await client.scheduled(COMP, from, to) as Record<string, unknown>[];
-      const changedScheduled = scheduledData.filter((m) => changed(m, storedById.get(String(m.id))));
+      const changedScheduled = scheduledData.filter((m) => changed(m, agora, storedById.get(String(m.id)), "scheduled"));
       if (changedScheduled.length) {
         await sb.from("partidas").upsert(
           changedScheduled.map((m) => mapScheduledRow(m, agora)),

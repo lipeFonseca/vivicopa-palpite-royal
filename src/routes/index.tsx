@@ -24,7 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuthStore, type AuthProfile } from "@/store/authStore";
 import { useConfigStore } from "@/store/configStore";
 import { useJogosHojeStore, usePartidasGrupo, usePartidasResultados, useSelecoesFlagMap } from "@/hooks/usePartidas";
-import { useComentariosQuery, useManagedUsersQuery, useMeusPalpitesQuery, vivicopaQueryKeys, type ManagedUser } from "@/hooks/useVivicopaQueries";
+import { useComentariosQuery, useCronMonitorQuery, useManagedUsersQuery, useMeusPalpitesQuery, vivicopaQueryKeys, type CronMonitorJob, type CronMonitorRun, type ManagedUser } from "@/hooks/useVivicopaQueries";
 import { selecoes, jogos, grupos, getSelecao, type Jogo, type Selecao } from "@/data/worldcup2026";
 import { getStats } from "@/data/selecaoStats";
 import { isValidEmail, isValidUsername, normalizeEmail, normalizeUsername, usernameToEmail } from "@/lib/auth";
@@ -841,6 +841,180 @@ function UsersTab({ currentUser }: { currentUser: AuthProfile }) {
     </div>
   );
 }
+
+function formatAdminDateTime(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function cronJobLabel(jobname: string) {
+  switch (jobname) {
+    case "atualizar-placares-every-minute":
+      return "Sync principal";
+    case "atualizar-placares-fast-live-offset-30s":
+      return "Sync ao vivo";
+    case "atualizar-placares-seed-daily":
+      return "Seed diária";
+    default:
+      return jobname;
+  }
+}
+
+function CronStatusBadge({ status }: { status?: string | null }) {
+  const normalized = (status ?? "").toLowerCase();
+  const ok = normalized === "succeeded";
+  const label = status ?? "Sem execução";
+
+  return (
+    <Badge className={ok ? "bg-emerald-600 text-white hover:bg-emerald-600" : "bg-amber-500 text-white hover:bg-amber-500"}>
+      {label}
+    </Badge>
+  );
+}
+
+function AdminCronMonitorPanel() {
+  const { data, isLoading, isFetching, refetch, error } = useCronMonitorQuery(true);
+
+  const runs = data?.runs ?? [];
+  const jobs = data?.jobs ?? [];
+  const last24h = data?.last_24h;
+  const partidasStatus = data?.partidas_status ?? [];
+
+  return (
+    <section className="site-admin-section border border-border bg-card p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-black uppercase text-brand">
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} /> Monitor de sincronização
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Acompanha os cron jobs do placar ao vivo sem sobrecarregar o banco.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="text-xs text-muted-foreground">
+            Atualizado: {formatAdminDateTime(data?.generated_at)}
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
+            <RefreshCw className={`mr-1 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+            Atualizar
+          </Button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          Não foi possível carregar o monitor do cron.
+        </div>
+      )}
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <div className="rounded-xl border border-border bg-brand-soft/40 p-3">
+          <div className="text-[11px] font-bold uppercase text-muted-foreground">Execuções 24h</div>
+          <div className="mt-1 text-2xl font-extrabold text-brand-dark">{last24h?.total ?? 0}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-emerald-50 p-3">
+          <div className="text-[11px] font-bold uppercase text-emerald-700">Sucesso 24h</div>
+          <div className="mt-1 text-2xl font-extrabold text-emerald-700">{last24h?.succeeded ?? 0}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-amber-50 p-3">
+          <div className="text-[11px] font-bold uppercase text-amber-700">Falhas 24h</div>
+          <div className="mt-1 text-2xl font-extrabold text-amber-700">{last24h?.failed ?? 0}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-brand-soft/40 p-3">
+          <div className="text-[11px] font-bold uppercase text-muted-foreground">Última busca agendada</div>
+          <div className="mt-1 text-sm font-bold text-brand-dark">{formatAdminDateTime(data?.sync_state?.ultima_busca)}</div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_1fr]">
+        <div className="rounded-2xl border border-border">
+          <div className="border-b border-border px-4 py-3 text-sm font-black uppercase text-brand">Jobs monitorados</div>
+          <div className="divide-y divide-border">
+            {jobs.map((job: CronMonitorJob) => (
+              <div key={job.jobid} className="grid gap-2 px-4 py-3 md:grid-cols-[1.4fr_auto_auto] md:items-center">
+                <div>
+                  <div className="font-bold text-brand-dark">{cronJobLabel(job.jobname)}</div>
+                  <div className="text-xs text-muted-foreground">{job.schedule}</div>
+                </div>
+                <CronStatusBadge status={job.last_status} />
+                <div className="text-right text-xs text-muted-foreground">
+                  {job.active ? "Ativo" : "Inativo"} · {formatAdminDateTime(job.last_start_time)}
+                </div>
+              </div>
+            ))}
+            {!isLoading && jobs.length === 0 && (
+              <div className="px-4 py-4 text-sm text-muted-foreground">Nenhum job monitorado.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border">
+          <div className="border-b border-border px-4 py-3 text-sm font-black uppercase text-brand">Status das partidas</div>
+          <div className="flex flex-wrap gap-2 px-4 py-4">
+            {partidasStatus.map((item) => (
+              <div key={item.status} className="rounded-full border border-border bg-brand-soft/40 px-3 py-1 text-xs font-bold text-brand-dark">
+                {item.status}: {item.total}
+              </div>
+            ))}
+            {!isLoading && partidasStatus.length === 0 && (
+              <div className="text-sm text-muted-foreground">Sem dados de partidas.</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-border">
+        <div className="border-b border-border px-4 py-3 text-sm font-black uppercase text-brand">Últimas execuções</div>
+        <div className="max-h-80 overflow-auto">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead className="bg-brand-soft/30 text-left text-[11px] uppercase text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2">Job</th>
+                <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2">Início</th>
+                <th className="px-4 py-2">Fim</th>
+                <th className="px-4 py-2">Retorno</th>
+              </tr>
+            </thead>
+            <tbody>
+              {runs.map((run: CronMonitorRun) => {
+                const matchedJob = jobs.find((job) => job.jobid === run.jobid);
+                return (
+                  <tr key={`${run.jobid}-${run.runid}`} className="border-t border-border">
+                    <td className="px-4 py-2 font-semibold text-brand-dark">
+                      {matchedJob ? cronJobLabel(matchedJob.jobname) : `Job ${run.jobid}`}
+                    </td>
+                    <td className="px-4 py-2"><CronStatusBadge status={run.status} /></td>
+                    <td className="px-4 py-2 text-muted-foreground">{formatAdminDateTime(run.start_time)}</td>
+                    <td className="px-4 py-2 text-muted-foreground">{formatAdminDateTime(run.end_time)}</td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground">{run.return_message || "—"}</td>
+                  </tr>
+                );
+              })}
+              {!isLoading && runs.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-4 text-center text-sm text-muted-foreground">
+                    Nenhuma execução recente encontrada.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AdminTab() {
   const [novaSenha, setNovaSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
@@ -1042,6 +1216,7 @@ function AdminTab() {
 
   return (
     <div className="space-y-4">
+      <AdminCronMonitorPanel />
       <section className="site-admin-section border border-border bg-card p-5">
         <div className="mb-5 flex items-center gap-2 text-xs font-black uppercase text-brand">
           <ImageIcon className="h-4 w-4" /> Identidade visual do projeto

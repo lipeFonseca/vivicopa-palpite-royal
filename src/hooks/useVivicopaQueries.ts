@@ -7,6 +7,7 @@ export const vivicopaQueryKeys = {
   comentarios: ["comentarios-jogo"] as const,
   meusPalpites: (userId: string) => ["meus-palpites", userId] as const,
   managedUsers: ["managed-users"] as const,
+  cronMonitor: ["cron-monitor"] as const,
   copaPalpites: (userId: string) => ["copa-palpites", userId] as const,
   copaRanking: ["copa-ranking"] as const,
 };
@@ -33,6 +34,46 @@ export type CopaRankingRow = {
   usuario_id: string;
   jogos_pontuados: number;
   pontos: number;
+};
+
+export type CronMonitorJob = {
+  jobid: number;
+  jobname: string;
+  schedule: string;
+  active: boolean;
+  last_status: string | null;
+  last_start_time: string | null;
+  last_end_time: string | null;
+  last_return_message: string | null;
+};
+
+export type CronMonitorRun = {
+  jobid: number;
+  runid: number;
+  status: string | null;
+  return_message: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  command: string | null;
+};
+
+export type CronMonitorPayload = {
+  generated_at: string | null;
+  jobs: CronMonitorJob[];
+  runs: CronMonitorRun[];
+  last_24h: {
+    total: number;
+    succeeded: number;
+    failed: number;
+  } | null;
+  partidas_status: Array<{
+    status: string;
+    total: number;
+  }>;
+  sync_state: {
+    ultima_busca: string | null;
+    atualizado_em: string | null;
+  } | null;
 };
 
 export function useComentariosQuery() {
@@ -62,6 +103,35 @@ export function useManagedUsersQuery(enabled = true) {
     },
     enabled,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useCronMonitorQuery(enabled = true) {
+  return useQuery<CronMonitorPayload>({
+    queryKey: vivicopaQueryKeys.cronMonitor,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("admin_cron_monitor");
+      if (error) throw error;
+
+      const payload = (data ?? {}) as Partial<CronMonitorPayload>;
+      return {
+        generated_at: payload.generated_at ?? null,
+        jobs: Array.isArray(payload.jobs) ? payload.jobs : [],
+        runs: Array.isArray(payload.runs) ? payload.runs : [],
+        last_24h: payload.last_24h
+          ? {
+              total: Number(payload.last_24h.total ?? 0),
+              succeeded: Number(payload.last_24h.succeeded ?? 0),
+              failed: Number(payload.last_24h.failed ?? 0),
+            }
+          : null,
+        partidas_status: Array.isArray(payload.partidas_status) ? payload.partidas_status : [],
+        sync_state: payload.sync_state ?? null,
+      };
+    },
+    enabled,
+    staleTime: 15 * 1000,
+    refetchInterval: 30 * 1000,
   });
 }
 
