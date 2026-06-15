@@ -1,5 +1,6 @@
 ﻿import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,14 +21,18 @@ import { PredictionModal } from "@/components/vivicopa/PredictionModal";
 import { ChaveamentoAutomatico } from "@/components/vivicopa/ChaveamentoAutomatico";
 import { StylizedVersus } from "@/components/vivicopa/StylizedVersus";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthStore, type AuthProfile } from "@/store/authStore";
+import { useConfigStore } from "@/store/configStore";
+import { useJogosHojeStore, usePartidasGrupo, usePartidasResultados, useSelecoesFlagMap } from "@/hooks/usePartidas";
+import { useComentariosQuery, useManagedUsersQuery, useMeusPalpitesQuery, vivicopaQueryKeys, type ManagedUser } from "@/hooks/useVivicopaQueries";
 import { selecoes, jogos, grupos, getSelecao, type Jogo, type Selecao } from "@/data/worldcup2026";
 import { getStats } from "@/data/selecaoStats";
 import { isValidEmail, isValidUsername, normalizeEmail, normalizeUsername, usernameToEmail } from "@/lib/auth";
-import { carregarPalpites, excluirPalpite, type Palpite } from "@/lib/storage";
-import { carregarComentarios, excluirComentario, salvarComentario, type ComentarioJogo } from "@/lib/comments";
+import { excluirPalpite, type Palpite } from "@/lib/storage";
+import { excluirComentario, salvarComentario, type ComentarioJogo } from "@/lib/comments";
 import { flagUrl, flagAlt, flagUrlFromFifaCode } from "@/lib/flags";
 import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
-import { getCanonicalTeamName, getTeamAliases, resolveTeamIdByName } from "@/lib/teamNames";
+import { getCanonicalTeamName, resolveTeamIdByName } from "@/lib/teamNames";
 import { applySiteTheme, DEFAULT_SITE_THEME, HOME_SECONDARY_IMAGE_KEY, readSiteTheme, SITE_ACCENT_KEY, SITE_PRIMARY_KEY, SITE_SUBTITLE_KEY, SITE_SURFACE_KEY, SITE_TITLE_KEY, SITE_TITLE_TRACKING_KEY, storeSiteTheme } from "@/lib/siteTheme";
 
 const STORAGE_BUCKET = "imagens-app";
@@ -49,19 +54,13 @@ const parsePos = (s: string): { x: number; y: number } => {
 };
 const formatPos = (x: number, y: number) => `${x} ${y}`;
 const posCSS = (s: string) => { const p = parsePos(s); return `${p.x}% ${p.y}%`; };
-const API_UI_REFRESH_MS = 10_000;
+// Polling centralizado no usePartidasStore — não usar aqui
 
 const PAISES_SEDE = [
   { id: "usa", nome: "Estados Unidos" },
   { id: "can", nome: "Canadá" },
   { id: "mex", nome: "México" },
 ];
-
-type AuthProfile = {
-  id: string;
-  username: string;
-  role: "admin" | "user";
-};
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -105,6 +104,59 @@ function useConfiguredFavicon() {
     };
   }, []);
 }
+function applyConfigToLocalStorage(cfg: Record<string, string>) {
+  if (cfg.logo_url !== undefined) {
+    if (cfg.logo_url) localStorage.setItem(LOGO_URL_KEY, cfg.logo_url);
+    else localStorage.removeItem(LOGO_URL_KEY);
+  }
+  if (cfg.logo_size) localStorage.setItem(LOGO_SIZE_KEY, cfg.logo_size);
+  if (cfg.logo_header_size) localStorage.setItem(LOGO_HEADER_SIZE_KEY, cfg.logo_header_size);
+  if (cfg.header_banner_url !== undefined) {
+    if (cfg.header_banner_url) localStorage.setItem(HEADER_BANNER_KEY, cfg.header_banner_url);
+    else localStorage.removeItem(HEADER_BANNER_KEY);
+  }
+  if (cfg.hero_banner_url !== undefined) {
+    if (cfg.hero_banner_url) localStorage.setItem(HERO_BANNER_KEY, cfg.hero_banner_url);
+    else localStorage.removeItem(HERO_BANNER_KEY);
+  }
+  if (cfg.hero_banner_position) localStorage.setItem(HERO_BANNER_POS_KEY, cfg.hero_banner_position);
+  if (cfg.home_secondary_image_position) localStorage.setItem(HOME_SECONDARY_POS_KEY, cfg.home_secondary_image_position);
+  if (cfg.favicon_url !== undefined) {
+    if (cfg.favicon_url) localStorage.setItem(FAVICON_URL_KEY, cfg.favicon_url);
+    else localStorage.removeItem(FAVICON_URL_KEY);
+  }
+  if (cfg.login_background_url !== undefined) {
+    if (cfg.login_background_url) localStorage.setItem(LOGIN_BACKGROUND_KEY, cfg.login_background_url);
+    else localStorage.removeItem(LOGIN_BACKGROUND_KEY);
+  }
+  const themeKeys = [
+    ["site_title", SITE_TITLE_KEY],
+    ["site_subtitle", SITE_SUBTITLE_KEY],
+    ["site_primary", SITE_PRIMARY_KEY],
+    ["site_accent", SITE_ACCENT_KEY],
+    ["site_surface", SITE_SURFACE_KEY],
+    ["site_title_tracking", SITE_TITLE_TRACKING_KEY],
+    ["home_secondary_image", HOME_SECONDARY_IMAGE_KEY],
+  ] as const;
+  themeKeys.forEach(([dbKey, storageKey]) => {
+    if (cfg[dbKey] === undefined) return;
+    if (cfg[dbKey]) localStorage.setItem(storageKey, cfg[dbKey]);
+    else localStorage.removeItem(storageKey);
+  });
+  applySiteTheme();
+  window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
+  window.dispatchEvent(new CustomEvent("vivicopa:favicon-changed"));
+}
+
+function LazyTabPanel({ value, activeTab, children }: { value: string; activeTab: string; children: React.ReactNode }) {
+  const [wasActive, setWasActive] = useState(false);
+  useEffect(() => {
+    if (activeTab === value) setWasActive(true);
+  }, [activeTab, value]);
+  if (!wasActive) return null;
+  return <>{children}</>;
+}
+
 function Vivicopa() {
   useConfiguredFavicon();
   useEffect(() => {
@@ -113,120 +165,48 @@ function Vivicopa() {
     window.addEventListener("vivicopa:theme-changed", syncTheme);
     return () => window.removeEventListener("vivicopa:theme-changed", syncTheme);
   }, []);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [authProfile, setAuthProfile] = useState<AuthProfile | null>(null);
+
+  const authStore = useAuthStore();
+  const authProfile = authStore.profile;
+  const authLoading = authStore.loading;
+  const configStore = useConfigStore();
+  const queryClient = useQueryClient();
+
+  // Bootstrap único: init auth + config
+  useEffect(() => {
+    useAuthStore.getState().init();
+  }, []);
+
+  // Aplica config ao localStorage assim que carregada
+  useEffect(() => {
+    if (configStore.loaded) {
+      applyConfigToLocalStorage(configStore.config);
+    }
+  }, [configStore.loaded]);
+
+  // Carrega config após auth inicializar
+  useEffect(() => {
+    if (authStore.initialized) {
+      useConfigStore.getState().load();
+    }
+  }, [authStore.initialized]);
+
   const [aba, setAba] = useState("inicio");
-  const [palpites, setPalpites] = useState<Palpite[]>([]);
-  const [comentarios, setComentarios] = useState<ComentarioJogo[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [jogoSel, setJogoSel] = useState<Jogo | null>(null);
   const [editar, setEditar] = useState<Palpite | null>(null);
   const [comentariosJogo, setComentariosJogo] = useState<Jogo | null>(null);
   const [selecaoModal, setSelecaoModal] = useState<Selecao | null>(null);
   const [filtroGrupoInicial, setFiltroGrupoInicial] = useState<string>("todos");
-  const resultadosPorJogo = useResultadosPorJogo();
-
-  const carregarSessao = async () => {
-    setAuthLoading(true);
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData.user;
-
-    if (!user) {
-      setAuthProfile(null);
-      setAuthLoading(false);
-      return;
-    }
-
-    const { data: profile, error } = await supabase
-      .from("profiles")
-      .select("id, username, role")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (error) {
-      toast.error(error.message);
-      setAuthProfile(null);
-      setAuthLoading(false);
-      return;
-    }
-
-    await carregarConfig();
-    setAuthProfile({
-      id: user.id,
-      username: profile?.username ?? user.email?.split("@")[0] ?? "usuario",
-      role: profile?.role === "admin" ? "admin" : "user",
-    });
-    setAuthLoading(false);
-  };
-
-  useEffect(() => {
-    carregarSessao();
-    const { data } = supabase.auth.onAuthStateChange(() => {
-      carregarSessao();
-    });
-    return () => data.subscription.unsubscribe();
-  }, []);
-
-  const refresh = async (userId: string) => {
-    const [palpitesCarregados, comentariosCarregados] = await Promise.all([
-      carregarPalpites(userId),
-      carregarComentarios(),
-    ]);
-    setPalpites(palpitesCarregados);
-    setComentarios(comentariosCarregados);
-  };
-
-  const carregarConfig = async () => {
-    const { data } = await supabase.from("app_config" as never).select("chave, valor");
-    if (!data) return;
-    const cfg: Record<string, string> = {};
-    (data as { chave: string; valor: string | null }[]).forEach((r) => { cfg[r.chave] = r.valor ?? ""; });
-    if (cfg.logo_url !== undefined) {
-      if (cfg.logo_url) localStorage.setItem(LOGO_URL_KEY, cfg.logo_url);
-      else localStorage.removeItem(LOGO_URL_KEY);
-    }
-    if (cfg.logo_size) localStorage.setItem(LOGO_SIZE_KEY, cfg.logo_size);
-    if (cfg.logo_header_size) localStorage.setItem(LOGO_HEADER_SIZE_KEY, cfg.logo_header_size);
-    if (cfg.header_banner_url !== undefined) {
-      if (cfg.header_banner_url) localStorage.setItem(HEADER_BANNER_KEY, cfg.header_banner_url);
-      else localStorage.removeItem(HEADER_BANNER_KEY);
-    }
-    if (cfg.hero_banner_url !== undefined) {
-      if (cfg.hero_banner_url) localStorage.setItem(HERO_BANNER_KEY, cfg.hero_banner_url);
-      else localStorage.removeItem(HERO_BANNER_KEY);
-    }
-    if (cfg.hero_banner_position) localStorage.setItem(HERO_BANNER_POS_KEY, cfg.hero_banner_position);
-    if (cfg.home_secondary_image_position) localStorage.setItem(HOME_SECONDARY_POS_KEY, cfg.home_secondary_image_position);
-    if (cfg.favicon_url !== undefined) {
-      if (cfg.favicon_url) localStorage.setItem(FAVICON_URL_KEY, cfg.favicon_url);
-      else localStorage.removeItem(FAVICON_URL_KEY);
-    }
-    if (cfg.login_background_url !== undefined) {
-      if (cfg.login_background_url) localStorage.setItem(LOGIN_BACKGROUND_KEY, cfg.login_background_url);
-      else localStorage.removeItem(LOGIN_BACKGROUND_KEY);
-    }
-    const themeKeys = [
-      ["site_title", SITE_TITLE_KEY],
-      ["site_subtitle", SITE_SUBTITLE_KEY],
-      ["site_primary", SITE_PRIMARY_KEY],
-      ["site_accent", SITE_ACCENT_KEY],
-      ["site_surface", SITE_SURFACE_KEY],
-      ["site_title_tracking", SITE_TITLE_TRACKING_KEY],
-      ["home_secondary_image", HOME_SECONDARY_IMAGE_KEY],
-    ] as const;
-    themeKeys.forEach(([dbKey, storageKey]) => {
-      if (cfg[dbKey] === undefined) return;
-      if (cfg[dbKey]) localStorage.setItem(storageKey, cfg[dbKey]);
-      else localStorage.removeItem(storageKey);
-    });
-    applySiteTheme();
-    window.dispatchEvent(new CustomEvent("vivicopa:logo-changed"));
-    window.dispatchEvent(new CustomEvent("vivicopa:favicon-changed"));
-  };
-
-  useEffect(() => {
-    if (authProfile) { refresh(authProfile.id); }
-  }, [authProfile?.id]);
+  const { partidas: partidasResultados } = usePartidasResultados();
+  const resultadosPorJogo = useMemo(
+    () => mapearPartidasPorJogos(
+      partidasResultados.map((p) => ({ ...p, placar_a: p.placar_a ?? 0, placar_b: p.placar_b ?? 0 })) as JogoResultado[]
+    ),
+    [partidasResultados]
+  );
+  const { data: palpites = [] } = useMeusPalpitesQuery(authProfile?.id);
+  const { data: comentarios = [] } = useComentariosQuery();
 
   const palpitesPorJogo = useMemo(() => {
     const m = new Map<string, number>();
@@ -256,7 +236,7 @@ function Vivicopa() {
   }
 
   if (!authProfile) {
-    return <LoginScreen onLoggedIn={carregarSessao} />;
+    return <LoginScreen onLoggedIn={() => { /* onAuthStateChange SIGNED_IN já atualiza o store */ }} />;
   }
 
   return (
@@ -267,7 +247,7 @@ function Vivicopa() {
           role={authProfile.role}
           onLogout={async () => {
             await supabase.auth.signOut();
-            setAuthProfile(null);
+            useAuthStore.getState().clear();
             setAba("inicio");
           }}
           navigation={
@@ -303,66 +283,88 @@ function Vivicopa() {
           </TabsContent>
 
           <TabsContent value="jogos" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
-            <JogosTab
-              palpitesPorJogo={palpitesPorJogo}
-              onPalpitar={(j) => abrirPalpite(j)}
-              onComentarios={abrirComentarios}
-              resultadosPorJogo={resultadosPorJogo}
-              grupoInicial={filtroGrupoInicial}
-              onConsumirGrupo={() => setFiltroGrupoInicial("todos")}
-            />
+            <LazyTabPanel value="jogos" activeTab={aba}>
+              <JogosTab
+                palpitesPorJogo={palpitesPorJogo}
+                onPalpitar={(j) => abrirPalpite(j)}
+                onComentarios={abrirComentarios}
+                resultadosPorJogo={resultadosPorJogo}
+                grupoInicial={filtroGrupoInicial}
+                onConsumirGrupo={() => setFiltroGrupoInicial("todos")}
+              />
+            </LazyTabPanel>
           </TabsContent>
 
           <TabsContent value="calendario" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
-            <CalendarioTab palpitesPorJogo={palpitesPorJogo} onPalpitar={(j) => abrirPalpite(j)} onComentarios={abrirComentarios} resultadosPorJogo={resultadosPorJogo} />
+            <LazyTabPanel value="calendario" activeTab={aba}>
+              <CalendarioTab palpitesPorJogo={palpitesPorJogo} onPalpitar={(j) => abrirPalpite(j)} onComentarios={abrirComentarios} resultadosPorJogo={resultadosPorJogo} />
+            </LazyTabPanel>
           </TabsContent>
 
           <TabsContent value="selecoes" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
-            <SelecoesTab onAbrir={setSelecaoModal} />
+            <LazyTabPanel value="selecoes" activeTab={aba}>
+              <SelecoesTab onAbrir={setSelecaoModal} />
+            </LazyTabPanel>
           </TabsContent>
 
           <TabsContent value="grupos" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
-            <GruposTab onVerJogos={(g) => { setFiltroGrupoInicial(g); setAba("jogos"); }} />
+            <LazyTabPanel value="grupos" activeTab={aba}>
+              <GruposTab onVerJogos={(g) => { setFiltroGrupoInicial(g); setAba("jogos"); }} />
+            </LazyTabPanel>
           </TabsContent>
 
           <TabsContent value="chaveamento" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
-            <ChaveamentoAutomatico />
+            <LazyTabPanel value="chaveamento" activeTab={aba}>
+              <ChaveamentoAutomatico />
+            </LazyTabPanel>
           </TabsContent>
 
           <TabsContent value="titulos" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
-            <TitulosTab />
+            <LazyTabPanel value="titulos" activeTab={aba}>
+              <TitulosTab />
+            </LazyTabPanel>
           </TabsContent>
 
           <TabsContent value="meus" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
-            <MeusPalpitesTab usuario={authProfile} palpites={palpites} resultadosPorJogo={resultadosPorJogo} onEditar={(p) => {
-              const j = jogos.find((x) => x.id === p.jogoId);
-              if (j) abrirPalpite(j, p);
-            }} onExcluir={async (p) => {
-              const j = jogos.find((x) => x.id === p.jogoId);
-              if (j && palpiteBloqueadoParaJogo(j, resultadosPorJogo.get(j.id))) {
-                toast.error("Palpites encerrados para este jogo.");
-                return;
-              }
-              await excluirPalpite(p.id, authProfile.id);
-              await refresh(authProfile.id);
-            }} />
+            <LazyTabPanel value="meus" activeTab={aba}>
+              <MeusPalpitesTab usuario={authProfile} palpites={palpites} resultadosPorJogo={resultadosPorJogo} onEditar={(p) => {
+                const j = jogos.find((x) => x.id === p.jogoId);
+                if (j) abrirPalpite(j, p);
+              }} onExcluir={async (p) => {
+                const j = jogos.find((x) => x.id === p.jogoId);
+                if (j && palpiteBloqueadoParaJogo(j, resultadosPorJogo.get(j.id))) {
+                  toast.error("Palpites encerrados para este jogo.");
+                  return;
+                }
+                await excluirPalpite(p.id, authProfile.id);
+                await queryClient.invalidateQueries({ queryKey: vivicopaQueryKeys.meusPalpites(authProfile.id) });
+              }} />
+            </LazyTabPanel>
           </TabsContent>
 
           <TabsContent value="tabela" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
-            <TabelaTab usuario={authProfile} palpites={palpites} />
+            <LazyTabPanel value="tabela" activeTab={aba}>
+              <TabelaTab usuario={authProfile} palpites={palpites} />
+            </LazyTabPanel>
           </TabsContent>
 
           <TabsContent value="comentarios" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
-            <ComentariosTab comentarios={comentarios} />
+            <LazyTabPanel value="comentarios" activeTab={aba}>
+              <ComentariosTab comentarios={comentarios} />
+            </LazyTabPanel>
           </TabsContent>
 
           {authProfile.role === "admin" && (
             <>
               <TabsContent value="usuarios" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
-                <UsersTab currentUser={authProfile} />
+                <LazyTabPanel value="usuarios" activeTab={aba}>
+                  <UsersTab currentUser={authProfile} />
+                </LazyTabPanel>
               </TabsContent>
               <TabsContent value="admin" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
-                <AdminTab />
+                <LazyTabPanel value="admin" activeTab={aba}>
+                  <AdminTab />
+                </LazyTabPanel>
               </TabsContent>
             </>
           )}
@@ -370,7 +372,17 @@ function Vivicopa() {
       </Tabs>
       <Footer />
 
-      <PredictionModal jogo={jogoSel} open={modalOpen} onClose={() => setModalOpen(false)} onSaved={() => refresh(authProfile.id)} editar={editar} userId={authProfile.id} username={authProfile.username} />
+      <PredictionModal
+        jogo={jogoSel}
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSaved={() => {
+          void queryClient.invalidateQueries({ queryKey: vivicopaQueryKeys.meusPalpites(authProfile.id) });
+        }}
+        editar={editar}
+        userId={authProfile.id}
+        username={authProfile.username}
+      />
 
       <Dialog open={!!comentariosJogo} onOpenChange={(o) => !o && setComentariosJogo(null)}>
         <DialogContent className="max-w-lg">
@@ -383,7 +395,9 @@ function Vivicopa() {
               comentarios={comentarios}
               userId={authProfile.id}
               username={authProfile.username}
-              onSaved={() => refresh(authProfile.id)}
+              onSaved={() => {
+                void queryClient.invalidateQueries({ queryKey: vivicopaQueryKeys.comentarios });
+              }}
             />
           )}
         </DialogContent>
@@ -438,25 +452,14 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [logoUrl, setLogoUrl] = useState(() => localStorage.getItem(LOGO_URL_KEY) ?? "");
-  const [logoSize, setLogoSize] = useState(() => Number(localStorage.getItem(LOGO_SIZE_KEY) || 80));
-  const [loginBackgroundUrl, setLoginBackgroundUrl] = useState(() => localStorage.getItem(LOGIN_BACKGROUND_KEY) ?? "");
+
+  const { config, loaded: configLoaded } = useConfigStore();
+  const logoUrl = configLoaded && config.logo_url !== undefined ? config.logo_url : (localStorage.getItem(LOGO_URL_KEY) ?? "");
+  const logoSize = configLoaded && config.logo_size ? Number(config.logo_size) : Number(localStorage.getItem(LOGO_SIZE_KEY) || 80);
+  const loginBackgroundUrl = configLoaded && config.login_background_url !== undefined ? config.login_background_url : (localStorage.getItem(LOGIN_BACKGROUND_KEY) ?? "");
 
   useEffect(() => {
-    supabase.from("app_config" as never).select("chave, valor")
-      .in("chave" as never, ["logo_url", "logo_size", "login_background_url"])
-      .then(({ data }) => {
-        if (!data) return;
-        const cfg: Record<string, string> = {};
-        (data as { chave: string; valor: string | null }[]).forEach((r) => { cfg[r.chave] = r.valor ?? ""; });
-        if (cfg.logo_url !== undefined) setLogoUrl(cfg.logo_url);
-        if (cfg.logo_size) setLogoSize(Number(cfg.logo_size));
-        if (cfg.login_background_url !== undefined) {
-          setLoginBackgroundUrl(cfg.login_background_url);
-          if (cfg.login_background_url) localStorage.setItem(LOGIN_BACKGROUND_KEY, cfg.login_background_url);
-          else localStorage.removeItem(LOGIN_BACKGROUND_KEY);
-        }
-      });
+    useConfigStore.getState().load();
   }, []);
 
   const handleSubmit = async (event: FormEvent) => {
@@ -628,44 +631,24 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
     </div>
   );
 }
-type ManagedUser = {
-  id: string;
-  username: string;
-  email: string | null;
-  role: "admin" | "user";
-  auth_email: string | null;
-  created_at: string | null;
-  last_sign_in_at: string | null;
-};
-
 type ManagedUserDraft = ManagedUser & { password?: string };
 
 function AdminUsersPanel({ currentUserId }: { currentUserId: string }) {
   const [users, setUsers] = useState<ManagedUserDraft[]>([]);
-  const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  const carregarUsuarios = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase.functions.invoke("manage-users", { method: "GET" });
-    setLoading(false);
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
-    const nextUsers = ((data as { users?: ManagedUser[] } | null)?.users ?? []).map((user) => ({ ...user, password: "" }));
-    setUsers(nextUsers);
-  }, []);
+  const queryClient = useQueryClient();
+  const { data: loadedUsers = [], isLoading: loading, refetch } = useManagedUsersQuery();
 
   useEffect(() => {
-    carregarUsuarios();
-    const sync = () => { carregarUsuarios(); };
+    setUsers(loadedUsers.map((user) => ({ ...user, password: "" })));
+  }, [loadedUsers]);
+
+  useEffect(() => {
+    const sync = () => { void queryClient.invalidateQueries({ queryKey: vivicopaQueryKeys.managedUsers }); };
     window.addEventListener("vivicopa:users-changed", sync);
     return () => window.removeEventListener("vivicopa:users-changed", sync);
-  }, [carregarUsuarios]);
+  }, [queryClient]);
 
   const atualizarDraft = (id: string, patch: Partial<ManagedUserDraft>) => {
     setUsers((current) => current.map((user) => user.id === id ? { ...user, ...patch } : user));
@@ -707,7 +690,7 @@ function AdminUsersPanel({ currentUserId }: { currentUserId: string }) {
     }
 
     toast.success("Usuario atualizado.");
-    await carregarUsuarios();
+    await queryClient.invalidateQueries({ queryKey: vivicopaQueryKeys.managedUsers });
   };
 
   const apagarUsuario = async (user: ManagedUserDraft) => {
@@ -731,7 +714,7 @@ function AdminUsersPanel({ currentUserId }: { currentUserId: string }) {
     }
 
     toast.success("Usuario apagado.");
-    await carregarUsuarios();
+    await queryClient.invalidateQueries({ queryKey: vivicopaQueryKeys.managedUsers });
   };
 
   return (
@@ -740,7 +723,7 @@ function AdminUsersPanel({ currentUserId }: { currentUserId: string }) {
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
           <Users className="h-3.5 w-3.5" /> Usuarios cadastrados
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={carregarUsuarios} disabled={loading}>
+        <Button type="button" variant="outline" size="sm" onClick={() => { void refetch(); }} disabled={loading}>
           <RefreshCw className={`mr-1 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Atualizar
         </Button>
       </div>
@@ -801,6 +784,7 @@ function UsersTab({ currentUser }: { currentUser: AuthProfile }) {
   const [novoUsuario, setNovoUsuario] = useState("");
   const [senhaUsuario, setSenhaUsuario] = useState("");
   const [creatingUser, setCreatingUser] = useState(false);
+  const queryClient = useQueryClient();
 
   const criarUsuario = async (event: FormEvent) => {
     event.preventDefault();
@@ -822,7 +806,7 @@ function UsersTab({ currentUser }: { currentUser: AuthProfile }) {
       if (error) throw error;
       setNovoUsuario("");
       setSenhaUsuario("");
-      window.dispatchEvent(new CustomEvent("vivicopa:users-changed"));
+      await queryClient.invalidateQueries({ queryKey: vivicopaQueryKeys.managedUsers });
       toast.success(`Usuario ${username} criado.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Nao foi possivel criar o usuario.");
@@ -1558,8 +1542,8 @@ type PartidaDestaque = {
   id: string;
   time_a: string;
   time_b: string;
-  placar_a: number;
-  placar_b: number;
+  placar_a: number | null;
+  placar_b: number | null;
   status: string;
   inicia_em: string | null;
   minuto?: number | null;
@@ -1567,91 +1551,7 @@ type PartidaDestaque = {
   gols?: GoalEvent[] | null;
 };
 
-function useJogosHoje() {
-  const [jogosAoVivo, setJogosAoVivo] = useState<PartidaDestaque[]>([]);
-  const [jogosHoje, setJogosHoje] = useState<PartidaDestaque[]>([]);
-  const [tituloSecao, setTituloSecao] = useState("Jogos de Hoje");
-  const [flagMap, setFlagMap] = useState<Record<string, string>>({});
-
-  const fetchJogos = useCallback(async () => {
-    try {
-      const sb = supabase as any;
-      const selectCols = "id, time_a, time_b, placar_a, placar_b, status, inicia_em, minuto, acrescimos, gols";
-      const liveStatuses = ["LIVE", "HT", "ET", "PEN_LIVE"];
-
-      const { data: aoVivo } = await sb
-        .from("partidas")
-        .select(selectCols)
-        .in("status", liveStatuses)
-        .order("inicia_em", { ascending: true });
-
-      const partidasAoVivo = (aoVivo as PartidaDestaque[] | null) ?? [];
-      setJogosAoVivo(partidasAoVivo);
-      const idsAoVivo = new Set(partidasAoVivo.map((j) => j.id));
-
-      // Janela "hoje" em horário de Brasília (UTC-3)
-      const brasiliaHoje = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      const inicioHoje = new Date(brasiliaHoje + "T03:00:00.000Z");
-      const fimHoje = new Date(inicioHoje.getTime() + 24 * 60 * 60 * 1000);
-
-      const { data: hoje } = await sb
-        .from("partidas")
-        .select(selectCols)
-        .gte("inicia_em", inicioHoje.toISOString())
-        .lt("inicia_em", fimHoje.toISOString())
-        .order("inicia_em", { ascending: true });
-
-      const partidasHoje = ((hoje as PartidaDestaque[] | null) ?? []).filter((j) => !idsAoVivo.has(j.id));
-      if (partidasHoje.length > 0) {
-        setJogosHoje(partidasHoje);
-        setTituloSecao("Jogos de Hoje");
-        return;
-      }
-
-      // Sem jogos hoje: pega os próximos 3 jogos que ainda não começaram.
-      const { data: proximos } = await sb
-        .from("partidas")
-        .select(selectCols)
-        .in("status", ["NS"])
-        .gte("inicia_em", new Date().toISOString())
-        .order("inicia_em", { ascending: true })
-        .limit(3);
-
-      setJogosHoje(((proximos as PartidaDestaque[] | null) ?? []).filter((j) => !idsAoVivo.has(j.id)));
-      setTituloSecao("Próximos Jogos");
-    } catch (error) {
-      console.warn("Nao foi possivel atualizar jogos agora.", error);
-    }
-  }, []);
-
-  useEffect(() => {
-    (supabase as any)
-      .from("selecoes")
-      .select("nome,area_bandeira,escudo_url")
-      .then(({ data }: { data: { nome: string; area_bandeira: string | null; escudo_url: string | null }[] | null }) => {
-        if (!data) return;
-        const map: Record<string, string> = {};
-        data.forEach((s) => {
-          const image = s.area_bandeira ?? s.escudo_url ?? "";
-          getTeamAliases(s.nome).forEach((alias) => { map[alias] = image; });
-        });
-        setFlagMap(map);
-      })
-      .catch(() => {});
-
-    fetchJogos();
-
-    const interval = window.setInterval(fetchJogos, API_UI_REFRESH_MS);
-    const ch = (supabase as any)
-      .channel("jogos-hoje")
-      .on("postgres_changes", { event: "*", schema: "public", table: "partidas" }, fetchJogos)
-      .subscribe();
-
-    return () => { window.clearInterval(interval); (supabase as any).removeChannel(ch); };
-  }, [fetchJogos]);
-
-  return { jogosAoVivo, jogosHoje, tituloSecao, flagMap };
-}
+// useJogosHoje substituído por useJogosHojeStore() + useSelecoesFlagMap() do store centralizado
 // Renders a flag/crest using CSS background-image so SVG and PNG images
 // always fill the container at the declared size with no layout flash.
 function FlagBox({ url, label, className }: { url?: string; label: string; className?: string }) {
@@ -1934,7 +1834,10 @@ function Inicio({
     };
   }, []);
 
-  const { jogosAoVivo, jogosHoje, tituloSecao, flagMap } = useJogosHoje();
+  const { jogosAoVivo: _aoVivo, jogosHoje: _hoje, tituloSecao } = useJogosHojeStore();
+  const jogosAoVivo = _aoVivo as PartidaDestaque[];
+  const jogosHoje = _hoje as PartidaDestaque[];
+  const flagMap = useSelecoesFlagMap();
   const { classificacaoPorGrupo } = useClassificacaoGrupos();
   const jogosHome = useMemo(() => [...jogosAoVivo, ...jogosHoje], [jogosAoVivo, jogosHoje]);
   const partidasPorJogo = useMemo(() => mapearPartidasPorJogos(jogosHome), [jogosHome]);
@@ -2163,33 +2066,7 @@ type JogoResultado = GameResult & {
   inicia_em: string | null;
 };
 
-function useResultadosPorJogo() {
-  const [resultados, setResultados] = useState<Map<string, JogoResultado>>(new Map());
-
-  const fetchResultados = useCallback(async () => {
-    const sb = supabase as any;
-    const { data } = await sb
-      .from("partidas")
-      .select("id,time_a,time_b,placar_a,placar_b,status,inicia_em,minuto,acrescimos")
-      .order("inicia_em", { ascending: true });
-
-    setResultados(mapearPartidasPorJogos((data ?? []) as JogoResultado[]));
-  }, []);
-
-  useEffect(() => {
-    fetchResultados().catch((error) => console.warn("Nao foi possivel atualizar resultados agora.", error));
-
-    const interval = window.setInterval(fetchResultados, API_UI_REFRESH_MS);
-    const ch = (supabase as any)
-      .channel("jogos-resultados")
-      .on("postgres_changes", { event: "*", schema: "public", table: "partidas" }, fetchResultados)
-      .subscribe();
-
-    return () => { window.clearInterval(interval); (supabase as any).removeChannel(ch); };
-  }, [fetchResultados]);
-
-  return resultados;
-}
+// useResultadosPorJogo substituído por usePartidasResultados() + mapearPartidasPorJogos() no componente pai
 // ---------- JOGOS ----------
 function JogosTab({ palpitesPorJogo, onPalpitar, onComentarios, resultadosPorJogo, grupoInicial = "todos", onConsumirGrupo }: {
   palpitesPorJogo: Map<string, number>;
@@ -2317,51 +2194,8 @@ type EntradaClassificacao = {
 };
 
 function useClassificacaoGrupos() {
-  const [partidasGrupo, setPartidasGrupo] = useState<Array<{
-    time_a: string; time_b: string; placar_a: number; placar_b: number; status: string; grupo: string;
-  }>>([]);
-  const [flagMapGrupos, setFlagMapGrupos] = useState<Record<string, string>>({});
-
-  const fetchPartidasGrupo = useCallback(async () => {
-    const { data } = await (supabase as any)
-      .from("partidas")
-      .select("time_a,time_b,placar_a,placar_b,status,grupo")
-      .not("grupo", "is", null);
-    setPartidasGrupo(
-      ((data ?? []) as Array<{ time_a: string; time_b: string; placar_a: number; placar_b: number; status: string; grupo: string; }>)
-        .map((p) => ({
-          ...p,
-          time_a: getCanonicalTeamName(p.time_a) || p.time_a,
-          time_b: getCanonicalTeamName(p.time_b) || p.time_b,
-          grupo: grupoApiParaLocal(p.grupo) ?? p.grupo,
-        })),
-    );
-  }, []);
-
-  useEffect(() => {
-    (supabase as any)
-      .from("selecoes")
-      .select("nome,area_bandeira,escudo_url")
-      .then(({ data }: { data: { nome: string; area_bandeira: string | null; escudo_url: string | null }[] | null }) => {
-        if (!data) return;
-        const map: Record<string, string> = {};
-        data.forEach((s) => {
-          const image = s.area_bandeira ?? s.escudo_url ?? "";
-          getTeamAliases(s.nome).forEach((alias) => { map[alias] = image; });
-        });
-        setFlagMapGrupos(map);
-      });
-
-    fetchPartidasGrupo();
-
-    const interval = window.setInterval(fetchPartidasGrupo, API_UI_REFRESH_MS);
-    const ch = (supabase as any)
-      .channel("classificacao-grupos")
-      .on("postgres_changes", { event: "*", schema: "public", table: "partidas" }, fetchPartidasGrupo)
-      .subscribe();
-
-    return () => { window.clearInterval(interval); (supabase as any).removeChannel(ch); };
-  }, [fetchPartidasGrupo]);
+  const partidasGrupo = usePartidasGrupo();
+  const flagMapGrupos = useSelecoesFlagMap();
 
   const classificacaoPorGrupo = useMemo(() => {
     const FINISHED = new Set(["FT", "AET", "PEN"]);
@@ -2396,12 +2230,14 @@ function useClassificacaoGrupos() {
       if (!FINISHED.has(p.status)) continue;
       const a = tabelas[p.grupo][p.time_a];
       const b = tabelas[p.grupo][p.time_b];
+      const pa = p.placar_a ?? 0;
+      const pb = p.placar_b ?? 0;
       a.j++; b.j++;
-      a.gp += p.placar_a; a.gc += p.placar_b;
-      b.gp += p.placar_b; b.gc += p.placar_a;
+      a.gp += pa; a.gc += pb;
+      b.gp += pb; b.gc += pa;
       a.sg = a.gp - a.gc; b.sg = b.gp - b.gc;
-      if (p.placar_a > p.placar_b) { a.v++; a.pts += 3; b.d++; }
-      else if (p.placar_b > p.placar_a) { b.v++; b.pts += 3; a.d++; }
+      if (pa > pb) { a.v++; a.pts += 3; b.d++; }
+      else if (pb > pa) { b.v++; b.pts += 3; a.d++; }
       else { a.e++; a.pts++; b.e++; b.pts++; }
     }
 
@@ -2889,33 +2725,7 @@ function isPartidaFinalizada(status?: string | null) {
   return ["FT", "AET", "PEN"].includes(status ?? "");
 }
 
-function useCalendarioResultados() {
-  const [resultados, setResultados] = useState<Map<string, CalendarioResultado>>(new Map());
-
-  const fetchResultados = useCallback(async () => {
-    const sb = supabase as any;
-    const { data } = await sb
-      .from("partidas")
-      .select("id,time_a,time_b,placar_a,placar_b,status,inicia_em,minuto,acrescimos")
-      .order("inicia_em", { ascending: true });
-
-    setResultados(mapearPartidasPorJogos((data ?? []) as CalendarioResultado[]));
-  }, []);
-
-  useEffect(() => {
-    fetchResultados().catch((error) => console.warn("Nao foi possivel atualizar resultados agora.", error));
-
-    const interval = window.setInterval(fetchResultados, API_UI_REFRESH_MS);
-    const ch = (supabase as any)
-      .channel("calendario-resultados")
-      .on("postgres_changes", { event: "*", schema: "public", table: "partidas" }, fetchResultados)
-      .subscribe();
-
-    return () => { window.clearInterval(interval); (supabase as any).removeChannel(ch); };
-  }, [fetchResultados]);
-
-  return resultados;
-}
+// useCalendarioResultados substituído: CalendarioTab recebe resultadosPorJogo do pai (já derivado do store)
 // ---------- CALENDÁRIO ----------
 function CalendarioTab({ palpitesPorJogo, onPalpitar, onComentarios, resultadosPorJogo }: {
   palpitesPorJogo: Map<string, number>;

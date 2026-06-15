@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
+import { usePartidasStore } from "@/store/partidasStore";
 import { flagAlt, flagUrl } from "@/lib/flags";
 import { getCanonicalTeamName, resolveTeamIdByName } from "@/lib/teamNames";
 
@@ -85,46 +85,19 @@ const PARTIDAS_SIMULADAS: PartidaMataMata[] = [
 }));
 
 export function ChaveamentoAutomatico() {
-  const [partidas, setPartidas] = useState<PartidaMataMata[]>([]);
-  const [carregando, setCarregando] = useState(true);
+  const { partidas: todasPartidas, loading: carregando } = usePartidasStore();
   const [simulando, setSimulando] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem(USAR_SIMULACAO_KEY) === "true";
   });
 
-  const carregar = async () => {
-    setCarregando(true);
-    const { data, error } = await supabase
-      .from("partidas")
-      .select("id,time_a,time_b,placar_a,placar_b,status,inicia_em,fase")
-      .in("fase", [...MATA_MATA_FASES, "THIRD_PLACE"])
-      .order("inicia_em", { ascending: true });
-
-    if (!error) {
-      setPartidas((data ?? []) as PartidaMataMata[]);
-    }
-    setCarregando(false);
-  };
-
-  useEffect(() => {
-    carregar();
-    const canal = supabase
-      .channel("chaveamento-automatico")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "partidas" },
-        (payload) => {
-          const fase = (payload.new as Partial<PartidaMataMata>)?.fase ?? (payload.old as Partial<PartidaMataMata>)?.fase;
-          if (fase && ![...MATA_MATA_FASES, "THIRD_PLACE"].includes(fase)) return;
-          carregar();
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(canal);
-    };
-  }, []);
+  const partidas = useMemo(
+    () =>
+      todasPartidas.filter(
+        (p) => p.fase && [...MATA_MATA_FASES, "THIRD_PLACE"].includes(p.fase),
+      ) as PartidaMataMata[],
+    [todasPartidas],
+  );
 
   const porFase = useMemo(() => {
     const map = new Map<string, PartidaMataMata[]>();
@@ -270,7 +243,7 @@ function EquipeLinha({ nome, placar, vencedor }: { nome: string; placar: number;
         {bandeira && (
           <img
             src={bandeira}
-            alt={flagAlt(selecaoId)}
+            alt={flagAlt(selecaoId!)}
             className="h-3.5 w-5 shrink-0 rounded-[2px] border border-border object-cover shadow-sm"
             loading="lazy"
           />

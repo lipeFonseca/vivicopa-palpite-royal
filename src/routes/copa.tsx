@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { StylizedVersus } from "@/components/vivicopa/StylizedVersus";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
+import { useAuthStore } from "@/store/authStore";
+import { usePartidas } from "@/hooks/usePartidas";
+import { useCopaPalpitesQuery, useCopaRankingQuery, vivicopaQueryKeys } from "@/hooks/useVivicopaQueries";
 
 export const Route = createFileRoute("/copa")({
   head: () => ({
@@ -87,15 +91,7 @@ function partidaBloqueadaParaPalpite(partida: Partida, now = new Date()) {
 }
 
 function CopaPage() {
-  const [userId, setUserId] = useState<string | null>(null);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) =>
-      setUserId(s?.user?.id ?? null),
-    );
-    return () => sub.subscription.unsubscribe();
-  }, []);
+  const userId = useAuthStore((state) => state.user?.id ?? null);
 
   if (!userId) {
     return (
@@ -133,49 +129,26 @@ function CopaPage() {
 }
 
 function Jogos({ userId }: { userId: string }) {
-  const [partidas, setPartidas] = useState<Partida[]>([]);
-  const [palpites, setPalpites] = useState<Record<string, Palpite>>({});
   const [filtroFase, setFiltroFase] = useState("todas");
   const [filtroGrupo, setFiltroGrupo] = useState("todos");
   const [busca, setBusca] = useState("");
-
-  const recarregar = async () => {
-    const [{ data: p }, { data: pal }] = await Promise.all([
-      supabase.from("partidas").select("*").order("inicia_em", { ascending: true }),
-      supabase.from("palpites").select("*").eq("usuario_id", userId),
-    ]);
-    setPartidas((p ?? []) as Partida[]);
+  const queryClient = useQueryClient();
+  const { partidas: partidasRaw = [] } = usePartidas();
+  const partidas = partidasRaw as unknown as Partida[];
+  const { data: palpitesRows = [] } = useCopaPalpitesQuery(userId);
+  const palpites = useMemo(() => {
     const map: Record<string, Palpite> = {};
-    (pal ?? []).forEach((x: any) => (map[x.partida_id] = x));
-    setPalpites(map);
-  };
-
-  useEffect(() => {
-    recarregar();
-    const ch = supabase
-      .channel("partidas-live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "partidas" },
-        (payload) => {
-          setPartidas((prev) => {
-            const n = payload.new as Partida;
-            if (payload.eventType === "DELETE") {
-              return prev.filter((p) => p.id !== (payload.old as any).id);
-            }
-            const idx = prev.findIndex((p) => p.id === n.id);
-            if (idx === -1) return [...prev, n];
-            const copy = [...prev];
-            copy[idx] = n;
-            return copy;
-          });
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [userId]);
+    palpitesRows.forEach((row) => {
+      map[row.partida_id] = {
+        id: row.id,
+        usuario_id: row.usuario_id,
+        partida_id: row.partida_id,
+        palpite_a: row.palpite_a,
+        palpite_b: row.palpite_b,
+      };
+    });
+    return map;
+  }, [palpitesRows]);
 
   const fasesDisponiveis = useMemo(() => {
     const fases = Array.from(new Set(partidas.map((p) => p.fase).filter(Boolean))) as string[];
@@ -277,7 +250,7 @@ function Jogos({ userId }: { userId: string }) {
                 key={p.id}
                 partida={p}
                 palpite={palpites[p.id]}
-                onSalvo={recarregar}
+                onSalvo={() => void queryClient.invalidateQueries({ queryKey: vivicopaQueryKeys.copaPalpites(userId) })}
                 userId={userId}
               />
             ))}
@@ -434,44 +407,26 @@ function PartidaCard({
 const MATA_MATA_FASES = ["LAST_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", "FINAL"];
 
 function Chaveamento({ userId }: { userId: string }) {
-  const [partidas, setPartidas] = useState<Partida[]>([]);
-  const [palpites, setPalpites] = useState<Record<string, Palpite>>({});
-
-  const carregar = async () => {
-    const [{ data }, { data: pal }] = await Promise.all([
-      supabase
-        .from("partidas")
-        .select("*")
-        .in("fase", [...MATA_MATA_FASES, "THIRD_PLACE"])
-        .order("inicia_em", { ascending: true }),
-      supabase.from("palpites").select("*").eq("usuario_id", userId),
-    ]);
-    setPartidas((data ?? []) as Partida[]);
+  const queryClient = useQueryClient();
+  const { partidas: partidasRaw = [] } = usePartidas();
+  const partidas = useMemo(
+    () => (partidasRaw as unknown as Partida[]).filter((partida) => [...MATA_MATA_FASES, "THIRD_PLACE"].includes(partida.fase ?? "")),
+    [partidasRaw]
+  );
+  const { data: palpitesRows = [] } = useCopaPalpitesQuery(userId);
+  const palpites = useMemo(() => {
     const map: Record<string, Palpite> = {};
-    (pal ?? []).forEach((x: any) => (map[x.partida_id] = x));
-    setPalpites(map);
-  };
-
-  useEffect(() => {
-    carregar();
-    const ch = supabase
-      .channel("partidas-chaveamento")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "partidas" },
-        (payload) => {
-          const n = payload.new as Partida;
-          const old = payload.old as Partial<Partida>;
-          const fase = n?.fase ?? old?.fase;
-          if (fase && ![...MATA_MATA_FASES, "THIRD_PLACE"].includes(fase)) return;
-          carregar();
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, []);
+    palpitesRows.forEach((row) => {
+      map[row.partida_id] = {
+        id: row.id,
+        usuario_id: row.usuario_id,
+        partida_id: row.partida_id,
+        palpite_a: row.palpite_a,
+        palpite_b: row.palpite_b,
+      };
+    });
+    return map;
+  }, [palpitesRows]);
 
   const porFase = useMemo(() => {
     const map = new Map<string, Partida[]>();
@@ -527,7 +482,7 @@ function Chaveamento({ userId }: { userId: string }) {
                          destaque={fase === "FINAL"}
                          palpite={palpites[p.id]}
                          userId={userId}
-                         onSalvo={carregar}
+                         onSalvo={() => void queryClient.invalidateQueries({ queryKey: vivicopaQueryKeys.copaPalpites(userId) })}
                        />
                      ))
                    ) : (
@@ -554,7 +509,7 @@ function Chaveamento({ userId }: { userId: string }) {
               partida={terceiroLugar}
               palpite={palpites[terceiroLugar.id]}
               userId={userId}
-              onSalvo={carregar}
+              onSalvo={() => void queryClient.invalidateQueries({ queryKey: vivicopaQueryKeys.copaPalpites(userId) })}
             />
           ) : (
             <ChaveVazia fase="THIRD_PLACE" />
@@ -696,9 +651,10 @@ function EquipeLinha({ nome, placar, vencedor }: { nome: string; placar: number;
 }
 
 function Ranking() {
-  const [rows, setRows] = useState<RankingRow[]>([]);
-  const [nomes, setNomes] = useState<Record<string, string>>({});
-
+  const { data } = useCopaRankingQuery();
+  const rows = data?.rows ?? [];
+  const nomes = data?.nomes ?? {};
+  /*
   useEffect(() => {
     (async () => {
       const { data } = await supabase
@@ -723,6 +679,7 @@ function Ranking() {
       }
     })();
   }, []);
+  */
 
   if (!rows.length) {
     return (

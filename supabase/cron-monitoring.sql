@@ -46,3 +46,18 @@ from public.partidas
 group by status
 order by status;
 
+-- Specific row check for matches that should already be live or updated.
+select
+  id,
+  time_a,
+  time_b,
+  status,
+  placar_a,
+  placar_b,
+  inicia_em,
+  ultima_atualizacao_api,
+  atualizado_em
+from public.partidas
+where (time_a = 'Costa do Marfim' and time_b = 'Equador')
+   or (time_a = 'Equador' and time_b = 'Costa do Marfim');
+

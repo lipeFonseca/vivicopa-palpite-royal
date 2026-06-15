@@ -17,7 +17,7 @@ const API_BASE = "https://api.football-data.org/v4";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-export type PollingPhase = "scheduled" | "pre_match" | "live" | "finished";
+export type PollingPhase = "scheduled" | "pre_match" | "started_pending" | "live" | "finished";
 
 export interface RateLimitInfo {
   remaining: number;   // requests left in current window (from response header)
@@ -234,7 +234,8 @@ export function getPhase(
   if (LIVE_STATUSES.has(status)) return "live";
   if (iniciaEm) {
     const minsUntil = (new Date(iniciaEm).getTime() - agora) / 60_000;
-    if (minsUntil <= 30) return "pre_match";
+    if (minsUntil <= 30 && minsUntil >= 0) return "pre_match";
+    if (minsUntil < 0 && minsUntil >= -180) return "started_pending";
   }
   return "scheduled";
 }
