@@ -24,7 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuthStore, type AuthProfile } from "@/store/authStore";
 import { useConfigStore } from "@/store/configStore";
 import { useJogosHojeStore, usePartidasGrupo, usePartidasResultados, useSelecoesFlagMap } from "@/hooks/usePartidas";
-import { useComentariosQuery, useCronMonitorQuery, useManagedUsersQuery, useMeusPalpitesQuery, vivicopaQueryKeys, type CronMonitorJob, type CronMonitorRun, type ManagedUser } from "@/hooks/useVivicopaQueries";
+import { useComentariosQuery, useCronMonitorQuery, useManagedUsersQuery, useMeusPalpitesQuery, useWinningPredictionsQuery, useAllPalpitesAdminQuery, vivicopaQueryKeys, type CronMonitorJob, type CronMonitorRun, type ManagedUser, type WinningPrediction, type AdminPalpite } from "@/hooks/useVivicopaQueries";
 import { selecoes, jogos, grupos, getSelecao, type Jogo, type Selecao } from "@/data/worldcup2026";
 import { getStats } from "@/data/selecaoStats";
 import { isValidEmail, isValidUsername, normalizeEmail, normalizeUsername, usernameToEmail } from "@/lib/auth";
@@ -34,6 +34,7 @@ import { flagUrl, flagAlt, flagUrlFromFifaCode } from "@/lib/flags";
 import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
 import { getCanonicalTeamName, resolveTeamIdByName } from "@/lib/teamNames";
 import { applySiteTheme, DEFAULT_SITE_THEME, HOME_SECONDARY_IMAGE_KEY, readSiteTheme, SITE_ACCENT_KEY, SITE_PRIMARY_KEY, SITE_SUBTITLE_KEY, SITE_SURFACE_KEY, SITE_TITLE_KEY, SITE_TITLE_TRACKING_KEY, storeSiteTheme } from "@/lib/siteTheme";
+import { isFinishedMatchStatus } from "@/lib/prediction-results";
 
 const STORAGE_BUCKET = "imagens-app";
 const STORAGE_MAX_BYTES = 5_000_000;
@@ -207,12 +208,30 @@ function Vivicopa() {
   );
   const { data: palpites = [] } = useMeusPalpitesQuery(authProfile?.id);
   const { data: comentarios = [] } = useComentariosQuery();
+  const { data: winningPredictions = [] } = useWinningPredictionsQuery(authProfile?.id);
 
   const palpitesPorJogo = useMemo(() => {
     const m = new Map<string, number>();
     palpites.forEach((p) => m.set(p.jogoId, (m.get(p.jogoId) ?? 0) + 1));
     return m;
   }, [palpites]);
+
+  const meusAcertosPorJogo = useMemo(() => {
+    const meuIds = new Set(
+      winningPredictions.filter((item) => item.usuarioId === authProfile?.id).map((item) => item.jogoId),
+    );
+    const m = new Map<string, Palpite>();
+    palpites.forEach((p) => { if (meuIds.has(p.jogoId)) m.set(p.jogoId, p); });
+    return m;
+  }, [palpites, winningPredictions, authProfile?.id]);
+
+  const acertadoresPorJogo = useMemo(() => {
+    const m = new Map<string, WinningPrediction[]>();
+    winningPredictions.forEach((item) => {
+      m.set(item.jogoId, [...(m.get(item.jogoId) ?? []), item]);
+    });
+    return m;
+  }, [winningPredictions]);
 
   const abrirPalpite = (j: Jogo, p?: Palpite) => {
     if (palpiteBloqueadoParaJogo(j, resultadosPorJogo.get(j.id))) {
@@ -276,6 +295,7 @@ function Vivicopa() {
           <TabsContent value="inicio" className="mt-0">
             <Inicio
               palpites={palpites}
+              winningPredictions={winningPredictions}
               onJogos={() => setAba("jogos")}
               onPalpite={(jogo) => jogo ? abrirPalpite(jogo) : setAba("jogos")}
               onComentarios={abrirComentarios}
@@ -286,6 +306,8 @@ function Vivicopa() {
             <LazyTabPanel value="jogos" activeTab={aba}>
               <JogosTab
                 palpitesPorJogo={palpitesPorJogo}
+                meusAcertosPorJogo={meusAcertosPorJogo}
+                acertadoresPorJogo={acertadoresPorJogo}
                 onPalpitar={(j) => abrirPalpite(j)}
                 onComentarios={abrirComentarios}
                 resultadosPorJogo={resultadosPorJogo}
@@ -327,7 +349,7 @@ function Vivicopa() {
 
           <TabsContent value="meus" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
             <LazyTabPanel value="meus" activeTab={aba}>
-              <MeusPalpitesTab usuario={authProfile} palpites={palpites} resultadosPorJogo={resultadosPorJogo} onEditar={(p) => {
+              <MeusPalpitesTab usuario={authProfile} palpites={palpites} resultadosPorJogo={resultadosPorJogo} acertadoresPorJogo={acertadoresPorJogo} onEditar={(p) => {
                 const j = jogos.find((x) => x.id === p.jogoId);
                 if (j) abrirPalpite(j, p);
               }} onExcluir={async (p) => {
@@ -338,7 +360,7 @@ function Vivicopa() {
                 }
                 await excluirPalpite(p.id, authProfile.id);
                 await queryClient.invalidateQueries({ queryKey: vivicopaQueryKeys.meusPalpites(authProfile.id) });
-              }} />
+              }} meusAcertosPorJogo={meusAcertosPorJogo} />
             </LazyTabPanel>
           </TabsContent>
 
@@ -1015,6 +1037,105 @@ function AdminCronMonitorPanel() {
   );
 }
 
+function AdminPalpitesPanel() {
+  const { data: allPalpites = [], isLoading } = useAllPalpitesAdminQuery(true);
+  const [filtro, setFiltro] = useState<"todos" | "finalizados" | "acertos">("todos");
+
+  const lista = useMemo(() => {
+    if (filtro === "finalizados") return allPalpites.filter((p) => p.finalizado);
+    if (filtro === "acertos") return allPalpites.filter((p) => p.acertouNaMosca);
+    return allPalpites;
+  }, [allPalpites, filtro]);
+
+  const porJogo = useMemo(() => {
+    const m = new Map<string, AdminPalpite[]>();
+    lista.forEach((p) => m.set(p.jogoId, [...(m.get(p.jogoId) ?? []), p]));
+    return Array.from(m.entries())
+      .map(([jogoId, palpites]) => ({ jogoId, palpites }))
+      .sort((a, b) => {
+        const pa = a.palpites[0];
+        const pb = b.palpites[0];
+        return (pb.data + pb.hora).localeCompare(pa.data + pa.hora);
+      });
+  }, [lista]);
+
+  const totalAcertos = allPalpites.filter((p) => p.acertouNaMosca).length;
+
+  return (
+    <section className="site-admin-section border border-border bg-card p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs font-black uppercase text-brand">
+          <Trophy className="h-4 w-4" /> Todos os palpites
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>{allPalpites.length} palpites</span>
+          <span>·</span>
+          <span className="font-semibold text-[#8d6710]">{totalAcertos} acertaram na mosca</span>
+        </div>
+      </div>
+      <div className="mb-4 flex gap-2">
+        {(["todos", "finalizados", "acertos"] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setFiltro(f)}
+            className={`rounded-full px-3 py-1 text-[11px] font-black uppercase transition ${filtro === f ? "bg-brand text-white" : "bg-brand-soft text-brand-dark hover:bg-brand/20"}`}
+          >
+            {f === "todos" ? "Todos" : f === "finalizados" ? "Finalizados" : "Acertaram na mosca"}
+          </button>
+        ))}
+      </div>
+      {isLoading && <div className="py-6 text-center text-sm text-muted-foreground">Carregando palpites…</div>}
+      {!isLoading && porJogo.length === 0 && (
+        <div className="py-6 text-center text-sm text-muted-foreground">Nenhum palpite encontrado.</div>
+      )}
+      <div className="space-y-4">
+        {porJogo.map(({ jogoId, palpites: ps }) => {
+          const primeiro = ps[0];
+          const a = getSelecao(primeiro.selecaoA);
+          const b = getSelecao(primeiro.selecaoB);
+          const acertosDoJogo = ps.filter((p) => p.acertouNaMosca).length;
+          return (
+            <div key={jogoId} className="rounded-xl border border-border bg-white/60 overflow-hidden">
+              <div className={`flex items-center justify-between px-4 py-2 text-xs font-black uppercase text-white ${primeiro.finalizado ? "bg-brand" : "bg-brand/60"}`}>
+                <span>{a?.nome ?? primeiro.selecaoA} × {b?.nome ?? primeiro.selecaoB} — Grupo {primeiro.grupo} · {primeiro.data}</span>
+                {primeiro.finalizado && (
+                  <span className="ml-2 shrink-0 rounded-full bg-white/20 px-2 py-0.5">
+                    {primeiro.resultadoA} – {primeiro.resultadoB}
+                    {acertosDoJogo > 0 && ` · ${acertosDoJogo} na mosca`}
+                  </span>
+                )}
+              </div>
+              <div className="divide-y divide-border/40">
+                {ps.map((p) => (
+                  <div key={p.id} className={`flex items-center justify-between px-4 py-2 text-sm ${p.acertouNaMosca ? "bg-[#fffbee]" : ""}`}>
+                    <span className={`font-semibold ${p.acertouNaMosca ? "text-[#8d6710]" : "text-brand-dark"}`}>
+                      {p.usuarioNome}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className={`font-extrabold tabular-nums ${p.acertouNaMosca ? "text-[#b07e16]" : "text-brand"}`}>
+                        {p.palpiteA} – {p.palpiteB}
+                      </span>
+                      {p.acertouNaMosca && (
+                        <span className="rounded-full border border-[#e6cf90] bg-[#fff3cf] px-2 py-0.5 text-[10px] font-black uppercase text-[#8d6710]">
+                          Acertou na mosca
+                        </span>
+                      )}
+                      {p.finalizado && !p.acertouNaMosca && (
+                        <span className="text-[10px] text-muted-foreground">Errou</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function AdminTab() {
   const [novaSenha, setNovaSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
@@ -1216,6 +1337,7 @@ function AdminTab() {
 
   return (
     <div className="space-y-4">
+      <AdminPalpitesPanel />
       <AdminCronMonitorPanel />
       <section className="site-admin-section border border-border bg-card p-5">
         <div className="mb-5 flex items-center gap-2 text-xs font-black uppercase text-brand">
@@ -1968,13 +2090,98 @@ function EditorialMatchRow({
   );
 }
 
+function AcertoMoscaBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full border border-[#e6cf90] bg-[#fff3cf] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#8d6710]">
+      Acertou na mosca
+    </span>
+  );
+}
+
+function PalpiteirosDoDiaSection({ winningPredictions }: { winningPredictions: WinningPrediction[] }) {
+  const cards = useMemo(() => {
+    const grouped = new Map<string, WinningPrediction[]>();
+    winningPredictions.forEach((item) => {
+      grouped.set(item.jogoId, [...(grouped.get(item.jogoId) ?? []), item]);
+    });
+
+    return Array.from(grouped.entries())
+      .map(([jogoId, winners]) => {
+        const jogo = jogos.find((item) => item.id === jogoId);
+        if (!jogo || winners.length === 0) return null;
+        const latestWinner = winners.reduce((latest, current) =>
+          current.createdAt > latest.createdAt ? current : latest
+        );
+        return { jogo, winners, latestWinner };
+      })
+      .filter((item): item is { jogo: Jogo; winners: WinningPrediction[]; latestWinner: WinningPrediction } => Boolean(item))
+      .sort((a, b) => (b.jogo.data + b.jogo.hora).localeCompare(a.jogo.data + a.jogo.hora));
+  }, [winningPredictions]);
+
+  if (cards.length === 0) return null;
+
+  return (
+    <section className="editorial-section border-b border-[#e6cf90] bg-[#fff9ea] px-5 py-6 sm:px-8 lg:px-12">
+      <div className="mb-3 flex items-center justify-between border-b border-[#ead7a3] pb-2">
+        <div>
+          <h2 className="text-lg font-black uppercase text-[#8d6710]">Palpiteiros da Copa</h2>
+          <p className="mt-1 text-sm text-[#7b6a43]">Quem cravou placares exatos nos jogos já finalizados.</p>
+        </div>
+        <AcertoMoscaBadge />
+      </div>
+      <div className="flex flex-wrap justify-center gap-3">
+        {cards.map(({ jogo, winners, latestWinner }) => {
+          const a = getSelecao(jogo.selecaoA);
+          const b = getSelecao(jogo.selecaoB);
+          return (
+            <div key={jogo.id} className="w-full max-w-xs rounded-2xl border border-[#e6cf90] bg-white/85 p-4 shadow-[0_10px_25px_rgba(201,154,45,0.08)] sm:w-72">
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <Badge className="bg-[#c99a2d] text-white hover:bg-[#c99a2d]">Grupo {jogo.grupo}</Badge>
+                <div className="text-right text-[11px] font-semibold text-[#7b6a43]">{jogo.data}</div>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 text-center">
+                  <img src={flagUrl(jogo.selecaoA, 80)} alt={flagAlt(jogo.selecaoA)} className="mx-auto h-7 w-10 rounded-sm object-cover ring-1 ring-black/10" />
+                  <div className="mt-1 truncate text-[11px] font-black uppercase text-brand-dark">{a?.nome}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-extrabold text-[#8d6710]">
+                    {latestWinner.resultadoA} – {latestWinner.resultadoB}
+                  </div>
+                  <div className="text-[10px] font-bold uppercase text-[#aa8530]">Placar cravado</div>
+                </div>
+                <div className="min-w-0 text-center">
+                  <img src={flagUrl(jogo.selecaoB, 80)} alt={flagAlt(jogo.selecaoB)} className="mx-auto h-7 w-10 rounded-sm object-cover ring-1 ring-black/10" />
+                  <div className="mt-1 truncate text-[11px] font-black uppercase text-brand-dark">{b?.nome}</div>
+                </div>
+              </div>
+              <div className="mt-3 rounded-xl bg-[#fff5d9] px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-wide text-[#8d6710]">Quem acertou</div>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {winners.map((winner) => (
+                    <span key={winner.id} className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-brand-dark ring-1 ring-[#ead7a3]">
+                      {winner.usuarioNome}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function Inicio({
   palpites,
+  winningPredictions,
   onJogos,
   onPalpite,
   onComentarios,
 }: {
   palpites: Palpite[];
+  winningPredictions: WinningPrediction[];
   onJogos: () => void;
   onPalpite: (jogo?: Jogo) => void;
   onComentarios: (jogo: Jogo) => void;
@@ -2122,6 +2329,8 @@ function Inicio({
         <StatBand label="Grupos" value={grupos.length} />
       </section>
 
+      <PalpiteirosDoDiaSection winningPredictions={winningPredictions} />
+
       {jogosAoVivo.length > 0 && (
         <section className="editorial-section border-b border-red-200 bg-red-50 px-5 py-6 sm:px-8 lg:px-12">
           <div className="mb-3 flex items-center justify-between">
@@ -2243,8 +2452,10 @@ type JogoResultado = GameResult & {
 
 // useResultadosPorJogo substituído por usePartidasResultados() + mapearPartidasPorJogos() no componente pai
 // ---------- JOGOS ----------
-function JogosTab({ palpitesPorJogo, onPalpitar, onComentarios, resultadosPorJogo, grupoInicial = "todos", onConsumirGrupo }: {
+function JogosTab({ palpitesPorJogo, meusAcertosPorJogo, acertadoresPorJogo, onPalpitar, onComentarios, resultadosPorJogo, grupoInicial = "todos", onConsumirGrupo }: {
   palpitesPorJogo: Map<string, number>;
+  meusAcertosPorJogo: Map<string, Palpite>;
+  acertadoresPorJogo: Map<string, WinningPrediction[]>;
   onPalpitar: (j: Jogo) => void;
   onComentarios: (j: Jogo) => void;
   resultadosPorJogo: Map<string, JogoResultado>;
@@ -2317,7 +2528,11 @@ function JogosTab({ palpitesPorJogo, onPalpitar, onComentarios, resultadosPorJog
       <div className="games-grid grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {lista.map((j) => (
           <GameCard key={j.id} jogo={j} qtdPalpites={palpitesPorJogo.get(j.id) ?? 0}
-            resultado={resultadosPorJogo.get(j.id)} onPalpitar={onPalpitar} onComentarios={onComentarios} />
+            resultado={resultadosPorJogo.get(j.id)}
+            acertouNaMosca={meusAcertosPorJogo.has(j.id)}
+            acertadores={acertadoresPorJogo.get(j.id) ?? []}
+            onPalpitar={onPalpitar}
+            onComentarios={onComentarios} />
         ))}
         {lista.length === 0 && <div className="col-span-full py-10 text-center text-muted-foreground">Nenhum jogo encontrado com esses filtros.</div>}
       </div>
@@ -2502,12 +2717,14 @@ function GruposTab({ onVerJogos }: { onVerJogos: (grupo: string) => void }) {
 }
 
 // ---------- MEUS PALPITES ----------
-function MeusPalpitesTab({ usuario, palpites, onEditar, onExcluir, resultadosPorJogo }: {
+function MeusPalpitesTab({ usuario, palpites, onEditar, onExcluir, resultadosPorJogo, meusAcertosPorJogo, acertadoresPorJogo }: {
   usuario: AuthProfile;
   palpites: Palpite[];
   onEditar: (p: Palpite) => void;
   onExcluir: (p: Palpite) => void;
   resultadosPorJogo?: Map<string, JogoResultado>;
+  meusAcertosPorJogo: Map<string, Palpite>;
+  acertadoresPorJogo: Map<string, WinningPrediction[]>;
 }) {
   const meus = palpites.filter((p) => p.usuarioId === usuario.id);
 
@@ -2529,17 +2746,47 @@ function MeusPalpitesTab({ usuario, palpites, onEditar, onExcluir, resultadosPor
             const a = getSelecao(p.selecaoA);
             const b = getSelecao(p.selecaoB);
             const bloqueado = j ? palpiteBloqueadoParaJogo(j, resultadosPorJogo?.get(j.id)) : true;
+            const resultado = resultadosPorJogo?.get(p.jogoId);
+            const acertouNaMosca = meusAcertosPorJogo.has(p.jogoId);
+            const finalizado = isFinishedMatchStatus(resultado?.status);
+            const acertadores = acertadoresPorJogo.get(p.jogoId) ?? [];
+            const outrosAcertadores = acertadores.filter((a) => a.usuarioId !== usuario.id);
             return (
-              <div key={p.id} className="rounded-2xl border border-border bg-card p-4 shadow-card">
+              <div key={p.id} className={`rounded-2xl border bg-card p-4 shadow-card ${acertouNaMosca ? "border-[#c99a2d] ring-1 ring-[#f0d48d]" : "border-border"}`}>
                 <div className="mb-2 flex items-center justify-between text-xs">
                   <Badge className="bg-brand-light text-brand-dark hover:bg-brand-light">Grupo {j?.grupo}</Badge>
-                  <span className="text-muted-foreground">{new Date(p.dataCriacao).toLocaleDateString("pt-BR")}</span>
+                  <div className="flex items-center gap-2">
+                    {acertouNaMosca && <AcertoMoscaBadge />}
+                    <span className="text-muted-foreground">{new Date(p.dataCriacao).toLocaleDateString("pt-BR")}</span>
+                  </div>
                 </div>
                 <div className="flex items-center justify-around text-center">
                   <PalpiteTime selecaoId={p.selecaoA} nome={a?.nome} />
-                  <div className="text-2xl font-extrabold text-brand">{p.placarA} – {p.placarB}</div>
+                  <div className={`text-2xl font-extrabold ${acertouNaMosca ? "text-[#b07e16]" : "text-brand"}`}>{p.placarA} – {p.placarB}</div>
                   <PalpiteTime selecaoId={p.selecaoB} nome={b?.nome} />
                 </div>
+                {finalizado && resultado && (
+                  <div className={`mt-3 rounded-xl px-3 py-2 text-center text-sm ${acertouNaMosca ? "bg-[#fff5d9] text-[#7a5a10]" : "bg-brand-soft/60 text-muted-foreground"}`}>
+                    Resultado oficial: <span className="font-black">{resultado.placar_a} – {resultado.placar_b}</span>
+                  </div>
+                )}
+                {acertadores.length > 0 && (
+                  <div className="mt-2 rounded-xl border border-[#e6cf90] bg-[#fff7df] px-3 py-2 text-xs text-[#6f5310]">
+                    <div className="font-black uppercase tracking-wide">Acertaram na mosca</div>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {acertadores.map((item) => (
+                        <span key={item.id} className={`rounded-full px-2 py-0.5 font-semibold shadow-sm ring-1 ring-[#ead7a3] ${item.usuarioId === usuario.id ? "bg-[#fff3cf] text-[#8d6710]" : "bg-white"}`}>
+                          {item.usuarioNome}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {finalizado && acertadores.length === 0 && (
+                  <div className="mt-2 rounded-xl bg-brand-soft/40 px-3 py-2 text-center text-xs text-muted-foreground">
+                    Ninguém acertou na mosca
+                  </div>
+                )}
                 <div className="mt-3 flex gap-2">
                   <Button size="sm" variant="outline" className="flex-1" disabled={bloqueado} onClick={() => onEditar(p)}>Editar</Button>
                   <Button size="sm" variant="destructive" className="flex-1" disabled={bloqueado} onClick={() => onExcluir(p)}>Excluir</Button>

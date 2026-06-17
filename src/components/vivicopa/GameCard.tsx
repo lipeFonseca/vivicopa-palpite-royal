@@ -7,6 +7,7 @@ import type { Jogo } from "@/data/worldcup2026";
 import { getSelecao } from "@/data/worldcup2026";
 import { flagUrl, flagAlt } from "@/lib/flags";
 import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
+import type { WinningPrediction } from "@/hooks/useVivicopaQueries";
 
 export type GameResult = {
   placar_a: number;
@@ -21,11 +22,13 @@ interface Props {
   jogo: Jogo;
   qtdPalpites: number;
   resultado?: GameResult;
+  acertouNaMosca?: boolean;
+  acertadores?: WinningPrediction[];
   onPalpitar: (j: Jogo) => void;
   onComentarios: (j: Jogo) => void;
 }
 
-export function GameCard({ jogo, qtdPalpites, resultado, onPalpitar, onComentarios }: Props) {
+export function GameCard({ jogo, qtdPalpites, resultado, acertouNaMosca = false, acertadores = [], onPalpitar, onComentarios }: Props) {
   const a = getSelecao(jogo.selecaoA);
   const b = getSelecao(jogo.selecaoB);
   const temPalpite = qtdPalpites > 0;
@@ -47,18 +50,18 @@ export function GameCard({ jogo, qtdPalpites, resultado, onPalpitar, onComentari
 
   return (
     <div
-      className={`editorial-game-card overflow-hidden border bg-card shadow-card transition hover:-translate-y-0.5 hover:shadow-brand ${isLive ? "border-red-300 ring-1 ring-red-100" : temPalpite ? "border-brand/40" : "border-black/10"}`}
+      className={`editorial-game-card overflow-hidden border bg-card shadow-card transition hover:-translate-y-0.5 hover:shadow-brand ${isLive ? "border-red-300 ring-1 ring-red-100" : acertouNaMosca ? "border-[#c99a2d] ring-1 ring-[#f0d48d]" : temPalpite ? "border-brand/40" : "border-black/10"}`}
     >
       <div
-        className={`flex items-center justify-between px-4 py-2 text-white ${isLive ? "bg-red-600" : "bg-brand"}`}
+        className={`flex items-center justify-between px-4 py-2 text-white ${isLive ? "bg-red-600" : acertouNaMosca ? "bg-[linear-gradient(90deg,#c99a2d_0%,#e0ba57_100%)]" : "bg-brand"}`}
       >
         <Badge className="rounded-none bg-white/15 text-[10px] font-black uppercase text-white hover:bg-white/15">
           Grupo {jogo.grupo}
         </Badge>
         <span
-          className={`px-2 py-0.5 text-[10px] font-black uppercase ${temPalpite ? "bg-[var(--site-accent)] text-white" : "bg-white/15 text-white"}`}
+          className={`px-2 py-0.5 text-[10px] font-black uppercase ${acertouNaMosca ? "bg-black/15 text-white" : temPalpite ? "bg-[var(--site-accent)] text-white" : "bg-white/15 text-white"}`}
         >
-          {temPalpite ? "Seu palpite" : "Sem palpite"}
+          {acertouNaMosca ? "Acertou na mosca" : temPalpite ? "Seu palpite" : "Sem palpite"}
         </span>
       </div>
 
@@ -143,6 +146,18 @@ export function GameCard({ jogo, qtdPalpites, resultado, onPalpitar, onComentari
       </div>
 
       <div className="grid gap-2 p-4 pt-3">
+        {acertadores.length > 0 && (
+          <div className="rounded-xl border border-[#e6cf90] bg-[#fff7df] px-3 py-2 text-xs text-[#6f5310]">
+            <div className="font-black uppercase tracking-wide">Acertaram na mosca</div>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {acertadores.map((item) => (
+                <span key={item.id} className="rounded-full bg-white px-2 py-0.5 font-semibold shadow-sm ring-1 ring-[#ead7a3]">
+                  {item.usuarioNome}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         <Button
           onClick={() => onPalpitar(jogo)}
           disabled={palpiteBloqueado}

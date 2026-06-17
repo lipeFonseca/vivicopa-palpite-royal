@@ -1,11 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { carregarComentarios, type ComentarioJogo } from "@/lib/comments";
 import { carregarPalpites, type Palpite } from "@/lib/storage";
+import { getWinningPredictions, getAllPalpitesAdmin, type WinningPrediction, type AdminPalpite } from "@/lib/api/winning-predictions.functions";
+
+export type { WinningPrediction, AdminPalpite };
 
 export const vivicopaQueryKeys = {
   comentarios: ["comentarios-jogo"] as const,
   meusPalpites: (userId: string) => ["meus-palpites", userId] as const,
+  winningPredictions: ["winning-predictions"] as const,
+  allPalpitesAdmin: ["all-palpites-admin"] as const,
   managedUsers: ["managed-users"] as const,
   cronMonitor: ["cron-monitor"] as const,
   copaPalpites: (userId: string) => ["copa-palpites", userId] as const,
@@ -90,6 +95,28 @@ export function useMeusPalpitesQuery(userId: string | null | undefined) {
     queryFn: () => carregarPalpites(userId ?? ""),
     enabled: Boolean(userId),
     staleTime: 60 * 1000,
+  });
+}
+
+export function useWinningPredictionsQuery(userId: string | null | undefined) {
+  return useQuery<WinningPrediction[]>({
+    queryKey: [...vivicopaQueryKeys.winningPredictions, userId ?? ""],
+    queryFn: () => getWinningPredictions(),
+    enabled: Boolean(userId),
+    staleTime: 0,
+    gcTime: 0,
+    refetchInterval: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useAllPalpitesAdminQuery(enabled = true) {
+  return useQuery<AdminPalpite[]>({
+    queryKey: vivicopaQueryKeys.allPalpitesAdmin,
+    queryFn: () => getAllPalpitesAdmin(),
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: 2 * 60 * 1000,
   });
 }
 
