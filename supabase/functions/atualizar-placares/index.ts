@@ -110,6 +110,10 @@ Deno.serve(async (req) => {
 
   const client = new FootballDataClient(token);
   const url = new URL(req.url);
+
+  const delayMs = parseInt(url.searchParams.get("delay") ?? "0") * 1000;
+  if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+
   const agora = Date.now();
 
   // ── Seed mode: full import of all WC matches + teams ────────────────────

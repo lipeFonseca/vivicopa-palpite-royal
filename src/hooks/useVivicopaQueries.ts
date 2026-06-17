@@ -103,8 +103,7 @@ export function useWinningPredictionsQuery(userId: string | null | undefined) {
     queryKey: [...vivicopaQueryKeys.winningPredictions, userId ?? ""],
     queryFn: () => getWinningPredictions(),
     enabled: Boolean(userId),
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 3 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
   });
@@ -116,7 +115,7 @@ export function useAllPalpitesAdminQuery(enabled = true) {
     queryFn: () => getAllPalpitesAdmin(),
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: 2 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
   });
 }
 
