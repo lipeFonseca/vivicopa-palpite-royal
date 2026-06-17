@@ -89,9 +89,9 @@ export function Header({ navigation, mobileNavContent, username, role, onLogout 
                 <button
                   type="button"
                   aria-label="Abrir menu"
-                  className="site-user-icon flex sm:hidden h-9 w-9 shrink-0 items-center justify-center rounded-full border border-brand text-brand transition hover:bg-brand hover:text-white"
+                  className="flex sm:hidden h-8 w-8 shrink-0 items-center justify-center rounded-md text-brand/70 transition hover:text-brand hover:bg-brand/10"
                 >
-                  <Menu className="h-5 w-5" />
+                  <Menu className="h-[1.15rem] w-[1.15rem]" />
                 </button>
               </SheetTrigger>
               <SheetContent side="left" className="w-64 p-0">

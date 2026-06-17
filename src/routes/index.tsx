@@ -2294,17 +2294,17 @@ function Inicio({
           />
         )}
         <div className="editorial-hero-wash absolute inset-0" />
-        <div className="editorial-hero-copy relative z-10 flex flex-col justify-center px-6 py-10 sm:min-h-[500px] sm:max-w-[48rem] sm:py-14 sm:px-10 lg:px-12">
-          <h1 className="site-display max-w-[7ch] text-6xl font-black uppercase leading-[0.96] text-brand sm:text-7xl lg:text-[7.2rem]" style={{ letterSpacing: `${theme.titleTracking}em` }}>
+        <div className="editorial-hero-copy relative z-10 flex flex-col items-center text-center sm:items-start sm:text-left sm:justify-center px-6 py-8 sm:min-h-[500px] sm:max-w-[48rem] sm:py-14 sm:px-10 lg:px-12">
+          <h1 className="site-display text-6xl font-black uppercase leading-[0.96] text-brand sm:text-7xl lg:text-[7.2rem]" style={{ letterSpacing: `${theme.titleTracking}em` }}>
             {theme.title}
           </h1>
-          <p className="site-display mt-6 text-xl font-black uppercase tracking-[0.02em] text-[var(--site-accent)] sm:text-2xl">
+          <p className="site-display mt-5 text-lg font-black uppercase tracking-[0.02em] text-[var(--site-accent)] sm:mt-6 sm:text-2xl">
             A Copa que nasceu para a resenha
           </p>
-          <p className="mt-4 max-w-md text-base font-bold leading-relaxed text-foreground/90">
+          <p className="mt-3 max-w-sm text-sm font-bold leading-relaxed text-foreground/80 sm:mt-4 sm:max-w-md sm:text-base sm:text-foreground/90">
             {theme.subtitle}
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap justify-center gap-3 sm:mt-8 sm:justify-start">
             <Button onClick={onJogos} className="h-10 min-w-36 rounded-none bg-[#174b66] px-6 text-[10px] font-black uppercase text-white hover:opacity-90">
               Ver jogos
             </Button>

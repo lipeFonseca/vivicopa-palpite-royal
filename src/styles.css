@@ -357,15 +357,15 @@
   }
 
   .site-header-inner {
-    min-height: 74px;
+    min-height: 62px;
     padding-inline: 1rem;
   }
 
   .site-brand-mark {
-    min-height: 74px;
-    min-width: 65px;
+    min-height: 62px;
+    min-width: 56px;
     margin-left: -1rem;
-    padding-inline: 0.8rem;
+    padding-inline: 0.7rem;
   }
 
   .site-header-navigation {
@@ -378,9 +378,13 @@
     height: 2.25rem;
   }
 
-  .editorial-hero,
-  .editorial-hero-copy {
-    min-height: 460px;
+  .editorial-hero.is-empty,
+  .editorial-hero.is-empty .editorial-hero-copy {
+    min-height: 400px;
+  }
+
+  .editorial-hero.has-image .editorial-hero-wash {
+    display: none;
   }
 
   .editorial-hero-wash {
@@ -393,8 +397,9 @@
   }
 
   .editorial-hero h1 {
-    max-width: 6ch;
-    font-size: clamp(3.7rem, 19vw, 5rem);
+    max-width: none;
+    font-size: clamp(2.8rem, 13vw, 4rem);
+    text-align: center;
   }
 
   .editorial-match-row {
