@@ -1,6 +1,7 @@
-import { LogOut, Trophy, UserRound } from "lucide-react";
+import { LogOut, Menu, Trophy, UserRound } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { readSiteTheme } from "@/lib/siteTheme";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 const LOGO_URL_KEY = "vivicopa:logo-url";
 const LOGO_HEADER_SIZE_KEY = "vivicopa:logo-header-size";
@@ -8,12 +9,14 @@ const HEADER_BANNER_KEY = "vivicopa:header-banner-url";
 
 type HeaderProps = {
   navigation: ReactNode;
+  mobileNavContent?: (close: () => void) => ReactNode;
   username: string;
   role: "admin" | "user";
   onLogout: () => void | Promise<void>;
 };
 
-export function Header({ navigation, username, role, onLogout }: HeaderProps) {
+export function Header({ navigation, mobileNavContent, username, role, onLogout }: HeaderProps) {
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState(() =>
     typeof window !== "undefined" ? (localStorage.getItem(LOGO_URL_KEY) ?? "") : "",
   );
@@ -77,9 +80,25 @@ export function Header({ navigation, username, role, onLogout }: HeaderProps) {
           </div>
         </div>
 
-        <div className="site-header-navigation min-w-0">{navigation}</div>
+        <div className="site-header-navigation min-w-0 hidden sm:block">{navigation}</div>
 
-        <div className="site-user-wrap flex items-center justify-end">
+        <div className="site-user-wrap flex items-center justify-end gap-2">
+          {mobileNavContent && (
+            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Abrir menu"
+                  className="site-user-icon flex sm:hidden h-9 w-9 shrink-0 items-center justify-center rounded-full border border-brand text-brand transition hover:bg-brand hover:text-white"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-64 p-0">
+                {mobileNavContent(() => setMobileOpen(false))}
+              </SheetContent>
+            </Sheet>
+          )}
           <button
             type="button"
             onClick={onLogout}

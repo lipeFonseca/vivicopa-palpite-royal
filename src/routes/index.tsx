@@ -289,6 +289,45 @@ function Vivicopa() {
               )}
             </TabsList>
           }
+          mobileNavContent={(close) => {
+            const tabs = [
+              { value: "inicio", label: "Início", icon: <HomeIcon className="h-4 w-4" /> },
+              { value: "jogos", label: "Jogos", icon: <Calendar className="h-4 w-4" /> },
+              { value: "calendario", label: "Calendário", icon: <CalendarDays className="h-4 w-4" /> },
+              { value: "selecoes", label: "Seleções", icon: <Flag className="h-4 w-4" /> },
+              { value: "grupos", label: "Grupos", icon: <Users className="h-4 w-4" /> },
+              { value: "meus", label: "Palpites", icon: <ListChecks className="h-4 w-4" /> },
+              { value: "comentarios", label: "Comentários", icon: <MessageSquare className="h-4 w-4" /> },
+              { value: "chaveamento", label: "Chaves", icon: <GitBranch className="h-4 w-4" /> },
+              { value: "titulos", label: "Títulos", icon: <Award className="h-4 w-4" /> },
+              { value: "tabela", label: "Tabela", icon: <TableIcon className="h-4 w-4" /> },
+              ...(authProfile.role === "admin"
+                ? [
+                    { value: "usuarios", label: "Usuários", icon: <Users className="h-4 w-4" /> },
+                    { value: "admin", label: "Admin", icon: <Shield className="h-4 w-4" /> },
+                  ]
+                : []),
+            ];
+            return (
+              <nav className="flex flex-col gap-0.5 p-4 pt-6">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.value}
+                    type="button"
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+                      aba === tab.value
+                        ? "bg-gradient-brand text-white"
+                        : "text-foreground hover:bg-brand-soft"
+                    }`}
+                    onClick={() => { setAba(tab.value); close(); }}
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
+            );
+          }}
         />
         <main className="site-main w-full flex-1">
 
@@ -2243,9 +2282,17 @@ function Inicio({
   return (
     <div className="editorial-home">
       <section
-        className={"editorial-hero relative min-h-[500px] w-full overflow-hidden bg-cover " + (heroBannerUrl ? "has-image" : "is-empty")}
-        style={heroBannerUrl ? { backgroundImage: "url(" + heroBannerUrl + ")", backgroundPosition: `${heroBannerPos.x}% ${heroBannerPos.y}%` } : undefined}
+        className={"editorial-hero relative min-h-[500px] w-full overflow-hidden " + (heroBannerUrl ? "has-image" : "is-empty")}
       >
+        {heroBannerUrl && (
+          <img
+            src={heroBannerUrl}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ objectPosition: `${heroBannerPos.x}% ${heroBannerPos.y}%` }}
+          />
+        )}
         <div className="editorial-hero-wash absolute inset-0" />
         <div className="editorial-hero-copy relative z-10 flex min-h-[500px] max-w-[48rem] flex-col justify-center px-6 py-14 sm:px-10 lg:px-12">
           <h1 className="site-display max-w-[7ch] text-6xl font-black uppercase leading-[0.96] text-brand sm:text-7xl lg:text-[7.2rem]" style={{ letterSpacing: `${theme.titleTracking}em` }}>
@@ -2378,9 +2425,17 @@ function Inicio({
           </div>
         </div>
         <div
-          className={"editorial-secondary-image relative min-h-[280px] bg-cover " + (secondaryImage ? "has-image" : "is-empty")}
-          style={secondaryImage ? { backgroundImage: "url(" + secondaryImage + ")", backgroundPosition: `${secondaryPos.x}% ${secondaryPos.y}%` } : undefined}
+          className={"editorial-secondary-image relative min-h-[280px] overflow-hidden " + (secondaryImage ? "has-image" : "is-empty")}
         >
+          {secondaryImage && (
+            <img
+              src={secondaryImage}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover"
+              style={{ objectPosition: `${secondaryPos.x}% ${secondaryPos.y}%` }}
+            />
+          )}
           <button type="button" onClick={onJogos} className="absolute bottom-4 right-5 z-10 text-[9px] font-black uppercase text-foreground/65">
             Ver calendário
           </button>
@@ -2664,47 +2719,51 @@ function GruposTab({ onVerJogos }: { onVerJogos: (grupo: string) => void }) {
               <Badge className="bg-brand-light text-brand-dark hover:bg-brand-light">{tabela.length || 4} seleções</Badge>
             </div>
 
-            <div className="mb-1 grid grid-cols-[1.25rem_minmax(0,1fr)_1.6rem_1.6rem_1.6rem_1.6rem_1.8rem_1.8rem_2rem] items-center gap-x-1 px-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-              <span>#</span>
-              <span>Seleção</span>
-              <span className="text-center">J</span>
-              <span className="text-center">V</span>
-              <span className="text-center">E</span>
-              <span className="text-center">D</span>
-              <span className="text-center">GP</span>
-              <span className="text-center">GC</span>
-              <span className="text-center">SG</span>
-              <span className="text-center font-bold">Pts</span>
-            </div>
+            <div className="overflow-x-auto">
+              <div className="min-w-[360px]">
+                <div className="mb-1 grid grid-cols-[1.25rem_minmax(0,1fr)_1.6rem_1.6rem_1.6rem_1.6rem_1.8rem_1.8rem_2rem] items-center gap-x-1 px-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span>#</span>
+                  <span>Seleção</span>
+                  <span className="text-center">J</span>
+                  <span className="text-center">V</span>
+                  <span className="text-center">E</span>
+                  <span className="text-center">D</span>
+                  <span className="text-center">GP</span>
+                  <span className="text-center">GC</span>
+                  <span className="text-center">SG</span>
+                  <span className="text-center font-bold">Pts</span>
+                </div>
 
-            <ul className="space-y-1">
-              {tabela.map((entry, idx) => (
-                <li
-                  key={entry.nome}
-                  className={`grid grid-cols-[1.25rem_minmax(0,1fr)_1.6rem_1.6rem_1.6rem_1.6rem_1.8rem_1.8rem_2rem] items-center gap-x-1 rounded-lg px-2 py-1.5 text-xs ${
-                    idx < 2 ? "bg-green-50 ring-1 ring-green-100" : "bg-brand-soft/40"
-                  }`}
-                >
-                  <span className={`text-center text-[10px] font-bold ${idx < 2 ? "text-green-600" : "text-muted-foreground"}`}>
-                    {idx + 1}
-                  </span>
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <FlagBox url={flagMapGrupos[entry.nome]} label={getCanonicalTeamName(entry.nome)} className="h-4 w-6 rounded-sm" />
-                    <span className="truncate font-medium">{getCanonicalTeamName(entry.nome)}</span>
-                  </div>
-                  <span className="text-center text-[11px]">{entry.j}</span>
-                  <span className="text-center text-[11px]">{entry.v}</span>
-                  <span className="text-center text-[11px]">{entry.e}</span>
-                  <span className="text-center text-[11px]">{entry.d}</span>
-                  <span className="text-center text-[11px]">{entry.gp}</span>
-                  <span className="text-center text-[11px]">{entry.gc}</span>
-                  <span className="text-center text-[11px]">{entry.sg > 0 ? `+${entry.sg}` : entry.sg}</span>
-                  <span className={`text-center text-[11px] font-extrabold tabular-nums ${entry.pts > 0 ? "text-brand" : ""}`}>
-                    {entry.pts}
-                  </span>
-                </li>
-              ))}
-            </ul>
+                <ul className="space-y-1">
+                  {tabela.map((entry, idx) => (
+                    <li
+                      key={entry.nome}
+                      className={`grid grid-cols-[1.25rem_minmax(0,1fr)_1.6rem_1.6rem_1.6rem_1.6rem_1.8rem_1.8rem_2rem] items-center gap-x-1 rounded-lg px-2 py-1.5 text-xs ${
+                        idx < 2 ? "bg-green-50 ring-1 ring-green-100" : "bg-brand-soft/40"
+                      }`}
+                    >
+                      <span className={`text-center text-[10px] font-bold ${idx < 2 ? "text-green-600" : "text-muted-foreground"}`}>
+                        {idx + 1}
+                      </span>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <FlagBox url={flagMapGrupos[entry.nome]} label={getCanonicalTeamName(entry.nome)} className="h-4 w-6 rounded-sm" />
+                        <span className="truncate font-medium">{getCanonicalTeamName(entry.nome)}</span>
+                      </div>
+                      <span className="text-center text-[11px]">{entry.j}</span>
+                      <span className="text-center text-[11px]">{entry.v}</span>
+                      <span className="text-center text-[11px]">{entry.e}</span>
+                      <span className="text-center text-[11px]">{entry.d}</span>
+                      <span className="text-center text-[11px]">{entry.gp}</span>
+                      <span className="text-center text-[11px]">{entry.gc}</span>
+                      <span className="text-center text-[11px]">{entry.sg > 0 ? `+${entry.sg}` : entry.sg}</span>
+                      <span className={`text-center text-[11px] font-extrabold tabular-nums ${entry.pts > 0 ? "text-brand" : ""}`}>
+                        {entry.pts}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
 
             <Button onClick={() => onVerJogos(g)} variant="outline" className="mt-3 w-full text-xs">
               Ver jogos do grupo
@@ -2868,7 +2927,7 @@ function TabelaTab({ usuario, palpites }: { usuario: AuthProfile; palpites: Palp
         <table className="w-full text-sm">
           <thead className="bg-gradient-brand text-white">
             <tr className="text-left">
-              <Th>Grupo</Th><Th>Jogo</Th><Th>Data</Th><Th>Palpite</Th><Th>Registro</Th>
+              <Th>Grupo</Th><Th>Jogo</Th><Th className="hidden sm:table-cell">Data</Th><Th>Palpite</Th><Th className="hidden sm:table-cell">Registro</Th>
             </tr>
           </thead>
           <tbody>
@@ -2885,9 +2944,9 @@ function TabelaTab({ usuario, palpites }: { usuario: AuthProfile; palpites: Palp
                       <TabelaTime selecaoId={p.selecaoB} nome={b?.nome} />
                     </div>
                   </Td>
-                  <Td>{j?.data}</Td>
+                  <Td className="hidden sm:table-cell">{j?.data}</Td>
                   <Td className="font-bold text-brand">{p.placarA} – {p.placarB}</Td>
-                  <Td className="text-xs text-muted-foreground">{new Date(p.dataCriacao).toLocaleDateString("pt-BR")}</Td>
+                  <Td className="hidden sm:table-cell text-xs text-muted-foreground">{new Date(p.dataCriacao).toLocaleDateString("pt-BR")}</Td>
                 </tr>
               );
             })}
@@ -2921,8 +2980,8 @@ function PalpiteTime({ selecaoId, nome }: { selecaoId: string; nome?: string }) 
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide">{children}</th>;
+function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <th className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${className}`}>{children}</th>;
 }
 
 function TabelaTime({ selecaoId, nome }: { selecaoId: string; nome?: string }) {
