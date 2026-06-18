@@ -86,7 +86,8 @@ export function Header({ navigation, mobileNavContent, mobileCenter, username, r
           <div className="hidden sm:block">{navigation}</div>
         </div>
 
-        <div className="site-user-wrap flex items-center justify-end gap-2">
+        <div className="site-user-wrap flex items-center justify-end gap-3">
+          {mobileCenter && <div className="hidden sm:block">{mobileCenter}</div>}
           {mobileNavContent && (
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
