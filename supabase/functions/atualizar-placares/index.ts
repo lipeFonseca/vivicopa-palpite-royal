@@ -241,53 +241,15 @@ Deno.serve(async (req) => {
   };
 
   if (url.searchParams.get("mode") === "fast-live") {
-    try {
-      const liveData = await client.live(COMP) as Record<string, unknown>[];
-      const changedLive = liveData.filter((m) => changed(m, agora, storedById.get(String(m.id)), "full"));
-      if (changedLive.length) {
-        await sb.from("partidas").upsert(changedLive.map((m) => mapFullRow(m, agora)));
-        summary.live = changedLive.length;
-      }
-    } catch (err) {
-      console.error("Fast live error:", (err as Error).message);
-    }
+    // ── Passo 1: ESPN como fonte primária (sem chave, sem rate limit) ────────
+    const espnLiveIds = new Set<string>(); // IDs do banco que ESPN mostra como ao vivo
 
-    const liveDetailBudget = Math.min(2, Math.max(0, client.info().remaining - 2));
-    const liveRowsToRefresh = liveRows.slice(0, liveDetailBudget);
-    for (const m of liveRowsToRefresh) {
-      try {
-        const match = await client.details(m.id) as Record<string, unknown>;
-        if (match && changed(match, agora, storedById.get(String(match.id)), "full")) {
-          await sb.from("partidas").upsert([mapFullRow(match, agora)]);
-          summary.live = (summary.live as number) + 1;
-        }
-      } catch (err) {
-        console.error(`Fast live detail error for ${m.id}:`, (err as Error).message);
-      }
-    }
-
-    const fastReserve = Math.max(0, client.info().remaining - 1);
-    const pendingFastRows = startedPendingRows.slice(0, Math.min(startedPendingRows.length, fastReserve));
-    for (const m of pendingFastRows) {
-      try {
-        const match = await client.details(m.id) as Record<string, unknown>;
-        if (match && changed(match, agora, storedById.get(String(match.id)), "full")) {
-          await sb.from("partidas").upsert([mapFullRow(match, agora)]);
-          summary.started_pending = (summary.started_pending as number) + 1;
-        }
-      } catch (err) {
-        console.error(`Fast live pending error for ${m.id}:`, (err as Error).message);
-      }
-    }
-
-    // ── ESPN supplementary: atualiza partidas que o football-data.org ainda não marcou como live ──
     try {
       const espnRes = await fetch(ESPN_URL);
       if (espnRes.ok) {
         const espnData = await espnRes.json() as Record<string, unknown>;
         const espnEvents = (espnData.events as Record<string, unknown>[]) ?? [];
 
-        // Monta lookup: "norm_home|norm_away" → row do banco (só jogos de hoje)
         const todayStr = new Date(agora).toISOString().slice(0, 10);
         const todayRows = rows.filter(
           (r) => r.inicia_em && r.inicia_em.slice(0, 10) === todayStr,
@@ -312,7 +274,7 @@ Deno.serve(async (req) => {
           const displayClock = (espnStatus.displayClock as string) ?? "";
           const { status, minuto, acrescimos } = espnMapStatus(statusType, displayClock);
 
-          if (status === "NS") continue; // ainda não começou
+          if (status === "NS") continue;
 
           const competitors = (comps.competitors as Record<string, unknown>[]) ?? [];
           const home = competitors.find((c) => (c.homeAway as string) === "home");
@@ -324,13 +286,17 @@ Deno.serve(async (req) => {
           const dbRow = lookup.get(`${homeName}|${awayName}`);
           if (!dbRow) continue;
 
-          // Não sobrescreve resultado já confirmado pelo football-data.org
-          if (dbRow.status === "FT") continue;
+          // Rastreia partidas ao vivo para guiar o football-data.org no passo 2
+          if (status === "LIVE" || status === "HT" || status === "ET" || status === "PEN_LIVE") {
+            espnLiveIds.add(dbRow.id);
+          }
+
+          // Não rebaixa status já confirmado pelo football-data.org
+          if (dbRow.status === "FT" && status !== "FT") continue;
 
           const homeScore = parseInt((home.score as string) ?? "0", 10);
           const awayScore = parseInt((away.score as string) ?? "0", 10);
 
-          // Sem mudança real, pula
           if (
             dbRow.status === status &&
             dbRow.placar_a === homeScore &&
@@ -356,7 +322,60 @@ Deno.serve(async (req) => {
         }
       }
     } catch (err) {
-      console.error("ESPN update error:", (err as Error).message);
+      console.error("ESPN primary error:", (err as Error).message);
+    }
+
+    // ── Passo 2: football-data.org para dados detalhados (gols, cartões, etc.) ──
+    // Combina partidas ao vivo pelo banco + pelo ESPN para não perder nenhuma
+    const allLiveIds = new Set([...liveRows.map((r) => r.id), ...espnLiveIds]);
+
+    if (allLiveIds.size > 0) {
+      try {
+        const liveData = await client.live(COMP) as Record<string, unknown>[];
+        const changedLive = liveData.filter((m) =>
+          changed(m, agora, storedById.get(String(m.id)), "full")
+        );
+        if (changedLive.length) {
+          await sb.from("partidas").upsert(changedLive.map((m) => mapFullRow(m, agora)));
+          summary.live = changedLive.length;
+        }
+      } catch (err) {
+        console.error("football-data live error:", (err as Error).message);
+      }
+
+      // Detalhe individual (gols + escalação) para partidas ao vivo
+      const detailBudget = Math.min(2, Math.max(0, client.info().remaining - 2));
+      const toDetail = [...allLiveIds].slice(0, detailBudget);
+      for (const id of toDetail) {
+        try {
+          const match = await client.details(id) as Record<string, unknown>;
+          if (match && changed(match, agora, storedById.get(String(match.id)), "full")) {
+            await sb.from("partidas").upsert([mapFullRow(match, agora)]);
+            summary.live = (summary.live as number) + 1;
+          }
+        } catch (err) {
+          console.error(`football-data detail error for ${id}:`, (err as Error).message);
+        }
+      }
+    }
+
+    // Partidas still started_pending que ESPN não reconheceu — tenta football-data.org
+    const pendingMissedByEspn = startedPendingRows.filter((r) => !espnLiveIds.has(r.id));
+    const pendingBudget = Math.max(0, client.info().remaining - 1);
+    const pendingFastRows = pendingMissedByEspn.slice(
+      0,
+      Math.min(pendingMissedByEspn.length, pendingBudget),
+    );
+    for (const m of pendingFastRows) {
+      try {
+        const match = await client.details(m.id) as Record<string, unknown>;
+        if (match && changed(match, agora, storedById.get(String(match.id)), "full")) {
+          await sb.from("partidas").upsert([mapFullRow(match, agora)]);
+          summary.started_pending = (summary.started_pending as number) + 1;
+        }
+      } catch (err) {
+        console.error(`football-data pending error for ${m.id}:`, (err as Error).message);
+      }
     }
 
     return Response.json({
