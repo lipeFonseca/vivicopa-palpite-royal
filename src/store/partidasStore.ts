@@ -46,6 +46,7 @@ export const usePartidasStore = create<PartidasState>((set, get) => ({
 
   start: async () => {
     if (get()._timer !== null) return
+    get()._startRealtime()   // Realtime ativo desde o início — não espera detectar jogo LIVE
     await get()._fetch()
     get()._schedule()
   },
@@ -70,12 +71,6 @@ export const usePartidasStore = create<PartidasState>((set, get) => ({
     const partidas = (data ?? []) as Partida[]
     set({ partidas, loading: false, lastFetch: Date.now() })
 
-    const hasLive = partidas.some((p) => LIVE_STATUSES.has(p.status))
-    if (hasLive) {
-      get()._startRealtime()
-    } else {
-      get()._stopRealtime()
-    }
   },
 
   _schedule: () => {
