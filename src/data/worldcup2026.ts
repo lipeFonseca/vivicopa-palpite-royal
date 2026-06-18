@@ -142,7 +142,7 @@ const matches: J[] = [
   { rodada: 1, grupo: "K", data: "2026-06-17", hora: "14:00", cidade: "Houston", selecaoA: "por", selecaoB: "cod" },
   { rodada: 1, grupo: "L", data: "2026-06-17", hora: "17:00", cidade: "Dallas", selecaoA: "eng", selecaoB: "cro" },
   { rodada: 1, grupo: "L", data: "2026-06-17", hora: "20:00", cidade: "Toronto", selecaoA: "gha", selecaoB: "pan" },
-  { rodada: 1, grupo: "K", data: "2026-06-17", hora: "21:00", cidade: "Cidade do México", selecaoA: "uzb", selecaoB: "col" },
+  { rodada: 1, grupo: "K", data: "2026-06-17", hora: "23:00", cidade: "Cidade do México", selecaoA: "uzb", selecaoB: "col" },
 
   // ===== 2ª RODADA =====
   { rodada: 2, grupo: "A", data: "2026-06-18", hora: "13:00", cidade: "Atlanta", selecaoA: "cze", selecaoB: "rsa" },

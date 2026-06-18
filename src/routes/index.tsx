@@ -2013,10 +2013,9 @@ function EditorialMatchRowLegacy({
   onPalpitar?: (jogo: Jogo) => void;
   onComentarios?: (jogo: Jogo) => void;
 }) {
-  const hora = jogoLocal?.hora
-    ?? (jogo.inicia_em
-      ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })
-      : "");
+  const hora = jogo.inicia_em
+    ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })
+    : "";
   const hasScore = live || ["FT", "AET", "PEN", "HT", "ET"].includes(jogo.status);
   const bloqueado = jogoLocal ? palpiteBloqueadoParaJogo(jogoLocal) : false;
   const ctaLabel = bloqueado ? "Ver comentários" : "Palpitar agora";
@@ -2070,10 +2069,9 @@ function EditorialMatchRow({
   onPalpitar?: (jogo: Jogo) => void;
   onComentarios?: (jogo: Jogo) => void;
 }) {
-  const hora = jogoLocal?.hora
-    ?? (jogo.inicia_em
-      ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })
-      : "");
+  const hora = jogo.inicia_em
+    ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })
+    : "";
   const hasScore = live || ["FT", "AET", "PEN", "HT", "ET"].includes(jogo.status);
   const bloqueado = jogoLocal ? palpiteBloqueadoParaJogo(jogoLocal) : false;
 
