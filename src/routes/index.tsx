@@ -2347,45 +2347,41 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
   }, [winningPredictions]);
 
   const gameInfo = liveGame ? (
-    <div className="flex items-center gap-1.5 text-[10px]">
+    <div className="flex items-center gap-1.5">
       <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-500" />
       <MiniFlag name={liveGame.time_a} />
-      <span className="font-black text-red-700">
-        {short(liveGame.time_a)} {liveGame.placar_a ?? 0}×{liveGame.placar_b ?? 0} {short(liveGame.time_b)}
-      </span>
+      <span className="font-black text-red-700">{liveGame.placar_a ?? 0}×{liveGame.placar_b ?? 0}</span>
       <MiniFlag name={liveGame.time_b} />
-      {liveGame.minuto && <span className="shrink-0 text-[9px] text-red-500">{liveGame.minuto}'</span>}
+      {liveGame.minuto && <span className="text-red-500">{liveGame.minuto}'</span>}
     </div>
   ) : nextGame?.inicia_em ? (
-    <div className="flex items-center gap-1 text-[10px]">
-      <span className="shrink-0 text-[9px] font-semibold uppercase text-muted-foreground">Próx</span>
+    <div className="flex items-center gap-1.5">
+      <span className="font-semibold uppercase text-muted-foreground">Próx</span>
       <MiniFlag name={nextGame.time_a} />
       <span className="font-bold text-brand-dark">{short(nextGame.time_a)}</span>
-      <span className="text-muted-foreground/60">×</span>
+      <span className="text-muted-foreground/50">×</span>
       <span className="font-bold text-brand-dark">{short(nextGame.time_b)}</span>
       <MiniFlag name={nextGame.time_b} />
-      <span className="shrink-0 font-semibold text-brand">· {countdown(nextGame.inicia_em)}</span>
+      <span className="font-semibold text-brand">· {countdown(nextGame.inicia_em)}</span>
     </div>
   ) : null;
 
-  const scoreBadge = topScorer ? (
-    <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--site-accent)]/30 bg-[var(--site-accent)]/10 px-2.5 py-1">
-      <span className="text-[9px]">🏆</span>
-      <span className="max-w-[80px] truncate text-[10px] font-black" style={{ color: "var(--brand-dark)" }}>
+  const scoreLine = topScorer ? (
+    <div className="flex items-center gap-1">
+      <span>🏆</span>
+      <span className="max-w-[90px] truncate font-black" style={{ color: "var(--brand-dark)" }}>
         {topScorer.name}
       </span>
-      <span className="shrink-0 text-[10px] font-bold" style={{ color: "var(--site-accent)" }}>
-        {topScorer.count}
-      </span>
+      <span className="font-bold" style={{ color: "var(--site-accent)" }}>· {topScorer.count}</span>
     </div>
   ) : null;
 
-  if (!gameInfo && !scoreBadge) return null;
+  if (!gameInfo && !scoreLine) return null;
 
   return (
-    <div className="flex min-w-0 w-full items-center justify-between gap-3 pr-3">
-      <div className="min-w-0">{gameInfo}</div>
-      {scoreBadge}
+    <div className="flex min-w-0 w-full flex-col justify-center gap-0.5 py-1 pr-4 text-[10px]">
+      {gameInfo}
+      {scoreLine}
     </div>
   );
 }
