@@ -2013,9 +2013,10 @@ function EditorialMatchRowLegacy({
   onPalpitar?: (jogo: Jogo) => void;
   onComentarios?: (jogo: Jogo) => void;
 }) {
-  const hora = jogo.inicia_em
-    ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })
-    : "";
+  const hora = jogoLocal?.hora
+    ?? (jogo.inicia_em
+      ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })
+      : "");
   const hasScore = live || ["FT", "AET", "PEN", "HT", "ET"].includes(jogo.status);
   const bloqueado = jogoLocal ? palpiteBloqueadoParaJogo(jogoLocal) : false;
   const ctaLabel = bloqueado ? "Ver comentários" : "Palpitar agora";
@@ -2069,9 +2070,10 @@ function EditorialMatchRow({
   onPalpitar?: (jogo: Jogo) => void;
   onComentarios?: (jogo: Jogo) => void;
 }) {
-  const hora = jogo.inicia_em
-    ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })
-    : "";
+  const hora = jogoLocal?.hora
+    ?? (jogo.inicia_em
+      ? new Date(jogo.inicia_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })
+      : "");
   const hasScore = live || ["FT", "AET", "PEN", "HT", "ET"].includes(jogo.status);
   const bloqueado = jogoLocal ? palpiteBloqueadoParaJogo(jogoLocal) : false;
 
@@ -2474,7 +2476,7 @@ function grupoApiParaLocal(grupo?: string | null) {
   return grupo.replace(/^GROUP_/i, "");
 }
 
-function mapearPartidasPorJogos<T extends { inicia_em: string | null }>(partidas: T[]) {
+function mapearPartidasPorJogos<T extends { inicia_em: string | null; time_a?: string; time_b?: string }>(partidas: T[]) {
   const jogosOrdenados = [...jogos].sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora));
   const jogosPorSlot = new Map<string, Jogo[]>();
   jogosOrdenados.forEach((jogo) => {
@@ -2484,19 +2486,40 @@ function mapearPartidasPorJogos<T extends { inicia_em: string | null }>(partidas
 
   const usadosPorSlot = new Map<string, number>();
   const map = new Map<string, T>();
+  const naoMapeadas: T[] = [];
+
   partidas
     .slice()
     .sort((a, b) => String(a.inicia_em ?? "").localeCompare(String(b.inicia_em ?? "")))
     .forEach((partida) => {
       const slot = partidaSlot(partida.inicia_em);
       const candidatos = jogosPorSlot.get(slot);
-      if (!candidatos?.length) return;
+      if (!candidatos?.length) { naoMapeadas.push(partida); return; }
       const index = usadosPorSlot.get(slot) ?? 0;
       const jogo = candidatos[index];
-      if (!jogo) return;
+      if (!jogo) { naoMapeadas.push(partida); return; }
       map.set(jogo.id, partida);
       usadosPorSlot.set(slot, index + 1);
     });
+
+  // Fallback: match by team names on the same BRT date (handles API time offsets)
+  naoMapeadas.forEach((partida) => {
+    if (!partida.time_a || !partida.time_b) return;
+    const idA = resolveTeamIdByName(partida.time_a);
+    const idB = resolveTeamIdByName(partida.time_b);
+    if (!idA || !idB) return;
+    const dataBrt = partida.inicia_em
+      ? new Date(new Date(partida.inicia_em).getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      : null;
+    if (!dataBrt) return;
+    const jogo = jogosOrdenados.find(
+      (j) =>
+        !map.has(j.id) &&
+        j.data === dataBrt &&
+        ((j.selecaoA === idA && j.selecaoB === idB) || (j.selecaoA === idB && j.selecaoB === idA)),
+    );
+    if (jogo) map.set(jogo.id, partida);
+  });
 
   return map;
 }
