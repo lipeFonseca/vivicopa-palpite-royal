@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { Trophy, Flag, Users, MessageSquare, Calendar, ListChecks, Table as TableIcon, Home as HomeIcon, CalendarDays, MapPin, Award, GitBranch, Shield, KeyRound, UserPlus, ImageIcon, RefreshCw, Save, Trash2, Loader2, ChevronDown } from "lucide-react";
@@ -2294,7 +2295,6 @@ function PalpiteirosDoDiaSection({ winningPredictions }: { winningPredictions: W
 function HeaderMobileWidget({ userId }: { userId: string }) {
   const { jogosAoVivo, jogosHoje } = useJogosHojeStore();
   const { data: winningPredictions = [] } = useWinningPredictionsQuery(userId);
-  const { data: palpites = [] } = useMeusPalpitesQuery(userId);
   const flagMap = useSelecoesFlagMap();
   const [now, setNow] = useState(() => Date.now());
 
@@ -2318,14 +2318,13 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
     return `${m}min`;
   }
 
-  function short(name: string) { return name.split(" ")[0].slice(0, 7); }
-
-  function MiniFlag({ name }: { name: string }) {
+  function TeamFlag({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
     const url = flagMap[name];
     if (!url) return null;
+    const dims = size === "sm" ? "h-[13px] w-[19px]" : "h-[17px] w-[25px]";
     return (
-      <div
-        className="h-[13px] w-[19px] shrink-0 rounded-[1px] bg-cover bg-center"
+      <span
+        className={`inline-block ${dims} shrink-0 rounded-[2px] bg-cover bg-center`}
         style={{
           backgroundImage: `url(${url})`,
           boxShadow: "0 1px 3px rgb(0 0 0 / 0.3), inset 0 0 0 1px rgb(0 0 0 / 0.1)",
@@ -2346,40 +2345,82 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
     return { name: topName, count: topCount };
   }, [winningPredictions]);
 
+  const topScorerPredictions = useMemo(() => {
+    if (!topScorer) return [];
+    return winningPredictions
+      .filter((wp) => wp.usuarioNome === topScorer.name)
+      .sort((a, b) => a.data.localeCompare(b.data));
+  }, [winningPredictions, topScorer]);
+
   const gameInfo = liveGame ? (
-    <div className="flex items-center gap-1.5">
-      <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-500" />
-      <MiniFlag name={liveGame.time_a} />
-      <span className="font-black text-red-700">{liveGame.placar_a ?? 0}×{liveGame.placar_b ?? 0}</span>
-      <MiniFlag name={liveGame.time_b} />
-      {liveGame.minuto && <span className="text-red-500">{liveGame.minuto}'</span>}
+    <div className="flex items-center gap-2">
+      <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500" />
+      <TeamFlag name={liveGame.time_a} />
+      <span className="text-sm font-black text-red-600">
+        {liveGame.placar_a ?? 0}×{liveGame.placar_b ?? 0}
+      </span>
+      <TeamFlag name={liveGame.time_b} />
+      {liveGame.minuto && (
+        <span className="rounded-full bg-red-100 px-1.5 py-px text-[11px] font-bold leading-tight text-red-600">
+          {liveGame.minuto}'
+        </span>
+      )}
     </div>
   ) : nextGame?.inicia_em ? (
     <div className="flex items-center gap-1.5">
-      <span className="font-semibold uppercase text-muted-foreground">Próx</span>
-      <MiniFlag name={nextGame.time_a} />
-      <span className="text-muted-foreground/50">×</span>
-      <MiniFlag name={nextGame.time_b} />
-      <span className="font-semibold text-brand">· {countdown(nextGame.inicia_em)}</span>
+      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Próx</span>
+      <TeamFlag name={nextGame.time_a} />
+      <span className="text-xs text-muted-foreground/40">×</span>
+      <TeamFlag name={nextGame.time_b} />
+      <span className="text-xs font-bold text-brand">· {countdown(nextGame.inicia_em)}</span>
     </div>
   ) : null;
 
-  const scoreLine = topScorer ? (
-    <div className="flex items-baseline gap-1.5">
-      <span className="text-[9px] opacity-60">🏆</span>
-      <span className="max-w-[110px] truncate text-[12px] font-black italic leading-none tracking-tight" style={{ color: "var(--brand-dark)" }}>
-        {topScorer.name}
-      </span>
-      <span className="text-[9px] font-semibold opacity-70" style={{ color: "var(--site-accent)" }}>{topScorer.count}</span>
-    </div>
-  ) : null;
-
-  if (!gameInfo && !scoreLine) return null;
+  if (!gameInfo && !topScorer) return null;
 
   return (
-    <div className="flex min-w-0 w-full flex-col justify-center gap-0.5 py-1 pr-4 text-[10px]">
+    <div className="flex min-w-0 w-full flex-col justify-center gap-1 py-1 pr-3">
       {gameInfo}
-      {scoreLine}
+      {topScorer && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" className="group flex items-center gap-1.5 text-left">
+              <span className="text-[13px]">🏆</span>
+              <span
+                className="max-w-[100px] truncate text-[13px] font-black italic leading-none tracking-tight"
+                style={{ color: "var(--brand-dark)" }}
+              >
+                {topScorer.name}
+              </span>
+              <span className="rounded-full bg-brand/10 px-1.5 py-px text-[10px] font-bold leading-tight text-brand">
+                {topScorer.count}
+              </span>
+              <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground/50 transition-transform group-data-[state=open]:rotate-180" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-3" align="start" side="bottom">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Acertos de {topScorer.name}
+            </p>
+            {topScorerPredictions.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Nenhum acerto registrado.</p>
+            ) : (
+              <div className="space-y-2">
+                {topScorerPredictions.map((wp) => (
+                  <div key={wp.id} className="flex items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5">
+                    <TeamFlag name={wp.selecaoA} size="sm" />
+                    <span className="font-black text-brand">{wp.resultadoA}×{wp.resultadoB}</span>
+                    <TeamFlag name={wp.selecaoB} size="sm" />
+                    <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
+                      {wp.data.slice(5)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   );
 }
