@@ -2157,18 +2157,18 @@ function EditorialMatchRow({
 
   return (
     <div className={"editorial-match-row border-b border-black/10 last:border-b-0 " + (live ? "bg-red-50/80" : "bg-white/45")}>
-      <div className="grid grid-cols-[44px_1fr_48px_1fr] sm:grid-cols-[68px_1fr_68px_1fr] md:grid-cols-[68px_1fr_68px_1fr_auto] items-center gap-x-1.5 sm:gap-x-2 px-2 py-3 sm:px-3 sm:py-4">
+      <div className="grid grid-cols-[44px_1fr_48px_1fr] sm:grid-cols-[68px_1fr_72px_1fr] md:grid-cols-[68px_1fr_72px_1fr_auto] items-center gap-x-2 px-2 py-3 sm:px-3 sm:py-4">
 
         {/* Horário — sempre mostra hora, nunca "LIVE" */}
-        <div className={"flex flex-col h-full min-h-12 sm:min-h-16 items-center justify-center gap-0.5 text-xs sm:text-sm font-black tabular-nums " + (live ? "bg-red-600 text-white" : "bg-brand text-white")}>
+        <div className={"flex flex-col h-full min-h-12 sm:min-h-[72px] items-center justify-center gap-1 text-xs sm:text-sm font-black tabular-nums " + (live ? "bg-red-600 text-white" : "bg-brand text-white")}>
           <span>{hora}</span>
           {live && <span className="h-1.5 w-1.5 rounded-full bg-white/80 animate-pulse" />}
         </div>
 
-        {/* Time A: bandeira centralizada + nome abaixo */}
-        <div className="flex flex-col items-center justify-center gap-1 justify-self-end pr-1">
-          <FlagTap url={flagMap[jogo.time_a]} label={jogo.time_a} className="h-8 w-12 sm:h-9 sm:w-14 border border-black/10 shadow-sm" />
-          <span className="w-full text-center text-[9px] sm:text-[10px] font-black uppercase leading-tight">
+        {/* Time A: bandeira + nome empilhados, centralizado na coluna */}
+        <div className="flex flex-col items-center gap-1">
+          <FlagTap url={flagMap[jogo.time_a]} label={jogo.time_a} className="h-8 w-12 sm:h-10 sm:w-16 border border-black/10 shadow-sm" />
+          <span className="text-center text-[9px] sm:text-[10px] font-black uppercase leading-tight">
             {getCanonicalTeamName(jogo.time_a)}
           </span>
         </div>
@@ -2184,10 +2184,10 @@ function EditorialMatchRow({
           )}
         </div>
 
-        {/* Time B: bandeira centralizada + nome abaixo */}
-        <div className="flex flex-col items-center justify-center gap-1 justify-self-start pl-1">
-          <FlagTap url={flagMap[jogo.time_b]} label={jogo.time_b} className="h-8 w-12 sm:h-9 sm:w-14 border border-black/10 shadow-sm" />
-          <span className="w-full text-center text-[9px] sm:text-[10px] font-black uppercase leading-tight">
+        {/* Time B: bandeira + nome empilhados, centralizado na coluna */}
+        <div className="flex flex-col items-center gap-1">
+          <FlagTap url={flagMap[jogo.time_b]} label={jogo.time_b} className="h-8 w-12 sm:h-10 sm:w-16 border border-black/10 shadow-sm" />
+          <span className="text-center text-[9px] sm:text-[10px] font-black uppercase leading-tight">
             {getCanonicalTeamName(jogo.time_b)}
           </span>
         </div>
@@ -2689,13 +2689,7 @@ function Inicio({
           <div className="border border-black/10">
             {jogosHoje.length > 0 ? (
               [...jogosHoje]
-                .sort((a, b) => {
-                  const aLive = ["LIVE", "HT", "ET", "PEN_LIVE"].includes(a.status);
-                  const bLive = ["LIVE", "HT", "ET", "PEN_LIVE"].includes(b.status);
-                  if (aLive && !bLive) return -1;
-                  if (!aLive && bLive) return 1;
-                  return String(a.inicia_em ?? "").localeCompare(String(b.inicia_em ?? ""));
-                })
+                .sort((a, b) => String(a.inicia_em ?? "").localeCompare(String(b.inicia_em ?? "")))
                 .map((jogo) => (
                   <EditorialMatchRow
                     key={jogo.id}
