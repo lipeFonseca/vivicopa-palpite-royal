@@ -2282,19 +2282,19 @@ function Inicio({
   return (
     <div className="editorial-home">
       <section
-        className={"editorial-hero relative w-full overflow-hidden " + (heroBannerUrl ? "has-image sm:min-h-[500px]" : "is-empty min-h-[500px]")}
+        className={"editorial-hero relative w-full overflow-hidden " + (heroBannerUrl ? "has-image min-h-[300px] sm:min-h-[500px]" : "is-empty min-h-[500px]")}
       >
         {heroBannerUrl && (
           <img
             src={heroBannerUrl}
             alt=""
             aria-hidden="true"
-            className="block w-full h-auto sm:absolute sm:inset-0 sm:h-full sm:w-full sm:object-cover"
+            className="absolute inset-0 h-full w-full object-cover"
             style={{ objectPosition: `${heroBannerPos.x}% ${heroBannerPos.y}%` }}
           />
         )}
         <div className="editorial-hero-wash absolute inset-0" />
-        <div className="editorial-hero-copy relative z-10 flex flex-col items-center text-center sm:items-start sm:text-left sm:justify-center px-6 py-8 sm:min-h-[500px] sm:max-w-[48rem] sm:py-14 sm:px-10 lg:px-12">
+        <div className="editorial-hero-copy relative z-10 flex flex-col justify-center items-center text-center sm:items-start sm:text-left px-6 py-10 min-h-[300px] sm:min-h-[500px] sm:max-w-[48rem] sm:py-14 sm:px-10 lg:px-12">
           <h1 className="site-display text-6xl font-black uppercase leading-[0.96] text-brand sm:text-7xl lg:text-[7.2rem]" style={{ letterSpacing: `${theme.titleTracking}em` }}>
             {theme.title}
           </h1>
