@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
-import { Trophy, Flag, Users, MessageSquare, Calendar, ListChecks, Table as TableIcon, Home as HomeIcon, CalendarDays, MapPin, Award, GitBranch, Shield, KeyRound, UserPlus, ImageIcon, RefreshCw, Save, Trash2, Loader2 } from "lucide-react";
+import { Trophy, Flag, Users, MessageSquare, Calendar, ListChecks, Table as TableIcon, Home as HomeIcon, CalendarDays, MapPin, Award, GitBranch, Shield, KeyRound, UserPlus, ImageIcon, RefreshCw, Save, Trash2, Loader2, ChevronDown } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 
 import { Header } from "@/components/vivicopa/Header";
@@ -2259,6 +2259,7 @@ function Inicio({
     typeof window !== "undefined" ? parsePos(localStorage.getItem(HOME_SECONDARY_POS_KEY) ?? "") : { x: 50, y: 50 },
   );
   const [theme, setTheme] = useState(readSiteTheme);
+  const [classificacaoAberta, setClassificacaoAberta] = useState(false);
 
   useEffect(() => {
     const syncBrand = () => {
@@ -2357,7 +2358,16 @@ function Inicio({
             ))}
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <button
+            type="button"
+            className="flex sm:hidden w-full items-center justify-between rounded-lg border border-black/10 bg-white/60 px-4 py-2.5"
+            onClick={() => setClassificacaoAberta(v => !v)}
+          >
+            <span className="text-[11px] font-black uppercase text-brand-dark">Classificação por Grupos</span>
+            <ChevronDown className={`h-4 w-4 text-brand transition-transform duration-200 ${classificacaoAberta ? "rotate-180" : ""}`} />
+          </button>
+
+          <div className={`grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 ${classificacaoAberta ? "grid" : "hidden sm:grid"}`}>
             {classificadosPorGrupo.map(({ grupo, classificados }) => (
               <div key={grupo} className="rounded-xl border border-black/8 bg-white/70 px-4 py-3">
                 <div className="mb-2 flex items-center justify-between border-b border-black/10 pb-2">
