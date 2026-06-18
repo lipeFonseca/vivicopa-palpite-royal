@@ -61,7 +61,7 @@ export function Header({ navigation, mobileNavContent, mobileCenter, username, r
     >
       {hasBanner && <div className="absolute inset-0 bg-[var(--site-surface)]/90" />}
       <div className="site-header-inner relative grid min-h-[90px] w-full items-center gap-x-3 px-5 sm:px-8 lg:px-10">
-        <div className="site-brand flex min-w-0 items-center gap-4">
+        <div className="site-brand flex min-w-0 flex-1 items-center gap-4">
           <div className="site-brand-mark flex shrink-0 items-center justify-center bg-brand text-[var(--site-surface)]">
             {logoUrl ? (
               <img
@@ -79,15 +79,14 @@ export function Header({ navigation, mobileNavContent, mobileCenter, username, r
               </div>
             )}
           </div>
+          {mobileCenter && <div className="min-w-0 flex-1">{mobileCenter}</div>}
         </div>
 
         <div className="site-header-navigation min-w-0">
-          {mobileCenter && <div className="sm:hidden">{mobileCenter}</div>}
           <div className="hidden sm:block">{navigation}</div>
         </div>
 
         <div className="site-user-wrap flex items-center justify-end gap-3">
-          {mobileCenter && <div className="hidden sm:block">{mobileCenter}</div>}
           {mobileNavContent && (
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>

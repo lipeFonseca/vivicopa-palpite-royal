@@ -2336,8 +2336,15 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
     );
   }
 
-  const acertos = winningPredictions.length;
-  const total = palpites.length;
+  const topScorer = useMemo(() => {
+    const counts = new Map<string, number>();
+    winningPredictions.forEach((w) => counts.set(w.usuarioNome, (counts.get(w.usuarioNome) ?? 0) + 1));
+    if (counts.size === 0) return null;
+    let topName = "";
+    let topCount = 0;
+    counts.forEach((count, name) => { if (count > topCount) { topCount = count; topName = name; } });
+    return { name: topName, count: topCount };
+  }, [winningPredictions]);
 
   const gameInfo = liveGame ? (
     <div className="flex items-center gap-1.5 text-[10px]">
@@ -2361,11 +2368,14 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
     </div>
   ) : null;
 
-  const scoreBadge = total > 0 ? (
-    <div className="flex shrink-0 items-center gap-1 rounded-full border border-[var(--site-accent)]/30 bg-[var(--site-accent)]/10 px-2 py-0.5">
-      <span className="text-[9px]">🎯</span>
-      <span className="text-[10px] font-black" style={{ color: "var(--brand-dark)" }}>
-        {acertos}<span className="font-normal text-muted-foreground">/{total}</span>
+  const scoreBadge = topScorer ? (
+    <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--site-accent)]/30 bg-[var(--site-accent)]/10 px-2.5 py-1">
+      <span className="text-[9px]">🏆</span>
+      <span className="max-w-[80px] truncate text-[10px] font-black" style={{ color: "var(--brand-dark)" }}>
+        {topScorer.name}
+      </span>
+      <span className="shrink-0 text-[10px] font-bold" style={{ color: "var(--site-accent)" }}>
+        {topScorer.count}
       </span>
     </div>
   ) : null;
@@ -2373,8 +2383,8 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
   if (!gameInfo && !scoreBadge) return null;
 
   return (
-    <div className="flex min-w-0 items-center gap-2 px-1">
-      {gameInfo && <div className="min-w-0 flex-1 sm:flex-none">{gameInfo}</div>}
+    <div className="flex min-w-0 w-full items-center justify-between gap-3 pr-3">
+      <div className="min-w-0">{gameInfo}</div>
       {scoreBadge}
     </div>
   );
