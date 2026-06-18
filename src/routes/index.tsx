@@ -2471,20 +2471,24 @@ function Inicio({
           {[...selecoes, ...selecoes].map((s, i) => {
             const flagUrl = flagMap[s.nome];
             return (
-              <div key={i} className="shrink-0">
+              <div key={i} className="relative shrink-0 overflow-hidden rounded-[3px]" style={{ boxShadow: "0 3px 10px rgb(0 0 0 / 0.4)" }}>
                 {flagUrl ? (
                   <div
-                    className="h-[28px] w-[42px] rounded-[3px] bg-cover bg-center ring-1 ring-white/20"
-                    style={{
-                      backgroundImage: `url(${flagUrl})`,
-                      boxShadow: "0 2px 8px rgb(0 0 0 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.12)",
-                    }}
+                    className="h-[28px] w-[42px] bg-cover bg-center"
+                    style={{ backgroundImage: `url(${flagUrl})` }}
                     role="img"
                     aria-label={s.nome}
                   />
                 ) : (
-                  <span className="text-xl leading-none" aria-label={s.nome}>{s.bandeiraEmoji}</span>
+                  <span className="flex h-[28px] w-[42px] items-center justify-center text-xl leading-none" aria-label={s.nome}>{s.bandeiraEmoji}</span>
                 )}
+                <div
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    background: "linear-gradient(145deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.04) 45%, rgba(0,0,0,0.08) 100%)",
+                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5), inset 0 0 0 1px rgba(255,255,255,0.18)",
+                  }}
+                />
               </div>
             );
           })}
