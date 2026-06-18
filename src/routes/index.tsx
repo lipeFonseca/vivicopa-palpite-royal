@@ -2457,28 +2457,34 @@ function Inicio({
         </div>
       </section>
 
-      <section className="overflow-hidden bg-brand py-2.5">
+      <section
+        className="overflow-hidden bg-brand py-3"
+        style={{
+          maskImage: "linear-gradient(to right, transparent, black 10%, black 90%, transparent)",
+          WebkitMaskImage: "linear-gradient(to right, transparent, black 10%, black 90%, transparent)",
+        }}
+      >
         <div
-          className="flex items-end gap-5"
-          style={{ animation: "vivicopa-marquee 55s linear infinite", width: "max-content" }}
+          className="flex items-center gap-6"
+          style={{ animation: "vivicopa-marquee 60s linear infinite", width: "max-content" }}
         >
           {[...selecoes, ...selecoes].map((s, i) => {
             const flagUrl = flagMap[s.nome];
             return (
-              <div key={i} className="flex shrink-0 flex-col items-center gap-0.5">
+              <div key={i} className="shrink-0">
                 {flagUrl ? (
                   <div
-                    className="h-[26px] w-[38px] bg-cover bg-center shadow-sm"
-                    style={{ backgroundImage: `url(${flagUrl})` }}
+                    className="h-[28px] w-[42px] rounded-[3px] bg-cover bg-center ring-1 ring-white/20"
+                    style={{
+                      backgroundImage: `url(${flagUrl})`,
+                      boxShadow: "0 2px 8px rgb(0 0 0 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.12)",
+                    }}
                     role="img"
                     aria-label={s.nome}
                   />
                 ) : (
                   <span className="text-xl leading-none" aria-label={s.nome}>{s.bandeiraEmoji}</span>
                 )}
-                <span className="text-[7px] font-bold uppercase tracking-wide text-white/55">
-                  {s.id.toUpperCase()}
-                </span>
               </div>
             );
           })}
