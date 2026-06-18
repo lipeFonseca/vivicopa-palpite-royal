@@ -1424,7 +1424,40 @@ function AdminTab() {
               <Slider min={0} max={0.12} step={0.002} value={[siteTitleTracking]} onValueChange={([v]) => setSiteTitleTracking(v)} />
               <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground"><span>Mais fechado</span><span>Mais aberto</span></div>
             </div>
-            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="mt-5">
+              <p className="mb-2 text-xs font-bold uppercase text-muted-foreground">Paletas elegantes</p>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { nome: "Esmeralda", primary: "#1F4D35", accent: "#C59A3A", surface: "#EEE9DC" },
+                  { nome: "Azul Royal", primary: "#0D3461", accent: "#D4AF37", surface: "#EEF3FA" },
+                  { nome: "Bordô", primary: "#6B1A2A", accent: "#C5833A", surface: "#FAF0EE" },
+                  { nome: "Carvão", primary: "#2C2C2C", accent: "#D4AF37", surface: "#F4F0EA" },
+                  { nome: "Petróleo", primary: "#1B4B5A", accent: "#C59A3A", surface: "#EEF5F7" },
+                  { nome: "Roxo", primary: "#4A1E6B", accent: "#D4AF37", surface: "#F5F0FA" },
+                  { nome: "Vermelho", primary: "#8B1A1A", accent: "#D4AF37", surface: "#FAF0F0" },
+                  { nome: "Musgo", primary: "#3D5A3E", accent: "#B5946A", surface: "#F2EDE4" },
+                ] as const).map((p) => {
+                  const ativo = sitePrimary === p.primary && siteAccent === p.accent && siteSurface === p.surface;
+                  return (
+                    <button
+                      key={p.nome}
+                      type="button"
+                      title={p.nome}
+                      onClick={() => { setSitePrimary(p.primary); setSiteAccent(p.accent); setSiteSurface(p.surface); }}
+                      className={`flex flex-col items-center gap-1 rounded border-2 px-2 py-1.5 transition ${ativo ? "border-brand" : "border-transparent hover:border-border"}`}
+                    >
+                      <div className="flex gap-0.5">
+                        <span className="h-4 w-4 rounded-sm" style={{ background: p.primary }} />
+                        <span className="h-4 w-4 rounded-sm" style={{ background: p.accent }} />
+                        <span className="h-4 w-4 rounded-sm border border-border/40" style={{ background: p.surface }} />
+                      </div>
+                      <span className="text-[9px] font-bold uppercase text-muted-foreground">{p.nome}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               {[
                 ["Cor principal", sitePrimary, setSitePrimary],
                 ["Cor de destaque", siteAccent, setSiteAccent],
