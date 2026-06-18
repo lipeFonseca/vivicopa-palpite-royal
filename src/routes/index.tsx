@@ -2409,7 +2409,7 @@ function Inicio({
           </div>
           <div className="border border-black/10">
             {jogosHoje.length > 0 ? (
-              jogosHoje.slice(0, 4).map((jogo) => (
+              jogosHoje.map((jogo) => (
                 <EditorialMatchRow
                   key={jogo.id}
                   jogo={jogo}
