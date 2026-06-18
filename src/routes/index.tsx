@@ -2365,12 +2365,12 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
   ) : null;
 
   const scoreLine = topScorer ? (
-    <div className="flex items-center gap-1">
-      <span>🏆</span>
-      <span className="max-w-[90px] truncate font-black" style={{ color: "var(--brand-dark)" }}>
+    <div className="flex items-baseline gap-1.5">
+      <span className="text-[9px] opacity-60">🏆</span>
+      <span className="max-w-[110px] truncate text-[12px] font-black italic leading-none tracking-tight" style={{ color: "var(--brand-dark)" }}>
         {topScorer.name}
       </span>
-      <span className="font-bold" style={{ color: "var(--site-accent)" }}>· {topScorer.count}</span>
+      <span className="text-[9px] font-semibold opacity-70" style={{ color: "var(--site-accent)" }}>{topScorer.count}</span>
     </div>
   ) : null;
 
