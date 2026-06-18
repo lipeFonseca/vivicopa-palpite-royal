@@ -5,6 +5,7 @@ import {
   mapScheduledRow,
   mapFullRow,
 } from "./football-data-client.ts";
+import { EspnClient, espnNorm } from "./espn-client.ts";
 
 const COMP = "WC";
 
@@ -90,57 +91,6 @@ function mapSelecao(s: Record<string, unknown>) {
     ultima_atualizacao: s.lastUpdated ?? null,
     atualizado_em: new Date().toISOString(),
   };
-}
-
-// ─── ESPN supplementary live source (no API key required) ────────────────────
-
-const ESPN_URL =
-  "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard";
-
-// ESPN display names → football-data.org names stored in our DB
-const ESPN_NAME_ALIASES: Record<string, string> = {
-  "south korea": "korea republic",
-  "czechia": "czech republic",
-  "usa": "united states",
-  "ir iran": "iran",
-  "ivory coast": "côte d'ivoire",
-  "cote d'ivoire": "côte d'ivoire",
-  "republic of ireland": "ireland",
-};
-
-function espnNorm(name: string): string {
-  const lower = name.toLowerCase().trim();
-  return ESPN_NAME_ALIASES[lower] ?? lower;
-}
-
-function parseDisplayClock(
-  displayClock: string,
-): { minuto: number | null; acrescimos: number | null } {
-  const m = displayClock.match(/^(\d+)'\+(\d+)/);
-  if (m) return { minuto: parseInt(m[1], 10), acrescimos: parseInt(m[2], 10) || null };
-  const m2 = displayClock.match(/^(\d+)'/);
-  if (m2) return { minuto: parseInt(m2[1], 10), acrescimos: null };
-  return { minuto: null, acrescimos: null };
-}
-
-function espnMapStatus(
-  statusType: Record<string, unknown>,
-  displayClock: string,
-): { status: string; minuto: number | null; acrescimos: number | null } {
-  const state = statusType.state as string;
-  const detail = (statusType.detail as string) ?? "";
-  if (state === "post") return { status: "FT", minuto: 90, acrescimos: null };
-  if (state !== "in") return { status: "NS", minuto: null, acrescimos: null };
-  if (detail === "HT") return { status: "HT", minuto: 45, acrescimos: null };
-  if (detail.startsWith("ET") || detail.toLowerCase().includes("extra")) {
-    const t = parseDisplayClock(displayClock);
-    return { status: "ET", minuto: t.minuto, acrescimos: t.acrescimos };
-  }
-  if (detail.toLowerCase().includes("pen")) {
-    return { status: "PEN_LIVE", minuto: null, acrescimos: null };
-  }
-  const t = parseDisplayClock(displayClock);
-  return { status: "LIVE", minuto: t.minuto, acrescimos: t.acrescimos };
 }
 
 // ─── Main handler ──────────────────────────────────────────────────────────
@@ -241,140 +191,141 @@ Deno.serve(async (req) => {
   };
 
   if (url.searchParams.get("mode") === "fast-live") {
-    // ── Passo 1: ESPN como fonte primária (sem chave, sem rate limit) ────────
-    const espnLiveIds = new Set<string>(); // IDs do banco que ESPN mostra como ao vivo
+    const espnClient = new EspnClient();
+    const espnLivePairs: { espnId: string; dbId: string }[] = [];
 
+    // ── Passo 1: ESPN scoreboard → status/placar primário ──────────────────
     try {
-      const espnRes = await fetch(ESPN_URL);
-      if (espnRes.ok) {
-        const espnData = await espnRes.json() as Record<string, unknown>;
-        const espnEvents = (espnData.events as Record<string, unknown>[]) ?? [];
+      const scoreboardMatches = await espnClient.scoreboard();
 
-        const todayStr = new Date(agora).toISOString().slice(0, 10);
-        const todayRows = rows.filter(
-          (r) => r.inicia_em && r.inicia_em.slice(0, 10) === todayStr,
-        );
-        const lookup = new Map(
-          todayRows.map((r) => [
-            `${espnNorm(r.time_a ?? "")}|${espnNorm(r.time_b ?? "")}`,
-            r,
-          ]),
-        );
+      const todayStr = new Date(agora).toISOString().slice(0, 10);
+      const todayRows = rows.filter(
+        (r) => r.inicia_em && r.inicia_em.slice(0, 10) === todayStr,
+      );
+      const lookup = new Map(
+        todayRows.map((r) => [
+          `${espnNorm(r.time_a ?? "")}|${espnNorm(r.time_b ?? "")}`,
+          r,
+        ]),
+      );
 
-        const espnUpserts: Record<string, unknown>[] = [];
+      const scoreUpserts: Record<string, unknown>[] = [];
 
-        for (const event of espnEvents) {
-          const comps = (event.competitions as Record<string, unknown>[])?.[0] as
-            | Record<string, unknown>
-            | undefined;
-          if (!comps) continue;
+      for (const m of scoreboardMatches) {
+        if (m.status === "NS") continue;
 
-          const espnStatus = comps.status as Record<string, unknown>;
-          const statusType = espnStatus.type as Record<string, unknown>;
-          const displayClock = (espnStatus.displayClock as string) ?? "";
-          const { status, minuto, acrescimos } = espnMapStatus(statusType, displayClock);
+        const dbRow = lookup.get(`${espnNorm(m.homeTeamName)}|${espnNorm(m.awayTeamName)}`);
+        if (!dbRow) continue;
 
-          if (status === "NS") continue;
-
-          const competitors = (comps.competitors as Record<string, unknown>[]) ?? [];
-          const home = competitors.find((c) => (c.homeAway as string) === "home");
-          const away = competitors.find((c) => (c.homeAway as string) === "away");
-          if (!home || !away) continue;
-
-          const homeName = espnNorm((home.team as Record<string, unknown>).displayName as string);
-          const awayName = espnNorm((away.team as Record<string, unknown>).displayName as string);
-          const dbRow = lookup.get(`${homeName}|${awayName}`);
-          if (!dbRow) continue;
-
-          // Rastreia partidas ao vivo para guiar o football-data.org no passo 2
-          if (status === "LIVE" || status === "HT" || status === "ET" || status === "PEN_LIVE") {
-            espnLiveIds.add(dbRow.id);
-          }
-
-          // Não rebaixa status já confirmado pelo football-data.org
-          if (dbRow.status === "FT" && status !== "FT") continue;
-
-          const homeScore = parseInt((home.score as string) ?? "0", 10);
-          const awayScore = parseInt((away.score as string) ?? "0", 10);
-
-          if (
-            dbRow.status === status &&
-            dbRow.placar_a === homeScore &&
-            dbRow.placar_b === awayScore &&
-            dbRow.minuto === minuto
-          ) continue;
-
-          espnUpserts.push({
-            id: dbRow.id,
-            status,
-            placar_a: homeScore,
-            placar_b: awayScore,
-            minuto,
-            acrescimos,
-            fase_polling: status === "FT" ? "finished" : "live",
-            ultima_busca_api: new Date(agora).toISOString(),
-          });
+        if (m.fasePolling === "live") {
+          espnLivePairs.push({ espnId: m.espnId, dbId: dbRow.id });
         }
 
-        if (espnUpserts.length) {
-          await sb.from("partidas").upsert(espnUpserts);
-          summary.espn = espnUpserts.length;
-        }
+        if (dbRow.status === "FT" && m.status !== "FT") continue;
+
+        if (
+          dbRow.status === m.status &&
+          dbRow.placar_a === m.placarA &&
+          dbRow.placar_b === m.placarB &&
+          dbRow.minuto === m.minuto
+        ) continue;
+
+        scoreUpserts.push({
+          id: dbRow.id,
+          espn_id: m.espnId,
+          status: m.status,
+          placar_a: m.placarA,
+          placar_b: m.placarB,
+          minuto: m.minuto,
+          acrescimos: m.acrescimos,
+          fase_polling: m.fasePolling === "post" ? "finished" : "live",
+          ultima_busca_api: new Date(agora).toISOString(),
+        });
+      }
+
+      if (scoreUpserts.length) {
+        await sb.from("partidas").upsert(scoreUpserts);
+        summary.espn = scoreUpserts.length;
       }
     } catch (err) {
-      console.error("ESPN primary error:", (err as Error).message);
+      console.error("ESPN scoreboard error:", (err as Error).message);
     }
 
-    // ── Passo 2: football-data.org para dados detalhados (gols, cartões, etc.) ──
-    // Combina partidas ao vivo pelo banco + pelo ESPN para não perder nenhuma
-    const allLiveIds = new Set([...liveRows.map((r) => r.id), ...espnLiveIds]);
-
-    if (allLiveIds.size > 0) {
+    // ── Passo 2: ESPN summary → gols, cartões, escalações, notícias ────────
+    let espnDetail = 0;
+    for (const { espnId, dbId } of espnLivePairs) {
       try {
-        const liveData = await client.live(COMP) as Record<string, unknown>[];
-        const changedLive = liveData.filter((m) =>
-          changed(m, agora, storedById.get(String(m.id)), "full")
-        );
-        if (changedLive.length) {
-          await sb.from("partidas").upsert(changedLive.map((m) => mapFullRow(m, agora)));
-          summary.live = changedLive.length;
+        const sum = await espnClient.summary(espnId);
+
+        await sb.from("partidas").upsert([{
+          id: dbId,
+          espn_id: espnId,
+          gols: sum.gols,
+          cartoes: sum.cartoes,
+          substituicoes: sum.substituicoes,
+          escalacao_a: sum.escalacaoA,
+          escalacao_b: sum.escalacaoB,
+          estatisticas_a: sum.estatisticasA,
+          estatisticas_b: sum.estatisticasB,
+          placar_parcial_a: sum.placarParcialA,
+          placar_parcial_b: sum.placarParcialB,
+          ultima_busca_api: new Date(agora).toISOString(),
+        }]);
+        espnDetail++;
+
+        // Salva artigo e notícias relacionadas
+        const artigosParaSalvar = [
+          sum.artigo ? { ...sum.artigo, partida_id: dbId } : null,
+          ...sum.noticias.map((n) => ({ ...n, partida_id: null as string | null })),
+        ].filter(Boolean) as Array<{
+          id: string; titulo: string; descricao: string | null;
+          tipo: string; imagemUrl: string | null; publicadoEm: string | null;
+          partida_id: string | null;
+        }>;
+
+        if (artigosParaSalvar.length) {
+          await sb.from("noticias").upsert(
+            artigosParaSalvar.map((a) => ({
+              id: a.id,
+              titulo: a.titulo,
+              descricao: a.descricao,
+              tipo: a.tipo,
+              partida_id: a.partida_id,
+              imagem_url: a.imagemUrl,
+              publicado_em: a.publicadoEm,
+            })),
+            { onConflict: "id" },
+          );
         }
       } catch (err) {
-        console.error("football-data live error:", (err as Error).message);
-      }
-
-      // Detalhe individual (gols + escalação) para partidas ao vivo
-      const detailBudget = Math.min(2, Math.max(0, client.info().remaining - 2));
-      const toDetail = [...allLiveIds].slice(0, detailBudget);
-      for (const id of toDetail) {
+        console.error(`ESPN summary error for ${espnId}:`, (err as Error).message);
+        // Fallback: football-data.org para este jogo
         try {
-          const match = await client.details(id) as Record<string, unknown>;
-          if (match && changed(match, agora, storedById.get(String(match.id)), "full")) {
-            await sb.from("partidas").upsert([mapFullRow(match, agora)]);
+          const fdMatch = await client.details(dbId) as Record<string, unknown>;
+          if (fdMatch && changed(fdMatch, agora, storedById.get(dbId), "full")) {
+            await sb.from("partidas").upsert([mapFullRow(fdMatch, agora)]);
             summary.live = (summary.live as number) + 1;
           }
-        } catch (err) {
-          console.error(`football-data detail error for ${id}:`, (err as Error).message);
+        } catch (err2) {
+          console.error(`FD fallback error for ${dbId}:`, (err2 as Error).message);
         }
       }
     }
+    summary.espn_detail = espnDetail;
 
-    // Partidas still started_pending que ESPN não reconheceu — tenta football-data.org
-    const pendingMissedByEspn = startedPendingRows.filter((r) => !espnLiveIds.has(r.id));
+    // ── Passo 3: started_pending não reconhecidos pela ESPN → football-data.org
+    const espnLiveDbIds = new Set(espnLivePairs.map((p) => p.dbId));
+    const pendingMissed = startedPendingRows.filter((r) => !espnLiveDbIds.has(r.id));
     const pendingBudget = Math.max(0, client.info().remaining - 1);
-    const pendingFastRows = pendingMissedByEspn.slice(
-      0,
-      Math.min(pendingMissedByEspn.length, pendingBudget),
-    );
-    for (const m of pendingFastRows) {
+    for (const m of pendingMissed.slice(0, pendingBudget)) {
       try {
         const match = await client.details(m.id) as Record<string, unknown>;
-        if (match && changed(match, agora, storedById.get(String(match.id)), "full")) {
+        if (match && changed(match, agora, storedById.get(m.id), "full")) {
           await sb.from("partidas").upsert([mapFullRow(match, agora)]);
           summary.started_pending = (summary.started_pending as number) + 1;
         }
       } catch (err) {
-        console.error(`football-data pending error for ${m.id}:`, (err as Error).message);
+        console.error(`FD pending error for ${m.id}:`, (err as Error).message);
       }
     }
 
