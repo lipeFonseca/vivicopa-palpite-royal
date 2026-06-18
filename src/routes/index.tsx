@@ -2533,21 +2533,29 @@ function Inicio({
           />
         )}
         <div className="editorial-hero-wash absolute inset-0" />
-        <div className="editorial-hero-copy relative z-10 flex flex-col justify-center items-center text-center sm:items-start sm:text-left px-6 py-10 min-h-[300px] sm:min-h-[500px] sm:max-w-[48rem] sm:py-14 sm:px-10 lg:px-12">
-          <h1 className="site-display text-6xl font-black uppercase leading-[0.93] text-brand sm:text-7xl lg:text-[7.2rem]" style={{ letterSpacing: `${theme.titleTracking}em` }}>
-            {theme.title}
+        <div className="editorial-hero-copy relative z-10 flex flex-col justify-center items-center text-center sm:items-start sm:text-left px-6 py-8 min-h-[300px] sm:min-h-[500px] sm:max-w-[48rem] sm:py-12 sm:px-10 lg:px-12">
+          <h1
+            className="site-display font-black uppercase leading-[0.86] text-brand"
+            style={{ letterSpacing: `${theme.titleTracking}em` }}
+          >
+            <span className="block text-[5rem] sm:text-[7rem] lg:text-[9.5rem]">
+              {theme.title.slice(0, Math.ceil(theme.title.length / 2))}
+            </span>
+            <span className="block text-[5rem] sm:text-[7rem] lg:text-[9.5rem]">
+              {theme.title.slice(Math.ceil(theme.title.length / 2))}
+            </span>
           </h1>
-          <div className="mt-4 flex items-center gap-3 sm:mt-5">
-            <span className="hidden h-px w-6 bg-[var(--site-accent)] sm:block" />
-            <p className="site-display text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--site-accent)] sm:text-[13px]">
+          <div className="mt-5 flex items-center gap-3 sm:mt-6">
+            <span className="hidden h-px w-8 bg-[var(--site-accent)] sm:block" />
+            <p className="site-display text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--site-accent)] sm:text-[12px]">
               A Copa que nasceu para a resenha
             </p>
-            <span className="hidden h-px w-6 bg-[var(--site-accent)] sm:block" />
+            <span className="hidden h-px w-8 bg-[var(--site-accent)] sm:block" />
           </div>
-          <p className="mt-4 max-w-sm text-sm leading-relaxed text-foreground/70 sm:mt-5 sm:max-w-md sm:text-[15px]">
+          <p className="mt-4 max-w-xs text-[13px] leading-relaxed text-foreground/65 sm:mt-5 sm:max-w-sm sm:text-sm">
             {theme.subtitle}
           </p>
-          <div className="mt-7 flex flex-wrap justify-center gap-3 sm:mt-9 sm:justify-start">
+          <div className="mt-7 flex flex-wrap justify-center gap-3 sm:mt-8 sm:justify-start">
             <Button
               onClick={onJogos}
               variant="outline"
