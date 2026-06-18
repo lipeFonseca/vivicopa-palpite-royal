@@ -2430,16 +2430,25 @@ function Inicio({
           </div>
           <div className="border border-black/10">
             {jogosHoje.length > 0 ? (
-              jogosHoje.map((jogo) => (
-                <EditorialMatchRow
-                  key={jogo.id}
-                  jogo={jogo}
-                  flagMap={flagMap}
-                  jogoLocal={jogoLocalPorPartidaId.get(jogo.id)}
-                  onPalpitar={onPalpite}
-                  onComentarios={onComentarios}
-                />
-              ))
+              [...jogosHoje]
+                .sort((a, b) => {
+                  const aLive = ["LIVE", "HT", "ET", "PEN_LIVE"].includes(a.status);
+                  const bLive = ["LIVE", "HT", "ET", "PEN_LIVE"].includes(b.status);
+                  if (aLive && !bLive) return -1;
+                  if (!aLive && bLive) return 1;
+                  return String(a.inicia_em ?? "").localeCompare(String(b.inicia_em ?? ""));
+                })
+                .map((jogo) => (
+                  <EditorialMatchRow
+                    key={jogo.id}
+                    jogo={jogo}
+                    flagMap={flagMap}
+                    live={["LIVE", "HT", "ET", "PEN_LIVE"].includes(jogo.status)}
+                    jogoLocal={jogoLocalPorPartidaId.get(jogo.id)}
+                    onPalpitar={onPalpite}
+                    onComentarios={onComentarios}
+                  />
+                ))
             ) : (
               <div className="px-5 py-12 text-center text-sm font-semibold text-muted-foreground">Nenhum jogo programado neste momento.</div>
             )}

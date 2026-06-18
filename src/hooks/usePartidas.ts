@@ -38,7 +38,7 @@ export function useJogosHojeStore() {
     const fimHoje = inicioHoje + 24 * 60 * 60 * 1000
 
     const hoje = partidas.filter((p) => {
-      if (!p.inicia_em || idsAoVivo.has(p.id)) return false
+      if (!p.inicia_em) return false
       const t = new Date(p.inicia_em).getTime()
       return t >= inicioHoje && t < fimHoje
     })
