@@ -2387,7 +2387,7 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
             <button type="button" className="group flex items-center gap-1.5 text-left">
               <span className="text-[13px]">🏆</span>
               <span
-                className="max-w-[130px] truncate text-[18px] font-black italic leading-none tracking-tight"
+                className="min-w-0 truncate text-[18px] font-black italic leading-none tracking-tight"
                 style={{ color: "var(--brand-dark)" }}
               >
                 {topScorer.name}
@@ -2406,24 +2406,30 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
               <p className="text-xs text-muted-foreground">Nenhum acerto registrado.</p>
             ) : (
               <div className="space-y-2">
-                {topScorerPredictions.map((wp) => (
-                  <div key={wp.id} className="flex items-center gap-1.5 rounded-md bg-muted/40 px-2 py-2">
-                    <TeamFlag name={wp.selecaoA} size="sm" />
-                    <span className="text-[11px] font-semibold leading-none">
-                      {wp.selecaoA.split(" ")[0]}
-                    </span>
-                    <span className="mx-0.5 font-black text-brand">
-                      {wp.resultadoA}×{wp.resultadoB}
-                    </span>
-                    <TeamFlag name={wp.selecaoB} size="sm" />
-                    <span className="text-[11px] font-semibold leading-none">
-                      {wp.selecaoB.split(" ")[0]}
-                    </span>
-                    <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
-                      {wp.data.slice(5)}
-                    </span>
-                  </div>
-                ))}
+                {topScorerPredictions.map((wp) => {
+                  const selA = getSelecao(wp.selecaoA);
+                  const selB = getSelecao(wp.selecaoB);
+                  const nomeA = selA?.nome ?? wp.selecaoA;
+                  const nomeB = selB?.nome ?? wp.selecaoB;
+                  return (
+                    <div key={wp.id} className="flex items-center gap-1.5 rounded-md bg-muted/40 px-2 py-2">
+                      <TeamFlag name={nomeA} size="sm" />
+                      <span className="text-[11px] font-semibold leading-none">
+                        {nomeA.split(" ")[0]}
+                      </span>
+                      <span className="mx-0.5 font-black text-brand">
+                        {wp.resultadoA}×{wp.resultadoB}
+                      </span>
+                      <TeamFlag name={nomeB} size="sm" />
+                      <span className="text-[11px] font-semibold leading-none">
+                        {nomeB.split(" ")[0]}
+                      </span>
+                      <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
+                        {wp.data.slice(5)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </PopoverContent>
