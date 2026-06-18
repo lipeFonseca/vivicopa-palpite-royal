@@ -943,6 +943,7 @@ function CronStatusBadge({ status }: { status?: string | null }) {
 
 function AdminCronMonitorPanel() {
   const { data, isLoading, isFetching, refetch, error } = useCronMonitorQuery(true);
+  const [aberto, setAberto] = useState(false);
 
   const runs = data?.runs ?? [];
   const jobs = data?.jobs ?? [];
@@ -950,8 +951,12 @@ function AdminCronMonitorPanel() {
   const partidasStatus = data?.partidas_status ?? [];
 
   return (
-    <section className="site-admin-section border border-border bg-card p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <section className="site-admin-section border border-border bg-card overflow-hidden">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 p-5 text-left"
+        onClick={() => setAberto(v => !v)}
+      >
         <div>
           <div className="flex items-center gap-2 text-xs font-black uppercase text-brand">
             <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} /> Monitor de sincronização
@@ -960,15 +965,19 @@ function AdminCronMonitorPanel() {
             Acompanha os cron jobs do placar ao vivo sem sobrecarregar o banco.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="text-xs text-muted-foreground">
-            Atualizado: {formatAdminDateTime(data?.generated_at)}
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
-            <RefreshCw className={`mr-1 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-            Atualizar
-          </Button>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-brand transition-transform duration-200 ${aberto ? "rotate-180" : ""}`} />
+      </button>
+
+      {aberto && (
+      <div className="border-t border-border px-5 pb-5 pt-4">
+      <div className="mb-4 flex items-center justify-end gap-2">
+        <div className="text-xs text-muted-foreground">
+          Atualizado: {formatAdminDateTime(data?.generated_at)}
         </div>
+        <Button type="button" variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
+          <RefreshCw className={`mr-1 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          Atualizar
+        </Button>
       </div>
 
       {error && (
@@ -1072,6 +1081,8 @@ function AdminCronMonitorPanel() {
           </table>
         </div>
       </div>
+      </div>
+      )}
     </section>
   );
 }
