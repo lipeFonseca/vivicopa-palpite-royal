@@ -92,6 +92,57 @@ function mapSelecao(s: Record<string, unknown>) {
   };
 }
 
+// ─── ESPN supplementary live source (no API key required) ────────────────────
+
+const ESPN_URL =
+  "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard";
+
+// ESPN display names → football-data.org names stored in our DB
+const ESPN_NAME_ALIASES: Record<string, string> = {
+  "south korea": "korea republic",
+  "czechia": "czech republic",
+  "usa": "united states",
+  "ir iran": "iran",
+  "ivory coast": "côte d'ivoire",
+  "cote d'ivoire": "côte d'ivoire",
+  "republic of ireland": "ireland",
+};
+
+function espnNorm(name: string): string {
+  const lower = name.toLowerCase().trim();
+  return ESPN_NAME_ALIASES[lower] ?? lower;
+}
+
+function parseDisplayClock(
+  displayClock: string,
+): { minuto: number | null; acrescimos: number | null } {
+  const m = displayClock.match(/^(\d+)'\+(\d+)/);
+  if (m) return { minuto: parseInt(m[1], 10), acrescimos: parseInt(m[2], 10) || null };
+  const m2 = displayClock.match(/^(\d+)'/);
+  if (m2) return { minuto: parseInt(m2[1], 10), acrescimos: null };
+  return { minuto: null, acrescimos: null };
+}
+
+function espnMapStatus(
+  statusType: Record<string, unknown>,
+  displayClock: string,
+): { status: string; minuto: number | null; acrescimos: number | null } {
+  const state = statusType.state as string;
+  const detail = (statusType.detail as string) ?? "";
+  if (state === "post") return { status: "FT", minuto: 90, acrescimos: null };
+  if (state !== "in") return { status: "NS", minuto: null, acrescimos: null };
+  if (detail === "HT") return { status: "HT", minuto: 45, acrescimos: null };
+  if (detail.startsWith("ET") || detail.toLowerCase().includes("extra")) {
+    const t = parseDisplayClock(displayClock);
+    return { status: "ET", minuto: t.minuto, acrescimos: t.acrescimos };
+  }
+  if (detail.toLowerCase().includes("pen")) {
+    return { status: "PEN_LIVE", minuto: null, acrescimos: null };
+  }
+  const t = parseDisplayClock(displayClock);
+  return { status: "LIVE", minuto: t.minuto, acrescimos: t.acrescimos };
+}
+
 // ─── Main handler ──────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -186,6 +237,7 @@ Deno.serve(async (req) => {
     started_pending: 0,
     suspicious: 0,
     scheduled: 0,
+    espn: 0,
   };
 
   if (url.searchParams.get("mode") === "fast-live") {
@@ -226,6 +278,85 @@ Deno.serve(async (req) => {
       } catch (err) {
         console.error(`Fast live pending error for ${m.id}:`, (err as Error).message);
       }
+    }
+
+    // ── ESPN supplementary: atualiza partidas que o football-data.org ainda não marcou como live ──
+    try {
+      const espnRes = await fetch(ESPN_URL);
+      if (espnRes.ok) {
+        const espnData = await espnRes.json() as Record<string, unknown>;
+        const espnEvents = (espnData.events as Record<string, unknown>[]) ?? [];
+
+        // Monta lookup: "norm_home|norm_away" → row do banco (só jogos de hoje)
+        const todayStr = new Date(agora).toISOString().slice(0, 10);
+        const todayRows = rows.filter(
+          (r) => r.inicia_em && r.inicia_em.slice(0, 10) === todayStr,
+        );
+        const lookup = new Map(
+          todayRows.map((r) => [
+            `${espnNorm(r.time_a ?? "")}|${espnNorm(r.time_b ?? "")}`,
+            r,
+          ]),
+        );
+
+        const espnUpserts: Record<string, unknown>[] = [];
+
+        for (const event of espnEvents) {
+          const comps = (event.competitions as Record<string, unknown>[])?.[0] as
+            | Record<string, unknown>
+            | undefined;
+          if (!comps) continue;
+
+          const espnStatus = comps.status as Record<string, unknown>;
+          const statusType = espnStatus.type as Record<string, unknown>;
+          const displayClock = (espnStatus.displayClock as string) ?? "";
+          const { status, minuto, acrescimos } = espnMapStatus(statusType, displayClock);
+
+          if (status === "NS") continue; // ainda não começou
+
+          const competitors = (comps.competitors as Record<string, unknown>[]) ?? [];
+          const home = competitors.find((c) => (c.homeAway as string) === "home");
+          const away = competitors.find((c) => (c.homeAway as string) === "away");
+          if (!home || !away) continue;
+
+          const homeName = espnNorm((home.team as Record<string, unknown>).displayName as string);
+          const awayName = espnNorm((away.team as Record<string, unknown>).displayName as string);
+          const dbRow = lookup.get(`${homeName}|${awayName}`);
+          if (!dbRow) continue;
+
+          // Não sobrescreve resultado já confirmado pelo football-data.org
+          if (dbRow.status === "FT") continue;
+
+          const homeScore = parseInt((home.score as string) ?? "0", 10);
+          const awayScore = parseInt((away.score as string) ?? "0", 10);
+
+          // Sem mudança real, pula
+          if (
+            dbRow.status === status &&
+            dbRow.placar_a === homeScore &&
+            dbRow.placar_b === awayScore &&
+            dbRow.minuto === minuto
+          ) continue;
+
+          espnUpserts.push({
+            id: dbRow.id,
+            status,
+            placar_a: homeScore,
+            placar_b: awayScore,
+            minuto,
+            acrescimos,
+            fase_polling: status === "FT" ? "finished" : "live",
+            ultima_busca_api: new Date(agora).toISOString(),
+          });
+        }
+
+        if (espnUpserts.length) {
+          await sb.from("partidas").upsert(espnUpserts);
+          summary.espn = espnUpserts.length;
+        }
+      }
+    } catch (err) {
+      console.error("ESPN update error:", (err as Error).message);
     }
 
     return Response.json({
