@@ -2457,11 +2457,32 @@ function Inicio({
         </div>
       </section>
 
-      <section className="editorial-stats grid grid-cols-2 bg-brand text-white md:grid-cols-4">
-        <StatBand label="Seleções" value={selecoes.length} />
-        <StatBand label="Jogos (fase de grupos)" value={jogos.length} />
-        <StatBand label="Meus palpites" value={palpites.length} />
-        <StatBand label="Grupos" value={grupos.length} />
+      <section className="overflow-hidden bg-brand py-2.5">
+        <div
+          className="flex items-end gap-5"
+          style={{ animation: "vivicopa-marquee 55s linear infinite", width: "max-content" }}
+        >
+          {[...selecoes, ...selecoes].map((s, i) => {
+            const flagUrl = flagMap[s.nome];
+            return (
+              <div key={i} className="flex shrink-0 flex-col items-center gap-0.5">
+                {flagUrl ? (
+                  <div
+                    className="h-[26px] w-[38px] bg-cover bg-center shadow-sm"
+                    style={{ backgroundImage: `url(${flagUrl})` }}
+                    role="img"
+                    aria-label={s.nome}
+                  />
+                ) : (
+                  <span className="text-xl leading-none" aria-label={s.nome}>{s.bandeiraEmoji}</span>
+                )}
+                <span className="text-[7px] font-bold uppercase tracking-wide text-white/55">
+                  {s.id.toUpperCase()}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       <PalpiteirosDoDiaSection winningPredictions={winningPredictions} />
@@ -2543,15 +2564,6 @@ function Inicio({
           )}
         </div>
       </section>
-    </div>
-  );
-}
-
-function StatBand({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="border-b border-r border-white/15 px-7 py-4">
-      <div className="site-display text-3xl font-black leading-none text-[var(--site-accent)]">{value}</div>
-      <div className="mt-1.5 text-[9px] font-bold uppercase tracking-wide text-white/90">{label}</div>
     </div>
   );
 }
