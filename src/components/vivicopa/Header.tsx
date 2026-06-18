@@ -10,12 +10,13 @@ const HEADER_BANNER_KEY = "vivicopa:header-banner-url";
 type HeaderProps = {
   navigation: ReactNode;
   mobileNavContent?: (close: () => void) => ReactNode;
+  mobileCenter?: ReactNode;
   username: string;
   role: "admin" | "user";
   onLogout: () => void | Promise<void>;
 };
 
-export function Header({ navigation, mobileNavContent, username, role, onLogout }: HeaderProps) {
+export function Header({ navigation, mobileNavContent, mobileCenter, username, role, onLogout }: HeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState(() =>
     typeof window !== "undefined" ? (localStorage.getItem(LOGO_URL_KEY) ?? "") : "",
@@ -80,7 +81,10 @@ export function Header({ navigation, mobileNavContent, username, role, onLogout 
           </div>
         </div>
 
-        <div className="site-header-navigation min-w-0 hidden sm:block">{navigation}</div>
+        <div className="site-header-navigation min-w-0">
+          {mobileCenter && <div className="sm:hidden">{mobileCenter}</div>}
+          <div className="hidden sm:block">{navigation}</div>
+        </div>
 
         <div className="site-user-wrap flex items-center justify-end gap-2">
           {mobileNavContent && (

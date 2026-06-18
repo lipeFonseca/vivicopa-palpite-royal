@@ -264,6 +264,7 @@ function Vivicopa() {
         <Header
           username={authProfile.username}
           role={authProfile.role}
+          mobileCenter={<HeaderMobileWidget userId={authProfile.id} />}
           onLogout={async () => {
             await supabase.auth.signOut();
             useAuthStore.getState().clear();
@@ -2287,6 +2288,74 @@ function PalpiteirosDoDiaSection({ winningPredictions }: { winningPredictions: W
         })}
       </div>
     </section>
+  );
+}
+
+function HeaderMobileWidget({ userId }: { userId: string }) {
+  const { jogosAoVivo, jogosHoje } = useJogosHojeStore();
+  const { data: winningPredictions = [] } = useWinningPredictionsQuery(userId);
+  const { data: palpites = [] } = useMeusPalpitesQuery(userId);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const liveGame = (jogosAoVivo as PartidaDestaque[])[0];
+  const nextGame = (jogosHoje as PartidaDestaque[]).find(
+    (g) => g.status === "NS" && g.inicia_em && new Date(g.inicia_em).getTime() > now
+  );
+
+  function countdown(inicia_em: string) {
+    const diff = new Date(inicia_em).getTime() - now;
+    if (diff <= 0) return "em breve";
+    const h = Math.floor(diff / 3_600_000);
+    const m = Math.floor((diff % 3_600_000) / 60_000);
+    if (h >= 24) return `${Math.floor(h / 24)}d`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}min`;
+  }
+
+  function short(name: string) {
+    return name.split(" ")[0].slice(0, 7);
+  }
+
+  const acertos = winningPredictions.length;
+  const total = palpites.length;
+
+  return (
+    <div className="flex min-w-0 items-center gap-2 px-1">
+      <div className="min-w-0 flex-1">
+        {liveGame ? (
+          <div className="flex items-center gap-1.5 text-[10px]">
+            <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-500" />
+            <span className="font-black text-red-700">
+              {short(liveGame.time_a)} {liveGame.placar_a ?? 0}×{liveGame.placar_b ?? 0} {short(liveGame.time_b)}
+            </span>
+            {liveGame.minuto && (
+              <span className="shrink-0 text-[9px] text-red-500">{liveGame.minuto}'</span>
+            )}
+          </div>
+        ) : nextGame?.inicia_em ? (
+          <div className="flex items-center gap-1 text-[10px]">
+            <span className="shrink-0 text-muted-foreground">Próx</span>
+            <span className="truncate font-bold text-brand-dark">
+              {short(nextGame.time_a)} × {short(nextGame.time_b)}
+            </span>
+            <span className="shrink-0 font-semibold text-brand">· {countdown(nextGame.inicia_em)}</span>
+          </div>
+        ) : null}
+      </div>
+      {total > 0 && (
+        <div className="flex shrink-0 items-center gap-1 rounded-full border border-[var(--site-accent)]/30 bg-[var(--site-accent)]/10 px-2 py-0.5">
+          <span className="text-[9px]">🎯</span>
+          <span className="text-[10px] font-black" style={{ color: "var(--brand-dark)" }}>
+            {acertos}<span className="font-normal text-muted-foreground">/{total}</span>
+          </span>
+        </div>
+      )}
+    </div>
   );
 }
 
