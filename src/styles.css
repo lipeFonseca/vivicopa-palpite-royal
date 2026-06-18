@@ -409,15 +409,6 @@
     text-align: center;
   }
 
-  .editorial-match-row {
-    grid-template-columns: 58px minmax(0, 1fr) auto minmax(0, 1fr);
-    gap: 0.45rem;
-  }
-
-  .editorial-match-row [role="img"] {
-    display: none;
-  }
-
   .editorial-image-placeholder {
     display: none;
   }

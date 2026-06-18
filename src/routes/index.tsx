@@ -2054,6 +2054,27 @@ function EditorialMatchRowLegacy({
   );
 }
 
+function FlagTap({ url, label, className }: { url?: string; label: string; className?: string }) {
+  const [showing, setShowing] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const name = getCanonicalTeamName(label);
+  const handleTap = () => {
+    setShowing(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setShowing(false), 2000);
+  };
+  return (
+    <button type="button" className="relative flex-shrink-0 focus:outline-none" onClick={handleTap} aria-label={name}>
+      <FlagBox url={url} label={name} className={className} />
+      <span
+        className={`sm:hidden pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap rounded bg-foreground/90 px-2 py-0.5 text-[9px] font-black uppercase text-white shadow-sm transition-opacity duration-150 ${showing ? "opacity-100" : "opacity-0"}`}
+      >
+        {name}
+      </span>
+    </button>
+  );
+}
+
 function EditorialMatchRow({
   jogo,
   flagMap,
@@ -2076,17 +2097,17 @@ function EditorialMatchRow({
   const bloqueado = jogoLocal ? palpiteBloqueadoParaJogo(jogoLocal) : false;
 
   return (
-    <div className={"editorial-match-row grid grid-cols-[72px_minmax(0,1fr)_72px_minmax(0,1fr)] items-center gap-x-2 gap-y-3 border-b border-black/10 px-3 py-3 last:border-b-0 md:grid-cols-[72px_minmax(0,1fr)_78px_minmax(0,1fr)_216px] " + (live ? "bg-red-50/80" : "bg-white/45")}>
-      <div className={"flex h-full min-h-14 items-center justify-center text-base font-black tabular-nums " + (live ? "bg-red-600 text-white" : "bg-brand text-white")}>
+    <div className={"editorial-match-row grid grid-cols-[44px_1fr_52px_1fr] sm:grid-cols-[72px_minmax(0,1fr)_72px_minmax(0,1fr)] items-center gap-x-1.5 gap-y-2 sm:gap-x-2 sm:gap-y-3 border-b border-black/10 px-2 py-2 sm:px-3 sm:py-3 last:border-b-0 md:grid-cols-[72px_minmax(0,1fr)_78px_minmax(0,1fr)_216px] " + (live ? "bg-red-50/80" : "bg-white/45")}>
+      <div className={"flex h-full min-h-10 sm:min-h-14 items-center justify-center text-xs sm:text-base font-black tabular-nums " + (live ? "bg-red-600 text-white" : "bg-brand text-white")}>
         {live ? "LIVE" : hora}
       </div>
 
-      <div className="grid w-full max-w-[250px] grid-cols-[64px_minmax(0,1fr)] items-center justify-self-end gap-2">
-        <FlagBox url={flagMap[jogo.time_a]} label={getCanonicalTeamName(jogo.time_a)} className="h-9 w-14 border border-black/10 shadow-sm md:h-10 md:w-16" />
-        <span className="truncate text-[11px] font-black uppercase tracking-[0.02em] sm:text-xs">{getCanonicalTeamName(jogo.time_a)}</span>
+      <div className="flex items-center justify-end justify-self-end gap-1.5 sm:grid sm:w-full sm:max-w-[250px] sm:grid-cols-[64px_minmax(0,1fr)] sm:items-center sm:gap-2">
+        <FlagTap url={flagMap[jogo.time_a]} label={jogo.time_a} className="h-10 w-16 sm:h-9 sm:w-14 border border-black/10 shadow-sm md:h-10 md:w-16" />
+        <span className="hidden sm:block truncate text-[11px] font-black uppercase tracking-[0.02em] sm:text-xs">{getCanonicalTeamName(jogo.time_a)}</span>
       </div>
 
-      <div className={"px-1 text-center text-sm font-black " + (live ? "text-red-600" : "text-foreground")}>
+      <div className={"px-0.5 text-center text-xs sm:text-sm font-black " + (live ? "text-red-600" : "text-foreground")}>
         {hasScore ? (
           String(jogo.placar_a) + " - " + String(jogo.placar_b)
         ) : (
@@ -2096,9 +2117,9 @@ function EditorialMatchRow({
         )}
       </div>
 
-      <div className="grid w-full max-w-[250px] grid-cols-[minmax(0,1fr)_64px] items-center justify-self-start gap-2">
-        <span className="truncate text-right text-[11px] font-black uppercase tracking-[0.02em] sm:text-xs">{getCanonicalTeamName(jogo.time_b)}</span>
-        <FlagBox url={flagMap[jogo.time_b]} label={getCanonicalTeamName(jogo.time_b)} className="h-9 w-14 border border-black/10 shadow-sm md:h-10 md:w-16" />
+      <div className="flex items-center justify-start justify-self-start gap-1.5 sm:grid sm:w-full sm:max-w-[250px] sm:grid-cols-[minmax(0,1fr)_64px] sm:items-center sm:gap-2">
+        <span className="hidden sm:block truncate text-right text-[11px] font-black uppercase tracking-[0.02em] sm:text-xs">{getCanonicalTeamName(jogo.time_b)}</span>
+        <FlagTap url={flagMap[jogo.time_b]} label={jogo.time_b} className="h-10 w-16 sm:h-9 sm:w-14 border border-black/10 shadow-sm md:h-10 md:w-16" />
       </div>
 
       {jogoLocal && (onPalpitar || onComentarios) && (
@@ -2107,7 +2128,7 @@ function EditorialMatchRow({
             type="button"
             size="sm"
             variant="outline"
-            className="h-10 flex-1 rounded-none border border-[#1f4d35] bg-[linear-gradient(180deg,#295f43_0%,#1f4d35_100%)] px-3 text-[9px] font-black uppercase tracking-[0.04em] text-white shadow-[0_4px_12px_rgba(31,77,53,0.22)] hover:brightness-105"
+            className="h-8 sm:h-10 flex-1 rounded-none border border-[#1f4d35] bg-[linear-gradient(180deg,#295f43_0%,#1f4d35_100%)] px-2 sm:px-3 text-[8px] sm:text-[9px] font-black uppercase tracking-[0.04em] text-white shadow-[0_4px_12px_rgba(31,77,53,0.22)] hover:brightness-105"
             onClick={() => onComentarios?.(jogoLocal)}
           >
             Comentários
@@ -2116,7 +2137,7 @@ function EditorialMatchRow({
             type="button"
             size="sm"
             disabled={bloqueado}
-            className="h-10 flex-1 rounded-none border border-[#c89d2e] bg-[linear-gradient(180deg,#d8b04a_0%,#c99a2d_100%)] px-3 text-[9px] font-black uppercase tracking-[0.04em] text-white shadow-[0_4px_12px_rgba(201,154,45,0.25)] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-55"
+            className="h-8 sm:h-10 flex-1 rounded-none border border-[#c89d2e] bg-[linear-gradient(180deg,#d8b04a_0%,#c99a2d_100%)] px-2 sm:px-3 text-[8px] sm:text-[9px] font-black uppercase tracking-[0.04em] text-white shadow-[0_4px_12px_rgba(201,154,45,0.25)] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-55"
             onClick={() => {
               if (!bloqueado) onPalpitar?.(jogoLocal);
             }}
