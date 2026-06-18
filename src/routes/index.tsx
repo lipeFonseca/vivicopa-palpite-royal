@@ -2358,9 +2358,7 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
     <div className="flex items-center gap-1.5">
       <span className="font-semibold uppercase text-muted-foreground">Próx</span>
       <MiniFlag name={nextGame.time_a} />
-      <span className="font-bold text-brand-dark">{short(nextGame.time_a)}</span>
       <span className="text-muted-foreground/50">×</span>
-      <span className="font-bold text-brand-dark">{short(nextGame.time_b)}</span>
       <MiniFlag name={nextGame.time_b} />
       <span className="font-semibold text-brand">· {countdown(nextGame.inicia_em)}</span>
     </div>
