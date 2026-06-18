@@ -3,6 +3,7 @@ import { usePartidasStore, type Partida } from '@/store/partidasStore'
 import { getCanonicalTeamName, getTeamAliases } from '@/lib/teamNames'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/integrations/supabase/client'
+import { useEspnLiveScores, espnNorm } from './useEspnLiveScores'
 
 export function usePartidas() {
   const { partidas, loading, start } = usePartidasStore()
@@ -28,16 +29,35 @@ const LIVE_STATUSES = ['LIVE', 'HT', 'ET', 'PEN_LIVE', '1H', '2H', 'BT', 'P']
 
 export function useJogosHojeStore() {
   const { partidas } = usePartidas()
+  const espnScores = useEspnLiveScores()
 
   return useMemo(() => {
-    const aoVivo = partidas.filter((p) => LIVE_STATUSES.includes(p.status))
+    // Overlay ESPN live scores (atualização a cada 10s, zero custo no banco)
+    const ps =
+      espnScores.size === 0
+        ? partidas
+        : partidas.map((p) => {
+            const key = `${espnNorm(p.time_a)}|${espnNorm(p.time_b)}`
+            const espn = espnScores.get(key)
+            if (!espn) return p
+            return {
+              ...p,
+              status: espn.status,
+              placar_a: espn.placarA,
+              placar_b: espn.placarB,
+              minuto: espn.minuto ?? p.minuto,
+              acrescimos: espn.acrescimos ?? p.acrescimos,
+            }
+          })
+
+    const aoVivo = ps.filter((p) => LIVE_STATUSES.includes(p.status))
     const idsAoVivo = new Set(aoVivo.map((p) => p.id))
 
     const brasiliaHoje = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10)
     const inicioHoje = new Date(brasiliaHoje + 'T03:00:00.000Z').getTime()
     const fimHoje = inicioHoje + 24 * 60 * 60 * 1000
 
-    const hoje = partidas.filter((p) => {
+    const hoje = ps.filter((p) => {
       if (!p.inicia_em) return false
       const t = new Date(p.inicia_em).getTime()
       return t >= inicioHoje && t < fimHoje
@@ -48,12 +68,12 @@ export function useJogosHojeStore() {
     }
 
     const now = Date.now()
-    const proximos = partidas
+    const proximos = ps
       .filter((p) => p.status === 'NS' && p.inicia_em && new Date(p.inicia_em).getTime() >= now && !idsAoVivo.has(p.id))
       .slice(0, 3)
 
     return { jogosAoVivo: aoVivo, jogosHoje: proximos, tituloSecao: 'Próximos Jogos' }
-  }, [partidas])
+  }, [partidas, espnScores])
 }
 
 // ---------- Classificação por Grupo (substitui useClassificacaoGrupos) ----------
