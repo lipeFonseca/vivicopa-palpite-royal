@@ -2534,20 +2534,28 @@ function Inicio({
         )}
         <div className="editorial-hero-wash absolute inset-0" />
         <div className="editorial-hero-copy relative z-10 flex flex-col justify-center items-center text-center sm:items-start sm:text-left px-6 py-10 min-h-[300px] sm:min-h-[500px] sm:max-w-[48rem] sm:py-14 sm:px-10 lg:px-12">
-          <h1 className="site-display text-6xl font-black uppercase leading-[0.96] text-brand sm:text-7xl lg:text-[7.2rem]" style={{ letterSpacing: `${theme.titleTracking}em` }}>
+          <h1 className="site-display text-6xl font-black uppercase leading-[0.93] text-brand sm:text-7xl lg:text-[7.2rem]" style={{ letterSpacing: `${theme.titleTracking}em` }}>
             {theme.title}
           </h1>
-          <p className="site-display mt-5 text-lg font-black uppercase tracking-[0.02em] text-[var(--site-accent)] sm:mt-6 sm:text-2xl">
-            A Copa que nasceu para a resenha
-          </p>
-          <p className="mt-3 max-w-sm text-sm font-bold leading-relaxed text-foreground/80 sm:mt-4 sm:max-w-md sm:text-base sm:text-foreground/90">
+          <div className="mt-4 flex items-center gap-3 sm:mt-5">
+            <span className="hidden h-px w-6 bg-[var(--site-accent)] sm:block" />
+            <p className="site-display text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--site-accent)] sm:text-[13px]">
+              A Copa que nasceu para a resenha
+            </p>
+            <span className="hidden h-px w-6 bg-[var(--site-accent)] sm:block" />
+          </div>
+          <p className="mt-4 max-w-sm text-sm leading-relaxed text-foreground/70 sm:mt-5 sm:max-w-md sm:text-[15px]">
             {theme.subtitle}
           </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3 sm:mt-8 sm:justify-start">
-            <Button onClick={onJogos} className="h-10 min-w-36 rounded-none bg-[#174b66] px-6 text-[10px] font-black uppercase text-white hover:opacity-90">
+          <div className="mt-7 flex flex-wrap justify-center gap-3 sm:mt-9 sm:justify-start">
+            <Button
+              onClick={onJogos}
+              variant="outline"
+              className="h-10 min-w-36 rounded-none border border-[#174b66] bg-transparent px-6 text-[10px] font-black uppercase text-[#174b66] hover:bg-[#174b66] hover:text-white"
+            >
               Ver jogos
             </Button>
-            <Button onClick={() => onPalpite()} className="h-10 min-w-36 rounded-none bg-[var(--site-accent)] px-6 text-[10px] font-black uppercase text-white hover:opacity-90">
+            <Button onClick={() => onPalpite()} className="h-10 min-w-36 rounded-none bg-[var(--site-accent)] px-6 text-[10px] font-black uppercase text-white hover:opacity-85">
               Fazer palpite
             </Button>
           </div>
