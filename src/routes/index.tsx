@@ -1079,6 +1079,7 @@ function AdminCronMonitorPanel() {
 function AdminPalpitesPanel() {
   const { data: allPalpites = [], isLoading } = useAllPalpitesAdminQuery(true);
   const [filtro, setFiltro] = useState<"todos" | "finalizados" | "acertos">("todos");
+  const [aberto, setAberto] = useState(false);
 
   const lista = useMemo(() => {
     if (filtro === "finalizados") return allPalpites.filter((p) => p.finalizado);
@@ -1101,17 +1102,27 @@ function AdminPalpitesPanel() {
   const totalAcertos = allPalpites.filter((p) => p.acertouNaMosca).length;
 
   return (
-    <section className="site-admin-section border border-border bg-card p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <section className="site-admin-section border border-border bg-card overflow-hidden">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 p-5 text-left"
+        onClick={() => setAberto(v => !v)}
+      >
         <div className="flex items-center gap-2 text-xs font-black uppercase text-brand">
           <Trophy className="h-4 w-4" /> Todos os palpites
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{allPalpites.length} palpites</span>
-          <span>·</span>
-          <span className="font-semibold text-[#8d6710]">{totalAcertos} acertaram na mosca</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>{allPalpites.length} palpites</span>
+            <span>·</span>
+            <span className="font-semibold text-[#8d6710]">{totalAcertos} acertaram na mosca</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-brand transition-transform duration-200 ${aberto ? "rotate-180" : ""}`} />
         </div>
-      </div>
+      </button>
+
+      {aberto && (
+      <div className="border-t border-border px-5 pb-5 pt-4">
       <div className="mb-4 flex gap-2">
         {(["todos", "finalizados", "acertos"] as const).map((f) => (
           <button
@@ -1171,6 +1182,8 @@ function AdminPalpitesPanel() {
           );
         })}
       </div>
+      </div>
+      )}
     </section>
   );
 }
