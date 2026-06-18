@@ -2321,7 +2321,7 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
   function TeamFlag({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
     const url = flagMap[name];
     if (!url) return null;
-    const dims = size === "sm" ? "h-[13px] w-[19px]" : "h-[17px] w-[25px]";
+    const dims = size === "sm" ? "h-[15px] w-[22px]" : "h-[20px] w-[30px]";
     return (
       <span
         className={`inline-block ${dims} shrink-0 rounded-[2px] bg-cover bg-center`}
@@ -2379,7 +2379,7 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
   if (!gameInfo && !topScorer) return null;
 
   return (
-    <div className="flex min-w-0 w-full flex-col justify-center gap-1 py-1 pr-3">
+    <div className="flex min-w-0 w-full flex-col justify-center gap-2 py-1 pr-3">
       {gameInfo}
       {topScorer && (
         <Popover>
@@ -2387,12 +2387,12 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
             <button type="button" className="group flex items-center gap-1.5 text-left">
               <span className="text-[13px]">🏆</span>
               <span
-                className="max-w-[100px] truncate text-[13px] font-black italic leading-none tracking-tight"
+                className="max-w-[130px] truncate text-[18px] font-black italic leading-none tracking-tight"
                 style={{ color: "var(--brand-dark)" }}
               >
                 {topScorer.name}
               </span>
-              <span className="rounded-full bg-brand/10 px-1.5 py-px text-[10px] font-bold leading-tight text-brand">
+              <span className="rounded-full bg-brand/10 px-2 py-px text-[12px] font-bold leading-tight text-brand">
                 {topScorer.count}
               </span>
               <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground/50 transition-transform group-data-[state=open]:rotate-180" />
@@ -2407,10 +2407,18 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
             ) : (
               <div className="space-y-2">
                 {topScorerPredictions.map((wp) => (
-                  <div key={wp.id} className="flex items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5">
+                  <div key={wp.id} className="flex items-center gap-1.5 rounded-md bg-muted/40 px-2 py-2">
                     <TeamFlag name={wp.selecaoA} size="sm" />
-                    <span className="font-black text-brand">{wp.resultadoA}×{wp.resultadoB}</span>
+                    <span className="text-[11px] font-semibold leading-none">
+                      {wp.selecaoA.split(" ")[0]}
+                    </span>
+                    <span className="mx-0.5 font-black text-brand">
+                      {wp.resultadoA}×{wp.resultadoB}
+                    </span>
                     <TeamFlag name={wp.selecaoB} size="sm" />
+                    <span className="text-[11px] font-semibold leading-none">
+                      {wp.selecaoB.split(" ")[0]}
+                    </span>
                     <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
                       {wp.data.slice(5)}
                     </span>
