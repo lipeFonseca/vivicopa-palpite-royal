@@ -2535,23 +2535,24 @@ function Inicio({
         <div className="editorial-hero-wash absolute inset-0" />
         <div className="editorial-hero-copy relative z-10 flex flex-col justify-center items-center text-center sm:items-start sm:text-left px-6 py-8 min-h-[300px] sm:min-h-[500px] sm:max-w-[48rem] sm:py-12 sm:px-10 lg:px-12">
           <h1
-            className="site-display font-black uppercase leading-[0.86] text-brand"
+            className="site-display font-black uppercase leading-[0.86]"
             style={{ letterSpacing: `${theme.titleTracking}em` }}
           >
-            <span className="block text-[5rem] sm:text-[7rem] lg:text-[9.5rem]">
+            <span
+              className="block text-[5rem] sm:text-[7rem] lg:text-[9.5rem]"
+              style={{ WebkitTextStroke: '2px var(--brand)', color: 'transparent' }}
+            >
               {theme.title.slice(0, Math.ceil(theme.title.length / 2))}
             </span>
-            <span className="block text-[5rem] sm:text-[7rem] lg:text-[9.5rem]">
+            <span
+              className="block text-[5rem] sm:text-[7rem] lg:text-[9.5rem] text-[var(--site-accent)]"
+            >
               {theme.title.slice(Math.ceil(theme.title.length / 2))}
             </span>
           </h1>
-          <div className="mt-5 flex items-center gap-3 sm:mt-6">
-            <span className="hidden h-px w-8 bg-[var(--site-accent)] sm:block" />
-            <p className="site-display text-[16px] font-bold uppercase tracking-[0.32em] text-[var(--site-accent)] sm:text-[20px]">
-              A Copa que nasceu para a resenha
-            </p>
-            <span className="hidden h-px w-8 bg-[var(--site-accent)] sm:block" />
-          </div>
+          <p className="mt-5 site-display text-[15px] font-semibold italic tracking-[0.2em] text-[var(--site-accent)] sm:mt-6 sm:text-[18px]">
+            A Copa que nasceu para a resenha
+          </p>
           <p className="mt-4 max-w-xs text-[13px] leading-relaxed text-foreground/65 sm:mt-5 sm:max-w-sm sm:text-sm">
             {theme.subtitle}
           </p>
