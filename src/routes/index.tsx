@@ -2549,10 +2549,10 @@ function Inicio({
                 </span>
               </h1>
               <div className="mt-3 sm:mt-4">
-                <p className="text-[9px] font-black uppercase tracking-[0.28em] text-[var(--site-accent)] sm:text-[11px]">
+                <p className="text-[12px] font-black uppercase tracking-[0.28em] text-[var(--site-accent)] sm:text-[14px]">
                   Ed. Especial · Copa 2026
                 </p>
-                <p className="mt-1 site-display text-[14px] font-semibold italic text-brand/80 sm:text-[17px]">
+                <p className="mt-1.5 site-display text-[18px] font-semibold italic text-brand/80 sm:text-[22px]">
                   A Copa que nasceu para a resenha
                 </p>
               </div>
