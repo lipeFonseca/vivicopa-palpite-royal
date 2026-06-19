@@ -2547,7 +2547,7 @@ function Inicio({
           </h1>
           <div className="mt-5 flex items-center gap-3 sm:mt-6">
             <span className="hidden h-px w-8 bg-[var(--site-accent)] sm:block" />
-            <p className="site-display text-[13px] font-semibold uppercase tracking-[0.18em] text-[var(--site-accent)] sm:text-[15px]">
+            <p className="site-display text-[16px] font-bold uppercase tracking-[0.32em] text-[var(--site-accent)] sm:text-[20px]">
               A Copa que nasceu para a resenha
             </p>
             <span className="hidden h-px w-8 bg-[var(--site-accent)] sm:block" />
