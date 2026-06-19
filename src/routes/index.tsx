@@ -2552,7 +2552,7 @@ function Inicio({
                 <p className="text-[12px] font-black uppercase tracking-[0.28em] text-[#002776] sm:text-[14px]">
                   Ed. Especial · Copa 2026
                 </p>
-                <p className="mt-2 site-display text-[28px] font-light italic leading-tight text-[#007D2F] sm:text-[38px]">
+                <p className="mt-2 site-display text-[28px] font-light italic leading-tight text-[#FEDF00] sm:text-[38px]">
                   A Copa que nasceu para a resenha
                 </p>
               </div>
