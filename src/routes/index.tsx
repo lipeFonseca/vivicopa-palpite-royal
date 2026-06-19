@@ -2395,15 +2395,15 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
       {topScorer && (
         <Popover>
           <PopoverTrigger asChild>
-            <button type="button" className="group flex items-center gap-1.5 text-left">
-              <span className="text-[13px]">🏆</span>
+            <button type="button" className="group flex items-center gap-2 text-left">
+              <span className="text-[16px]">🏆</span>
               <span
-                className="min-w-0 truncate text-[18px] font-black italic leading-none tracking-tight"
+                className="text-[22px] font-black italic leading-none tracking-tight"
                 style={{ color: "var(--brand-dark)" }}
               >
                 {topScorer.name}
               </span>
-              <span className="rounded-full bg-brand/10 px-2 py-px text-[12px] font-bold leading-tight text-brand">
+              <span className="rounded-full bg-brand/10 px-2 py-px text-[14px] font-bold leading-tight text-brand">
                 {topScorer.count}
               </span>
               <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground/50 transition-transform group-data-[state=open]:rotate-180" />
