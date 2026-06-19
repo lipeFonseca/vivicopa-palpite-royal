@@ -2538,7 +2538,7 @@ function Inicio({
             <div className="w-[5px] sm:w-[7px] flex-shrink-0 bg-[#FEDF00]" />
             <div className="flex flex-col">
               <h1
-                className="site-display font-black uppercase leading-[0.86] text-[#009C3B]"
+                className="site-display font-black uppercase leading-[0.86] text-[#007D2F]"
                 style={{ letterSpacing: `${theme.titleTracking}em` }}
               >
                 <span className="block text-[4.5rem] sm:text-[6.5rem] lg:text-[9rem]">
@@ -2552,7 +2552,7 @@ function Inicio({
                 <p className="text-[12px] font-black uppercase tracking-[0.28em] text-[#002776] sm:text-[14px]">
                   Ed. Especial · Copa 2026
                 </p>
-                <p className="mt-1.5 site-display text-[18px] font-light italic text-[#009C3B] sm:text-[22px]">
+                <p className="mt-1.5 site-display text-[18px] font-light italic text-[#007D2F] sm:text-[22px]">
                   A Copa que nasceu para a resenha
                 </p>
               </div>
@@ -2563,7 +2563,7 @@ function Inicio({
                 <Button
                   onClick={onJogos}
                   variant="outline"
-                  className="h-10 min-w-36 rounded-none border border-[#009C3B] bg-transparent px-6 text-[10px] font-black uppercase text-[#009C3B] hover:bg-[#009C3B] hover:text-white"
+                  className="h-10 min-w-36 rounded-none border border-[#007D2F] bg-transparent px-6 text-[10px] font-black uppercase text-[#007D2F] hover:bg-[#007D2F] hover:text-white"
                 >
                   Ver jogos
                 </Button>
