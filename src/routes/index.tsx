@@ -2528,7 +2528,7 @@ function Inicio({
             src={heroBannerUrl}
             alt=""
             aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-contain sm:object-cover"
+            className="editorial-hero-img absolute inset-0 h-full w-full object-cover"
             style={{ objectPosition: `${heroBannerPos.x}% ${heroBannerPos.y}%` }}
           />
         )}

@@ -409,6 +409,10 @@
     text-align: left;
   }
 
+  .editorial-hero-img {
+    object-position: 75% center !important;
+  }
+
   .editorial-image-placeholder {
     display: none;
   }
