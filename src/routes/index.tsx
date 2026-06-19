@@ -2535,10 +2535,10 @@ function Inicio({
         <div className="editorial-hero-wash absolute inset-0" />
         <div className="editorial-hero-copy relative z-10 flex flex-col justify-center items-start px-6 py-8 min-h-[300px] sm:min-h-[500px] sm:max-w-[48rem] sm:py-12 sm:px-10 lg:px-12">
           <div className="flex items-stretch gap-4 sm:gap-6">
-            <div className="w-[5px] sm:w-[7px] flex-shrink-0 bg-[var(--site-accent)]" />
+            <div className="w-[5px] sm:w-[7px] flex-shrink-0 bg-[#FEDF00]" />
             <div className="flex flex-col">
               <h1
-                className="site-display font-black uppercase leading-[0.86] text-brand"
+                className="site-display font-black uppercase leading-[0.86] text-[#009C3B]"
                 style={{ letterSpacing: `${theme.titleTracking}em` }}
               >
                 <span className="block text-[4.5rem] sm:text-[6.5rem] lg:text-[9rem]">
@@ -2549,10 +2549,10 @@ function Inicio({
                 </span>
               </h1>
               <div className="mt-3 sm:mt-4">
-                <p className="text-[12px] font-black uppercase tracking-[0.28em] text-[var(--site-accent)] sm:text-[14px]">
+                <p className="text-[12px] font-black uppercase tracking-[0.28em] text-[#002776] sm:text-[14px]">
                   Ed. Especial · Copa 2026
                 </p>
-                <p className="mt-1.5 site-display text-[18px] font-light italic text-brand/80 sm:text-[22px]">
+                <p className="mt-1.5 site-display text-[18px] font-light italic text-[#009C3B] sm:text-[22px]">
                   A Copa que nasceu para a resenha
                 </p>
               </div>
@@ -2563,11 +2563,11 @@ function Inicio({
                 <Button
                   onClick={onJogos}
                   variant="outline"
-                  className="h-10 min-w-36 rounded-none border border-[#174b66] bg-transparent px-6 text-[10px] font-black uppercase text-[#174b66] hover:bg-[#174b66] hover:text-white"
+                  className="h-10 min-w-36 rounded-none border border-[#009C3B] bg-transparent px-6 text-[10px] font-black uppercase text-[#009C3B] hover:bg-[#009C3B] hover:text-white"
                 >
                   Ver jogos
                 </Button>
-                <Button onClick={() => onPalpite()} className="h-10 min-w-36 rounded-none bg-[var(--site-accent)] px-6 text-[10px] font-black uppercase text-white hover:opacity-85">
+                <Button onClick={() => onPalpite()} className="h-10 min-w-36 rounded-none bg-[#FEDF00] px-6 text-[10px] font-black uppercase text-[#002776] hover:opacity-85">
                   Fazer palpite
                 </Button>
               </div>
