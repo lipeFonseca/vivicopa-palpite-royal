@@ -2521,19 +2521,19 @@ function Inicio({
   return (
     <div className="editorial-home">
       <section
-        className={"editorial-hero relative w-full overflow-hidden " + (heroBannerUrl ? "has-image min-h-[300px] sm:min-h-[500px]" : "is-empty min-h-[500px]")}
+        className={"editorial-hero relative w-full overflow-hidden " + (heroBannerUrl ? "has-image min-h-[420px] sm:min-h-[500px]" : "is-empty min-h-[500px]")}
       >
         {heroBannerUrl && (
           <img
             src={heroBannerUrl}
             alt=""
             aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-contain sm:object-cover"
             style={{ objectPosition: `${heroBannerPos.x}% ${heroBannerPos.y}%` }}
           />
         )}
         <div className="editorial-hero-wash absolute inset-0" />
-        <div className="editorial-hero-copy relative z-10 flex flex-col justify-center items-start px-6 py-8 min-h-[300px] sm:min-h-[500px] sm:max-w-[48rem] sm:py-12 sm:px-10 lg:px-12">
+        <div className="editorial-hero-copy relative z-10 flex flex-col justify-center items-start px-6 py-8 min-h-[420px] sm:min-h-[500px] sm:max-w-[48rem] sm:py-12 sm:px-10 lg:px-12">
           <div className="flex items-stretch gap-4 sm:gap-6">
             <div className="w-[5px] sm:w-[7px] flex-shrink-0 bg-[#FEDF00]" />
             <div className="flex flex-col">
