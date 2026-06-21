@@ -42,10 +42,7 @@ function changed(
     return true;
   }
 
-  const next =
-    mode === "full"
-      ? mapFullRow(apiMatch, agora)
-      : mapScheduledRow(apiMatch, agora);
+  const next = mode === "full" ? mapFullRow(apiMatch, agora) : mapScheduledRow(apiMatch, agora);
 
   if (stored.status !== ((next.status as string | null) ?? null)) return true;
   if (stored.placar_a !== ((next.placar_a as number | null) ?? null)) return true;
@@ -123,7 +120,7 @@ Deno.serve(async (req) => {
     const apiTeams = await client.teams(COMP);
 
     const matchRows = (apiMatches as Record<string, unknown>[]).map((m) =>
-      mapScheduledRow(m, agora)
+      mapScheduledRow(m, agora),
     );
     if (matchRows.length) {
       const { error } = await sb.from("partidas").upsert(matchRows);
@@ -160,14 +157,18 @@ Deno.serve(async (req) => {
 
   const { data: stored } = await sb
     .from("partidas")
-    .select("id,status,inicia_em,placar_a,placar_b,minuto,acrescimos,time_a,time_b,ultima_atualizacao_api");
+    .select(
+      "id,status,inicia_em,placar_a,placar_b,minuto,acrescimos,time_a,time_b,ultima_atualizacao_api",
+    );
 
   const rows = (stored ?? []) as StoredRow[];
   const storedById = new Map(rows.map((r) => [r.id, r]));
 
   const liveRows = rows.filter((m) => getPhase(m.status, m.inicia_em, agora) === "live");
   const preMatchRows = rows.filter((m) => getPhase(m.status, m.inicia_em, agora) === "pre_match");
-  const startedPendingRows = rows.filter((m) => getPhase(m.status, m.inicia_em, agora) === "started_pending");
+  const startedPendingRows = rows.filter(
+    (m) => getPhase(m.status, m.inicia_em, agora) === "started_pending",
+  );
 
   // Recently finished (≤6h) with 0-0 score may be API lag — re-consolidate
   const suspiciousRows = rows.filter((m) => {
@@ -192,21 +193,16 @@ Deno.serve(async (req) => {
 
   if (url.searchParams.get("mode") === "fast-live") {
     const espnClient = new EspnClient();
-    const espnLivePairs: { espnId: string; dbId: string }[] = [];
+    const espnSummaryPairs = new Map<string, { espnId: string; dbId: string }>();
 
     // ── Passo 1: ESPN scoreboard → status/placar primário ──────────────────
     try {
       const scoreboardMatches = await espnClient.scoreboard();
 
       const todayStr = new Date(agora).toISOString().slice(0, 10);
-      const todayRows = rows.filter(
-        (r) => r.inicia_em && r.inicia_em.slice(0, 10) === todayStr,
-      );
+      const todayRows = rows.filter((r) => r.inicia_em && r.inicia_em.slice(0, 10) === todayStr);
       const lookup = new Map(
-        todayRows.map((r) => [
-          `${espnNorm(r.time_a ?? "")}|${espnNorm(r.time_b ?? "")}`,
-          r,
-        ]),
+        todayRows.map((r) => [`${espnNorm(r.time_a ?? "")}|${espnNorm(r.time_b ?? "")}`, r]),
       );
 
       const scoreUpserts: Record<string, unknown>[] = [];
@@ -217,8 +213,8 @@ Deno.serve(async (req) => {
         const dbRow = lookup.get(`${espnNorm(m.homeTeamName)}|${espnNorm(m.awayTeamName)}`);
         if (!dbRow) continue;
 
-        if (m.fasePolling === "live") {
-          espnLivePairs.push({ espnId: m.espnId, dbId: dbRow.id });
+        if (m.fasePolling === "live" || m.fasePolling === "post") {
+          espnSummaryPairs.set(dbRow.id, { espnId: m.espnId, dbId: dbRow.id });
         }
 
         if (dbRow.status === "FT" && m.status !== "FT") continue;
@@ -228,7 +224,8 @@ Deno.serve(async (req) => {
           dbRow.placar_a === m.placarA &&
           dbRow.placar_b === m.placarB &&
           dbRow.minuto === m.minuto
-        ) continue;
+        )
+          continue;
 
         scoreUpserts.push({
           id: dbRow.id,
@@ -253,24 +250,26 @@ Deno.serve(async (req) => {
 
     // ── Passo 2: ESPN summary → gols, cartões, escalações, notícias ────────
     let espnDetail = 0;
-    for (const { espnId, dbId } of espnLivePairs) {
+    for (const { espnId, dbId } of espnSummaryPairs.values()) {
       try {
         const sum = await espnClient.summary(espnId);
 
-        await sb.from("partidas").upsert([{
-          id: dbId,
-          espn_id: espnId,
-          gols: sum.gols,
-          cartoes: sum.cartoes,
-          substituicoes: sum.substituicoes,
-          escalacao_a: sum.escalacaoA,
-          escalacao_b: sum.escalacaoB,
-          estatisticas_a: sum.estatisticasA,
-          estatisticas_b: sum.estatisticasB,
-          placar_parcial_a: sum.placarParcialA,
-          placar_parcial_b: sum.placarParcialB,
-          ultima_busca_api: new Date(agora).toISOString(),
-        }]);
+        await sb.from("partidas").upsert([
+          {
+            id: dbId,
+            espn_id: espnId,
+            gols: sum.gols,
+            cartoes: sum.cartoes,
+            substituicoes: sum.substituicoes,
+            escalacao_a: sum.escalacaoA,
+            escalacao_b: sum.escalacaoB,
+            estatisticas_a: sum.estatisticasA,
+            estatisticas_b: sum.estatisticasB,
+            placar_parcial_a: sum.placarParcialA,
+            placar_parcial_b: sum.placarParcialB,
+            ultima_busca_api: new Date(agora).toISOString(),
+          },
+        ]);
         espnDetail++;
 
         // Salva artigo e notícias relacionadas
@@ -278,8 +277,12 @@ Deno.serve(async (req) => {
           sum.artigo ? { ...sum.artigo, partida_id: dbId } : null,
           ...sum.noticias.map((n) => ({ ...n, partida_id: null as string | null })),
         ].filter(Boolean) as Array<{
-          id: string; titulo: string; descricao: string | null;
-          tipo: string; imagemUrl: string | null; publicadoEm: string | null;
+          id: string;
+          titulo: string;
+          descricao: string | null;
+          tipo: string;
+          imagemUrl: string | null;
+          publicadoEm: string | null;
           partida_id: string | null;
         }>;
 
@@ -301,7 +304,7 @@ Deno.serve(async (req) => {
         console.error(`ESPN summary error for ${espnId}:`, (err as Error).message);
         // Fallback: football-data.org para este jogo
         try {
-          const fdMatch = await client.details(dbId) as Record<string, unknown>;
+          const fdMatch = (await client.details(dbId)) as Record<string, unknown>;
           if (fdMatch && changed(fdMatch, agora, storedById.get(dbId), "full")) {
             await sb.from("partidas").upsert([mapFullRow(fdMatch, agora)]);
             summary.live = (summary.live as number) + 1;
@@ -314,12 +317,12 @@ Deno.serve(async (req) => {
     summary.espn_detail = espnDetail;
 
     // ── Passo 3: started_pending não reconhecidos pela ESPN → football-data.org
-    const espnLiveDbIds = new Set(espnLivePairs.map((p) => p.dbId));
+    const espnLiveDbIds = new Set(Array.from(espnSummaryPairs.values(), (p) => p.dbId));
     const pendingMissed = startedPendingRows.filter((r) => !espnLiveDbIds.has(r.id));
     const pendingBudget = Math.max(0, client.info().remaining - 1);
     for (const m of pendingMissed.slice(0, pendingBudget)) {
       try {
-        const match = await client.details(m.id) as Record<string, unknown>;
+        const match = (await client.details(m.id)) as Record<string, unknown>;
         if (match && changed(match, agora, storedById.get(m.id), "full")) {
           await sb.from("partidas").upsert([mapFullRow(match, agora)]);
           summary.started_pending = (summary.started_pending as number) + 1;
@@ -354,8 +357,10 @@ Deno.serve(async (req) => {
   // ── Phase 3: Live matches (single API call covers all) ──────────────────
   if (liveRows.length > 0) {
     try {
-      const liveData = await client.live(COMP) as Record<string, unknown>[];
-      const changedLive = liveData.filter((m) => changed(m, agora, storedById.get(String(m.id)), "full"));
+      const liveData = (await client.live(COMP)) as Record<string, unknown>[];
+      const changedLive = liveData.filter((m) =>
+        changed(m, agora, storedById.get(String(m.id)), "full"),
+      );
       if (changedLive.length) {
         await sb.from("partidas").upsert(changedLive.map((m) => mapFullRow(m, agora)));
         summary.live = changedLive.length;
@@ -374,7 +379,7 @@ Deno.serve(async (req) => {
   const preToFetch = preMatchRows.slice(0, Math.min(preMatchRows.length, budget));
   for (const m of preToFetch) {
     try {
-      const match = await client.lineups(m.id) as Record<string, unknown>;
+      const match = (await client.lineups(m.id)) as Record<string, unknown>;
       if (match && changed(match, agora, storedById.get(String(match.id)), "full")) {
         await sb.from("partidas").upsert([mapFullRow(match, agora)]);
         summary.pre_match = (summary.pre_match as number) + 1;
@@ -387,10 +392,13 @@ Deno.serve(async (req) => {
   // Matches that already started but are still stale in the DB need a forced
   // details refresh so the app can switch from VS to live score immediately.
   const pendingBudget = Math.max(0, client.info().remaining - 2);
-  const pendingToFetch = startedPendingRows.slice(0, Math.min(startedPendingRows.length, pendingBudget));
+  const pendingToFetch = startedPendingRows.slice(
+    0,
+    Math.min(startedPendingRows.length, pendingBudget),
+  );
   for (const m of pendingToFetch) {
     try {
-      const match = await client.details(m.id) as Record<string, unknown>;
+      const match = (await client.details(m.id)) as Record<string, unknown>;
       if (match && changed(match, agora, storedById.get(String(match.id)), "full")) {
         await sb.from("partidas").upsert([mapFullRow(match, agora)]);
         summary.started_pending = (summary.started_pending as number) + 1;
@@ -405,7 +413,7 @@ Deno.serve(async (req) => {
   const suspToFetch = consolidationRows.slice(0, Math.min(consolidationRows.length, reserve));
   for (const m of suspToFetch) {
     try {
-      const match = await client.details(m.id) as Record<string, unknown>;
+      const match = (await client.details(m.id)) as Record<string, unknown>;
       if (match && changed(match, agora, storedById.get(String(match.id)), "full")) {
         await sb.from("partidas").upsert([mapFullRow(match, agora)]);
         summary.suspicious = (summary.suspicious as number) + 1;
@@ -427,12 +435,12 @@ Deno.serve(async (req) => {
     try {
       const from = fmt(new Date(agora - 6 * 3_600_000));
       const to = fmt(addDays(new Date(agora + 18 * 3_600_000), 1));
-      const scheduledData = await client.scheduled(COMP, from, to) as Record<string, unknown>[];
-      const changedScheduled = scheduledData.filter((m) => changed(m, agora, storedById.get(String(m.id)), "scheduled"));
+      const scheduledData = (await client.scheduled(COMP, from, to)) as Record<string, unknown>[];
+      const changedScheduled = scheduledData.filter((m) =>
+        changed(m, agora, storedById.get(String(m.id)), "scheduled"),
+      );
       if (changedScheduled.length) {
-        await sb.from("partidas").upsert(
-          changedScheduled.map((m) => mapScheduledRow(m, agora)),
-        );
+        await sb.from("partidas").upsert(changedScheduled.map((m) => mapScheduledRow(m, agora)));
         summary.scheduled = changedScheduled.length;
       }
       await sb.from("api_sync_state").upsert({
@@ -463,4 +471,3 @@ Deno.serve(async (req) => {
     rateLimit: client.info(),
   });
 });
-

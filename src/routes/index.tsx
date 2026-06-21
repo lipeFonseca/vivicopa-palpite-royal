@@ -63,6 +63,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuthStore, type AuthProfile } from "@/store/authStore";
 import { useConfigStore } from "@/store/configStore";
 import {
+  useEspnBrazilPlayerTotals,
+  usePartidasComPlacarAoVivo,
+  useEspnTournamentScorers,
   useJogosHojeStore,
   usePartidasGrupo,
   usePartidasResultados,
@@ -89,6 +92,12 @@ import { excluirPalpite, type Palpite } from "@/lib/storage";
 import { flagUrl, flagAlt, flagUrlFromFifaCode } from "@/lib/flags";
 import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
 import { getCanonicalTeamName, resolveTeamIdByName } from "@/lib/teamNames";
+import {
+  buildBrazilHighlights,
+  buildTournamentHighlights,
+  buildTournamentHighlightsWithScorers,
+  type HomeHighlightCard,
+} from "@/lib/homeHighlights";
 import {
   applySiteTheme,
   DEFAULT_SITE_THEME,
@@ -399,6 +408,9 @@ function Vivicopa() {
               <TabTrigger value="inicio" icon={<HomeIcon className="h-4 w-4" />}>
                 Início
               </TabTrigger>
+              <TabTrigger value="destaques" icon={<Trophy className="h-4 w-4" />}>
+                Destaques
+              </TabTrigger>
               <TabTrigger value="jogos" icon={<Calendar className="h-4 w-4" />}>
                 Jogos
               </TabTrigger>
@@ -441,6 +453,7 @@ function Vivicopa() {
           mobileNavContent={(close) => {
             const tabs = [
               { value: "inicio", label: "Início", icon: <HomeIcon className="h-4 w-4" /> },
+              { value: "destaques", label: "Destaques", icon: <Trophy className="h-4 w-4" /> },
               { value: "jogos", label: "Jogos", icon: <Calendar className="h-4 w-4" /> },
               {
                 value: "calendario",
@@ -494,10 +507,20 @@ function Vivicopa() {
             <Inicio
               palpites={palpites}
               winningPredictions={winningPredictions}
+              onDestaques={() => setAba("destaques")}
               onJogos={() => setAba("jogos")}
               onPalpite={(jogo) => (jogo ? abrirPalpite(jogo) : setAba("jogos"))}
               onComentarios={abrirComentarios}
             />
+          </TabsContent>
+
+          <TabsContent
+            value="destaques"
+            className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12"
+          >
+            <LazyTabPanel value="destaques" activeTab={aba}>
+              <DestaquesTab />
+            </LazyTabPanel>
           </TabsContent>
 
           <TabsContent value="jogos" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
@@ -1994,6 +2017,91 @@ function TabTrigger({
   );
 }
 
+function HighlightsCardsGrid({
+  highlights,
+  emptyMessage,
+}: {
+  highlights: HomeHighlightCard[];
+  emptyMessage: string;
+}) {
+  if (highlights.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-black/15 bg-white/45 px-4 py-6 text-sm text-muted-foreground">
+        {emptyMessage}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {highlights.map((destaque) => {
+        return (
+          <div
+            key={destaque.id}
+            className="editorial-highlight-card rounded-2xl border border-white/45 bg-white/38 px-4 py-4 shadow-[0_10px_30px_rgba(31,77,53,0.08)] backdrop-blur-md"
+          >
+            <div className="mb-3">
+              <div>
+                <div className="text-[13px] font-black uppercase leading-tight text-foreground">
+                  {destaque.title}
+                </div>
+                <div className="mt-2 h-1.5 w-24 rounded-full bg-[#1f4d35]" />
+              </div>
+            </div>
+
+            <div className="text-lg font-black uppercase text-brand-dark">
+              {getCanonicalTeamName(destaque.subject) || destaque.subject}
+            </div>
+            <div className="mt-1 text-2xl font-black text-[#174b66]">{destaque.value}</div>
+            {destaque.ranking?.length ? (
+              <div className="mt-3 space-y-1.5">
+                {destaque.ranking.map((item, index) => {
+                  const rankingSelecaoId = resolveTeamIdByName(item.teamName) ?? "";
+                  return (
+                    <div
+                      key={`${destaque.id}-${item.label ?? item.teamName}-${item.secondaryLabel ?? ""}-${index}`}
+                      className="flex items-center justify-between rounded-xl border border-white/35 bg-white/28 px-2.5 py-2 backdrop-blur-sm"
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="text-[10px] font-black text-brand-dark">
+                          {item.rank ?? index + 1}º
+                        </span>
+                        {rankingSelecaoId ? (
+                          <img
+                            src={flagUrl(rankingSelecaoId, 80)}
+                            alt={flagAlt(rankingSelecaoId)}
+                            className="h-4 w-6 rounded-sm object-cover shadow-sm"
+                          />
+                        ) : null}
+                        <div className="min-w-0">
+                          <div className="truncate text-[11px] font-black uppercase text-foreground">
+                            {item.label ?? (getCanonicalTeamName(item.teamName) || item.teamName)}
+                          </div>
+                          {item.secondaryLabel ? (
+                            <div className="truncate text-[10px] font-semibold text-muted-foreground">
+                              {getCanonicalTeamName(item.secondaryLabel) || item.secondaryLabel}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-black text-brand-dark">
+                        {item.valueLabel}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+            <div className="mt-2 text-[11px] font-semibold text-muted-foreground">
+              {getCanonicalTeamName(destaque.detail) || destaque.detail}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ---------- HOOK: jogos de hoje + ao vivo via Supabase ----------
 type GoalEvent = {
   minuto: number;
@@ -2668,12 +2776,14 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
 function Inicio({
   palpites,
   winningPredictions,
+  onDestaques,
   onJogos,
   onPalpite,
   onComentarios,
 }: {
   palpites: Palpite[];
   winningPredictions: WinningPrediction[];
+  onDestaques: () => void;
   onJogos: () => void;
   onPalpite: (jogo?: Jogo) => void;
   onComentarios: (jogo: Jogo) => void;
@@ -2714,10 +2824,16 @@ function Inicio({
   }, []);
 
   const { jogosAoVivo: _aoVivo, jogosHoje: _hoje, tituloSecao } = useJogosHojeStore();
+  const { partidas: partidasComPlacarAoVivo } = usePartidasComPlacarAoVivo();
+  const { data: brazilPlayers = [] } = useEspnBrazilPlayerTotals();
   const jogosAoVivo = _aoVivo as PartidaDestaque[];
   const jogosHoje = _hoje as PartidaDestaque[];
   const flagMap = useSelecoesFlagMap();
   const { classificacaoPorGrupo } = useClassificacaoGrupos();
+  const destaquesHome = useMemo(
+    () => buildBrazilHighlights(partidasComPlacarAoVivo, brazilPlayers),
+    [partidasComPlacarAoVivo, brazilPlayers],
+  );
   const jogosHome = useMemo(() => [...jogosAoVivo, ...jogosHoje], [jogosAoVivo, jogosHoje]);
   const partidasPorJogo = useMemo(() => mapearPartidasPorJogos(jogosHome), [jogosHome]);
   const jogoLocalPorPartidaId = useMemo(() => {
@@ -2812,34 +2928,53 @@ function Inicio({
       <section className="editorial-section paper-surface px-5 py-5 sm:px-8 lg:px-7">
         <div className="mb-3 flex items-end justify-between border-b border-black/25 pb-2">
           <h2 className="site-section-title text-base font-black uppercase text-foreground">
-            Destaques
+            Brasil em Destaque
           </h2>
           <button
             type="button"
-            onClick={onJogos}
+            onClick={onDestaques}
             className="text-xs font-black uppercase text-brand"
           >
             Ver todos
           </button>
         </div>
         <div className="grid grid-cols-1 gap-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {PAISES_SEDE.map((p) => (
-              <div
-                key={p.id}
-                className="editorial-highlight-card border border-black/8 px-4 py-3 text-center"
-              >
-                <img
-                  src={flagUrl(p.id, 160)}
-                  alt={flagAlt(p.id)}
-                  className="mx-auto h-10 w-16 object-cover shadow-sm"
-                />
-                <div className="mt-2 text-[11px] font-black uppercase">{p.nome}</div>
-                <span className="mt-1.5 inline-block bg-[#174b66] px-3 py-1 text-[8px] font-black uppercase text-white">
-                  Anfitrião
-                </span>
+          <HighlightsCardsGrid
+            highlights={destaquesHome}
+            emptyMessage="As informações do Brasil aparecerão aqui assim que a ESPN e as partidas sincronizadas tiverem estatísticas suficientes."
+          />
+
+          <div className="rounded-xl border border-black/8 bg-white/55 px-4 py-4">
+            <div className="mb-3 flex items-center justify-between border-b border-black/10 pb-2">
+              <div>
+                <div className="text-[9px] font-black uppercase tracking-[0.12em] text-brand">
+                  Seleção especial
+                </div>
+                <h3 className="text-sm font-black uppercase text-foreground">Anfitriões</h3>
               </div>
-            ))}
+              <span className="text-[9px] font-bold uppercase text-muted-foreground">
+                Copa 2026
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              {PAISES_SEDE.map((p) => (
+                <div
+                  key={p.id}
+                  className="editorial-highlight-card border border-black/8 px-4 py-3 text-center"
+                >
+                  <img
+                    src={flagUrl(p.id, 160)}
+                    alt={flagAlt(p.id)}
+                    className="mx-auto h-10 w-16 object-cover shadow-sm"
+                  />
+                  <div className="mt-2 text-[11px] font-black uppercase">{p.nome}</div>
+                  <span className="mt-1.5 inline-block bg-[#174b66] px-3 py-1 text-[8px] font-black uppercase text-white">
+                    Anfitrião
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
 
           <button
@@ -3317,6 +3452,34 @@ type EntradaClassificacao = {
   sg: number;
   pts: number;
 };
+
+function DestaquesTab() {
+  const { partidas: partidasComPlacarAoVivo } = usePartidasComPlacarAoVivo();
+  const { data: scorerRanking = [] } = useEspnTournamentScorers();
+  const destaques = useMemo(
+    () => buildTournamentHighlightsWithScorers(partidasComPlacarAoVivo, scorerRanking),
+    [partidasComPlacarAoVivo, scorerRanking],
+  );
+
+  return (
+    <section className="editorial-section paper-surface px-5 py-5 sm:px-8 lg:px-7">
+      <div className="mb-4 flex items-end justify-between border-b border-black/25 pb-2">
+        <div>
+          <h2 className="site-section-title text-base font-black uppercase text-foreground">
+            Destaques do Torneio
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Rankings ao vivo com gols, posse, disciplina e finalizações.
+          </p>
+        </div>
+      </div>
+      <HighlightsCardsGrid
+        highlights={destaques}
+        emptyMessage="Os destaques do torneio aparecerão aqui assim que a ESPN e as partidas sincronizadas tiverem estatísticas suficientes."
+      />
+    </section>
+  );
+}
 
 function useClassificacaoGrupos() {
   const partidasGrupo = usePartidasGrupo();
