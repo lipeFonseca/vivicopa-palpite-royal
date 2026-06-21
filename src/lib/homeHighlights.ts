@@ -459,10 +459,10 @@ export function buildBrazilHighlights(
     },
     {
       id: "brazil-shots-on-target",
-      title: "Chutes no gol do Brasil",
+      title: "Chutes do Brasil na Copa",
       subject: teamName,
-      value: formatCount(totals.shotsOnTarget, "chute", "chutes"),
-      detail: "Finalizacoes no alvo somadas",
+      value: formatCount(totals.shotsTotal, "chute", "chutes"),
+      detail: "Total de chutes do Brasil nas partidas com estatisticas",
       teamName,
     },
     {
