@@ -8,6 +8,7 @@ export interface ComentarioJogo {
   mensagem: string;
   parentId: string | null;
   dataCriacao: string;
+  dataEdicao: string | null;
   curtidasCount: number;
   respostasCount: number;
   curtidoPorMim: boolean;
@@ -37,6 +38,7 @@ function dbRowToComentario(row: Record<string, unknown>): ComentarioJogo {
     mensagem: row.mensagem as string,
     parentId: (row.parent_id as string | null) ?? null,
     dataCriacao: row.criado_em as string,
+    dataEdicao: (row.editado_em as string | null) ?? null,
     curtidasCount: Number(row.curtidas_count ?? 0),
     respostasCount: Number(row.respostas_count ?? 0),
     curtidoPorMim: Boolean(row.curtido_por_mim),
@@ -64,12 +66,18 @@ export async function salvarComentario(
   if (error) throw error;
 }
 
-export async function excluirComentario(id: string, userId: string): Promise<void> {
-  const { error } = await supabase
-    .from("comentarios_jogo" as never)
-    .delete()
-    .eq("id", id)
-    .eq("usuario_id", userId);
+export async function excluirComentario(id: string): Promise<void> {
+  const { error } = await supabase.rpc("excluir_comentario_jogo", {
+    alvo_id: id,
+  });
+  if (error) throw error;
+}
+
+export async function editarComentario(id: string, mensagem: string): Promise<void> {
+  const { error } = await supabase.rpc("editar_comentario_jogo", {
+    alvo_id: id,
+    nova_mensagem: mensagem,
+  });
   if (error) throw error;
 }
 

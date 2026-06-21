@@ -37,6 +37,7 @@ export type Database = {
       comentarios_jogo: {
         Row: {
           criado_em: string;
+          editado_em: string | null;
           id: string;
           jogo_id: string;
           mensagem: string;
@@ -46,6 +47,7 @@ export type Database = {
         };
         Insert: {
           criado_em?: string;
+          editado_em?: string | null;
           id?: string;
           jogo_id: string;
           mensagem: string;
@@ -55,6 +57,7 @@ export type Database = {
         };
         Update: {
           criado_em?: string;
+          editado_em?: string | null;
           id?: string;
           jogo_id?: string;
           mensagem?: string;
@@ -356,12 +359,35 @@ export type Database = {
       };
     };
     Functions: {
+      editar_comentario_jogo: {
+        Args: {
+          alvo_id: string;
+          nova_mensagem: string;
+        };
+        Returns: {
+          criado_em: string;
+          editado_em: string | null;
+          id: string;
+          jogo_id: string;
+          mensagem: string;
+          parent_id: string | null;
+          usuario_id: string;
+          usuario_nome: string;
+        };
+      };
+      excluir_comentario_jogo: {
+        Args: {
+          alvo_id: string;
+        };
+        Returns: undefined;
+      };
       listar_comentarios_jogo: {
         Args: Record<PropertyKey, never>;
         Returns: {
           criado_em: string;
           curtidas_count: number;
           curtido_por_mim: boolean;
+          editado_em: string | null;
           id: string;
           jogo_id: string;
           mensagem: string;

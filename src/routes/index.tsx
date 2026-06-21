@@ -39,6 +39,7 @@ import {
   Save,
   Trash2,
   Loader2,
+  Pencil,
   ChevronDown,
   Bell,
   CheckCheck,
@@ -89,6 +90,7 @@ import {
 import { excluirPalpite, type Palpite } from "@/lib/storage";
 import {
   alternarCurtidaComentario,
+  editarComentario,
   excluirComentario,
   marcarNotificacoesRespostaComoLidas,
   salvarComentario,
@@ -663,6 +665,7 @@ function Vivicopa() {
               jogo={comentariosJogo}
               comentarios={comentarios}
               userId={authProfile.id}
+              userRole={authProfile.role}
               username={authProfile.username}
               onSaved={atualizarComentariosENotificacoes}
             />
@@ -4662,16 +4665,190 @@ function ComentariosTab({ comentarios }: { comentarios: ComentarioJogo[] }) {
   );
 }
 
+function CommentThreadItem({
+  comentario,
+  childrenMap,
+  userId,
+  userRole,
+  onReply,
+  onToggleLike,
+  onDelete,
+  onEdit,
+  loadingCommentId,
+}: {
+  comentario: ComentarioJogo;
+  childrenMap: Map<string, ComentarioJogo[]>;
+  userId: string;
+  userRole: AuthProfile["role"];
+  onReply: (comentario: ComentarioJogo) => void;
+  onToggleLike: (comentario: ComentarioJogo) => Promise<void>;
+  onDelete: (comentario: ComentarioJogo) => Promise<void>;
+  onEdit: (comentario: ComentarioJogo, mensagem: string) => Promise<void>;
+  loadingCommentId: string | null;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [mensagemEdicao, setMensagemEdicao] = useState(comentario.mensagem);
+  const respostas = childrenMap.get(comentario.id) ?? [];
+  const podeGerenciar = comentario.usuarioId === userId || userRole === "admin";
+  const podeExcluir = podeGerenciar && comentario.respostasCount === 0;
+
+  useEffect(() => {
+    setMensagemEdicao(comentario.mensagem);
+  }, [comentario.mensagem]);
+
+  const salvarEdicao = async () => {
+    const conteudo = mensagemEdicao.trim();
+    if (!conteudo || conteudo === comentario.mensagem) {
+      setEditando(false);
+      setMensagemEdicao(comentario.mensagem);
+      return;
+    }
+
+    try {
+      await onEdit(comentario, conteudo);
+      setEditando(false);
+    } catch {
+      // O toast ja e exibido pelo manipulador pai.
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="flex justify-between gap-3 text-xs">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="font-semibold text-brand-dark">{comentario.usuario}</span>
+          {comentario.dataEdicao && (
+            <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[10px] font-bold text-brand">
+              editado
+            </span>
+          )}
+        </div>
+        <span className="text-right text-muted-foreground">
+          {new Date(comentario.dataCriacao).toLocaleString("pt-BR")}
+        </span>
+      </div>
+
+      {editando ? (
+        <div className="mt-2 space-y-2">
+          <Textarea
+            value={mensagemEdicao}
+            onChange={(e) => setMensagemEdicao(e.target.value)}
+            rows={3}
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-xs"
+              onClick={() => {
+                setEditando(false);
+                setMensagemEdicao(comentario.mensagem);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 gap-1 bg-gradient-brand px-2 text-xs text-white hover:opacity-90"
+              disabled={loadingCommentId === comentario.id || !mensagemEdicao.trim()}
+              onClick={() => void salvarEdicao()}
+            >
+              <Save className="h-3.5 w-3.5" />
+              Salvar
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-1 text-sm italic">"{comentario.mensagem}"</div>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant={comentario.curtidoPorMim ? "secondary" : "ghost"}
+          className="h-8 gap-1 px-2 text-xs"
+          disabled={loadingCommentId === comentario.id}
+          onClick={() => void onToggleLike(comentario)}
+        >
+          <Heart className={`h-3.5 w-3.5 ${comentario.curtidoPorMim ? "fill-current" : ""}`} />
+          {comentario.curtidasCount}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-8 gap-1 px-2 text-xs"
+          onClick={() => onReply(comentario)}
+        >
+          <Reply className="h-3.5 w-3.5" />
+          Responder
+        </Button>
+        {podeGerenciar && !editando && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-8 gap-1 px-2 text-xs"
+            onClick={() => setEditando(true)}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Editar
+          </Button>
+        )}
+        <span className="text-xs text-muted-foreground">
+          {comentario.respostasCount} resposta{comentario.respostasCount === 1 ? "" : "s"}
+        </span>
+        {podeExcluir && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="ml-auto h-7 px-2 text-xs text-muted-foreground"
+            disabled={loadingCommentId === comentario.id}
+            onClick={() => void onDelete(comentario)}
+          >
+            Excluir
+          </Button>
+        )}
+      </div>
+
+      {respostas.length > 0 && (
+        <div className="mt-3 space-y-2 border-l-2 border-brand/20 pl-3">
+          {respostas.map((resposta) => (
+            <CommentThreadItem
+              key={resposta.id}
+              comentario={resposta}
+              childrenMap={childrenMap}
+              userId={userId}
+              userRole={userRole}
+              onReply={onReply}
+              onToggleLike={onToggleLike}
+              onDelete={onDelete}
+              onEdit={onEdit}
+              loadingCommentId={loadingCommentId}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ComentariosJogo({
   jogo,
   comentarios,
   userId,
+  userRole,
   username,
   onSaved,
 }: {
   jogo: Jogo;
   comentarios: ComentarioJogo[];
   userId: string;
+  userRole: AuthProfile["role"];
   username: string;
   onSaved: () => void | Promise<void>;
 }) {
@@ -4683,7 +4860,7 @@ function ComentariosJogo({
     () => comentarios.filter((comentario) => comentario.jogoId === jogo.id),
     [comentarios, jogo.id],
   );
-  const respostasPorPai = useMemo(() => {
+  const childrenMap = useMemo(() => {
     const mapa = new Map<string, ComentarioJogo[]>();
     lista
       .filter((comentario) => comentario.parentId != null)
@@ -4746,9 +4923,9 @@ function ComentariosJogo({
       );
       setMensagem("");
       setRespondendoA(null);
-      onSaved();
+      await onSaved();
     } catch {
-      toast.error("Erro ao enviar comentário. Tente novamente.");
+      toast.error("Erro ao enviar comentario. Tente novamente.");
     } finally {
       setEnviando(false);
     }
@@ -4757,7 +4934,7 @@ function ComentariosJogo({
   const excluirComentarioSeguro = async (comentario: ComentarioJogo) => {
     setComentarioCarregandoId(comentario.id);
     try {
-      await excluirComentario(comentario.id, userId);
+      await excluirComentario(comentario.id);
       await onSaved();
     } catch {
       toast.error("Nao foi possivel excluir o comentario.");
@@ -4778,8 +4955,18 @@ function ComentariosJogo({
     }
   };
 
-  const podeExcluirComentario = (comentario: ComentarioJogo) =>
-    comentario.usuarioId === userId && comentario.respostasCount === 0;
+  const editarComentarioSeguro = async (comentario: ComentarioJogo, novaMensagem: string) => {
+    setComentarioCarregandoId(comentario.id);
+    try {
+      await editarComentario(comentario.id, novaMensagem);
+      await onSaved();
+    } catch {
+      toast.error("Nao foi possivel editar o comentario.");
+      throw new Error("Falha ao editar comentario");
+    } finally {
+      setComentarioCarregandoId(null);
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -4842,106 +5029,20 @@ function ComentariosJogo({
       {comentariosPrincipais.length === 0 && (
         <div className="py-6 text-center text-muted-foreground">Sem comentarios ainda.</div>
       )}
-      {comentariosPrincipais.map((comentario) => {
-        const respostas = respostasPorPai.get(comentario.id) ?? [];
-        return (
-          <div key={comentario.id} className="rounded-lg border border-border p-3">
-            <div className="flex justify-between gap-3 text-xs">
-              <span className="font-semibold text-brand-dark">{comentario.usuario}</span>
-              <span className="text-right text-muted-foreground">
-                {new Date(comentario.dataCriacao).toLocaleString("pt-BR")}
-              </span>
-            </div>
-            <div className="mt-1 text-sm italic">"{comentario.mensagem}"</div>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant={comentario.curtidoPorMim ? "secondary" : "ghost"}
-                className="h-8 gap-1 px-2 text-xs"
-                disabled={comentarioCarregandoId === comentario.id}
-                onClick={() => void curtirComentario(comentario)}
-              >
-                <Heart
-                  className={`h-3.5 w-3.5 ${comentario.curtidoPorMim ? "fill-current" : ""}`}
-                />
-                {comentario.curtidasCount}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-8 gap-1 px-2 text-xs"
-                onClick={() => setRespondendoA(comentario)}
-              >
-                <Reply className="h-3.5 w-3.5" />
-                Responder
-              </Button>
-              <span className="text-xs text-muted-foreground">
-                {comentario.respostasCount} resposta{comentario.respostasCount === 1 ? "" : "s"}
-              </span>
-              {podeExcluirComentario(comentario) && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="ml-auto h-7 px-2 text-xs text-muted-foreground"
-                  disabled={comentarioCarregandoId === comentario.id}
-                  onClick={() => void excluirComentarioSeguro(comentario)}
-                >
-                  Excluir
-                </Button>
-              )}
-            </div>
-
-            {respostas.length > 0 && (
-              <div className="mt-3 space-y-2 border-l-2 border-brand/20 pl-3">
-                {respostas.map((resposta) => (
-                  <div
-                    key={resposta.id}
-                    className="rounded-lg border border-border/70 bg-brand-soft/20 p-3"
-                  >
-                    <div className="flex justify-between gap-3 text-xs">
-                      <span className="font-semibold text-brand-dark">{resposta.usuario}</span>
-                      <span className="text-right text-muted-foreground">
-                        {new Date(resposta.dataCriacao).toLocaleString("pt-BR")}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-sm">"{resposta.mensagem}"</div>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={resposta.curtidoPorMim ? "secondary" : "ghost"}
-                        className="h-8 gap-1 px-2 text-xs"
-                        disabled={comentarioCarregandoId === resposta.id}
-                        onClick={() => void curtirComentario(resposta)}
-                      >
-                        <Heart
-                          className={`h-3.5 w-3.5 ${resposta.curtidoPorMim ? "fill-current" : ""}`}
-                        />
-                        {resposta.curtidasCount}
-                      </Button>
-                      {podeExcluirComentario(resposta) && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="ml-auto h-7 px-2 text-xs text-muted-foreground"
-                          disabled={comentarioCarregandoId === resposta.id}
-                          onClick={() => void excluirComentarioSeguro(resposta)}
-                        >
-                          Excluir
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {comentariosPrincipais.map((comentario) => (
+        <CommentThreadItem
+          key={comentario.id}
+          comentario={comentario}
+          childrenMap={childrenMap}
+          userId={userId}
+          userRole={userRole}
+          onReply={setRespondendoA}
+          onToggleLike={curtirComentario}
+          onDelete={excluirComentarioSeguro}
+          onEdit={editarComentarioSeguro}
+          loadingCommentId={comentarioCarregandoId}
+        />
+      ))}
     </div>
   );
 }
