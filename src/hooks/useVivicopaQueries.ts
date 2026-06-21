@@ -1,13 +1,24 @@
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { carregarComentarios, type ComentarioJogo } from "@/lib/comments";
+import {
+  carregarComentarios,
+  carregarNotificacoesRespostaComentario,
+  type ComentarioJogo,
+  type NotificacaoRespostaComentario,
+} from "@/lib/comments";
 import { carregarPalpites, type Palpite } from "@/lib/storage";
-import { getWinningPredictions, getAllPalpitesAdmin, type WinningPrediction, type AdminPalpite } from "@/lib/api/winning-predictions.functions";
+import {
+  getWinningPredictions,
+  getAllPalpitesAdmin,
+  type WinningPrediction,
+  type AdminPalpite,
+} from "@/lib/api/winning-predictions.functions";
 
 export type { WinningPrediction, AdminPalpite };
 
 export const vivicopaQueryKeys = {
   comentarios: ["comentarios-jogo"] as const,
+  notificacoesRespostaComentario: ["notificacoes-resposta-comentario"] as const,
   meusPalpites: (userId: string) => ["meus-palpites", userId] as const,
   winningPredictions: ["winning-predictions"] as const,
   allPalpitesAdmin: ["all-palpites-admin"] as const,
@@ -81,11 +92,22 @@ export type CronMonitorPayload = {
   } | null;
 };
 
-export function useComentariosQuery() {
+export function useComentariosQuery(enabled = true) {
   return useQuery<ComentarioJogo[]>({
     queryKey: vivicopaQueryKeys.comentarios,
     queryFn: carregarComentarios,
+    enabled,
     staleTime: 2 * 60 * 1000,
+  });
+}
+
+export function useCommentReplyNotificationsQuery(enabled = true) {
+  return useQuery<NotificacaoRespostaComentario[]>({
+    queryKey: vivicopaQueryKeys.notificacoesRespostaComentario,
+    queryFn: () => carregarNotificacoesRespostaComentario(30),
+    enabled,
+    staleTime: 15 * 1000,
+    refetchInterval: 30 * 1000,
   });
 }
 
@@ -125,7 +147,7 @@ export function useManagedUsersQuery(enabled = true) {
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("manage-users", { method: "GET" });
       if (error) throw error;
-      return ((data as { users?: ManagedUser[] } | null)?.users ?? []);
+      return (data as { users?: ManagedUser[] } | null)?.users ?? [];
     },
     enabled,
     staleTime: 5 * 60 * 1000,
@@ -187,7 +209,7 @@ export function useCopaRankingQuery() {
         .order("pontos", { ascending: false });
       if (error) throw error;
 
-      const rows = ((data ?? []) as unknown) as CopaRankingRow[];
+      const rows = (data ?? []) as unknown as CopaRankingRow[];
       const ids = rows.map((row) => row.usuario_id);
       const nomes: Record<string, string> = {};
 
@@ -197,7 +219,15 @@ export function useCopaRankingQuery() {
           .select("id, nome, full_name, display_name, email")
           .in("id" as never, ids as never);
 
-        ((perfis ?? []) as any[]).forEach((perfil) => {
+        (
+          (perfis ?? []) as Array<{
+            id: string;
+            nome?: string | null;
+            full_name?: string | null;
+            display_name?: string | null;
+            email?: string | null;
+          }>
+        ).forEach((perfil) => {
           nomes[perfil.id] =
             perfil.nome ??
             perfil.full_name ??

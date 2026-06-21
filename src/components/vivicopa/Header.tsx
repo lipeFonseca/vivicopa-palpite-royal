@@ -11,12 +11,21 @@ type HeaderProps = {
   navigation: ReactNode;
   mobileNavContent?: (close: () => void) => ReactNode;
   mobileCenter?: ReactNode;
+  actions?: ReactNode;
   username: string;
   role: "admin" | "user";
   onLogout: () => void | Promise<void>;
 };
 
-export function Header({ navigation, mobileNavContent, mobileCenter, username, role, onLogout }: HeaderProps) {
+export function Header({
+  navigation,
+  mobileNavContent,
+  mobileCenter,
+  actions,
+  username,
+  role,
+  onLogout,
+}: HeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState(() =>
     typeof window !== "undefined" ? (localStorage.getItem(LOGO_URL_KEY) ?? "") : "",
@@ -87,6 +96,7 @@ export function Header({ navigation, mobileNavContent, mobileCenter, username, r
         </div>
 
         <div className="site-user-wrap flex items-center justify-end gap-3">
+          {actions}
           {mobileNavContent && (
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
