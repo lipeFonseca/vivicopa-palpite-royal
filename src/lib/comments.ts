@@ -54,16 +54,26 @@ export async function carregarComentarios(): Promise<ComentarioJogo[]> {
 export async function salvarComentario(
   comentario: Pick<ComentarioJogo, "id" | "usuario" | "jogoId" | "mensagem" | "parentId">,
   userId: string,
-): Promise<void> {
-  const { error } = await supabase.from("comentarios_jogo" as never).insert({
-    id: comentario.id,
-    usuario_id: userId,
-    usuario_nome: comentario.usuario,
-    jogo_id: comentario.jogoId,
-    mensagem: comentario.mensagem,
-    parent_id: comentario.parentId,
-  } as never);
+): Promise<ComentarioJogo> {
+  const { data, error } = await supabase
+    .from("comentarios_jogo" as never)
+    .insert({
+      id: comentario.id,
+      usuario_id: userId,
+      usuario_nome: comentario.usuario,
+      jogo_id: comentario.jogoId,
+      mensagem: comentario.mensagem,
+      parent_id: comentario.parentId,
+    } as never)
+    .select("id, usuario_id, usuario_nome, jogo_id, mensagem, parent_id, criado_em, editado_em")
+    .single();
   if (error) throw error;
+  return dbRowToComentario({
+    ...(data as Record<string, unknown>),
+    curtidas_count: 0,
+    respostas_count: 0,
+    curtido_por_mim: false,
+  });
 }
 
 export async function excluirComentario(id: string): Promise<void> {
@@ -73,12 +83,18 @@ export async function excluirComentario(id: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function editarComentario(id: string, mensagem: string): Promise<void> {
-  const { error } = await supabase.rpc("editar_comentario_jogo", {
+export async function editarComentario(id: string, mensagem: string): Promise<ComentarioJogo> {
+  const { data, error } = await supabase.rpc("editar_comentario_jogo", {
     alvo_id: id,
     nova_mensagem: mensagem,
   });
   if (error) throw error;
+  return dbRowToComentario({
+    ...(data as Record<string, unknown>),
+    curtidas_count: 0,
+    respostas_count: 0,
+    curtido_por_mim: false,
+  });
 }
 
 export async function alternarCurtidaComentario(
