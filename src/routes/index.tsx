@@ -1911,7 +1911,7 @@ function AdminTab() {
                       Ver jogos
                     </span>
                     <span className="bg-[var(--site-accent)] px-2 py-1 text-[9px] font-bold uppercase text-white">
-                      Fazer palpite
+                      Palpitar
                     </span>
                   </div>
                 </div>
@@ -2985,9 +2985,9 @@ function Inicio({
                 <Button
                   onClick={() => onPalpite()}
                   variant="outline"
-                  className="h-10 min-w-36 rounded-none border border-[var(--site-accent)] bg-transparent px-6 text-[10px] font-black uppercase text-[var(--site-accent)] hover:bg-[var(--site-accent)] hover:text-white"
+                  className="h-10 min-w-36 rounded-none border border-[var(--site-accent)] bg-[var(--site-accent)] px-6 text-[10px] font-black uppercase text-white hover:opacity-90"
                 >
-                  Fazer palpite
+                  Palpitar
                 </Button>
               </div>
             </div>
