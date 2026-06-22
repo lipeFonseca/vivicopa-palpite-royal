@@ -123,6 +123,7 @@ const HEADER_BANNER_KEY = "vivicopa:header-banner-url";
 const HERO_BANNER_KEY = "vivicopa:hero-banner-url";
 const HERO_BANNER_POS_KEY = "vivicopa:hero-banner-pos";
 const HERO_WASH_KEY = "vivicopa:hero-wash-intensity";
+const HERO_WASH_WIDTH_KEY = "vivicopa:hero-wash-width";
 const HOME_SECONDARY_POS_KEY = "vivicopa:home-secondary-pos";
 const FAVICON_URL_KEY = "vivicopa:favicon-url";
 const LOGIN_BACKGROUND_KEY = "vivicopa:login-background-url";
@@ -136,6 +137,9 @@ const posCSS = (s: string) => {
   const p = parsePos(s);
   return `${p.x}% ${p.y}%`;
 };
+const washGradient = (width: number) =>
+  `linear-gradient(90deg, var(--site-surface) 0%, color-mix(in srgb, var(--site-surface) 75%, transparent) ${Math.round(width * 0.5)}%, color-mix(in srgb, var(--site-surface) 22%, transparent) ${Math.round(width * 0.8)}%, transparent ${width}%)`;
+
 // Polling centralizado no usePartidasStore — não usar aqui
 
 const PAISES_SEDE = [
@@ -206,6 +210,7 @@ function applyConfigToLocalStorage(cfg: Record<string, string>) {
   }
   if (cfg.hero_banner_position) localStorage.setItem(HERO_BANNER_POS_KEY, cfg.hero_banner_position);
   if (cfg.hero_wash_intensity !== undefined) localStorage.setItem(HERO_WASH_KEY, String(cfg.hero_wash_intensity));
+  if (cfg.hero_wash_width !== undefined) localStorage.setItem(HERO_WASH_WIDTH_KEY, String(cfg.hero_wash_width));
   if (cfg.home_secondary_image_position)
     localStorage.setItem(HOME_SECONDARY_POS_KEY, cfg.home_secondary_image_position);
   if (cfg.favicon_url !== undefined) {
@@ -989,6 +994,9 @@ function AdminTab() {
   const [heroWashIntensity, setHeroWashIntensity] = useState(
     () => Number(localStorage.getItem(HERO_WASH_KEY) ?? 75),
   );
+  const [heroWashWidth, setHeroWashWidth] = useState(
+    () => Number(localStorage.getItem(HERO_WASH_WIDTH_KEY) ?? 50),
+  );
   const [homeSecondaryPos, setHomeSecondaryPos] = useState(() =>
     parsePos(localStorage.getItem(HOME_SECONDARY_POS_KEY) ?? ""),
   );
@@ -1108,6 +1116,7 @@ function AdminTab() {
         atualizado_em: new Date().toISOString(),
       },
       { chave: "hero_wash_intensity", valor: String(heroWashIntensity), atualizado_em: new Date().toISOString() },
+      { chave: "hero_wash_width", valor: String(heroWashWidth), atualizado_em: new Date().toISOString() },
       {
         chave: "home_secondary_image_position",
         valor: formatPos(homeSecondaryPos.x, homeSecondaryPos.y),
@@ -1160,6 +1169,7 @@ function AdminTab() {
     else localStorage.removeItem(HERO_BANNER_KEY);
     localStorage.setItem(HERO_BANNER_POS_KEY, formatPos(heroBannerPos.x, heroBannerPos.y));
     localStorage.setItem(HERO_WASH_KEY, String(heroWashIntensity));
+    localStorage.setItem(HERO_WASH_WIDTH_KEY, String(heroWashWidth));
     localStorage.setItem(HOME_SECONDARY_POS_KEY, formatPos(homeSecondaryPos.x, homeSecondaryPos.y));
     if (faviconUrl) localStorage.setItem(FAVICON_URL_KEY, faviconUrl);
     else localStorage.removeItem(FAVICON_URL_KEY);
@@ -1893,8 +1903,7 @@ function AdminTab() {
                 <div
                   className="absolute inset-0"
                   style={{
-                    background:
-                      "linear-gradient(90deg, rgba(238,233,220,0.96) 0%, rgba(238,233,220,0.88) 12%, rgba(238,233,220,0.50) 22%, rgba(238,233,220,0.08) 30%, transparent 38%)",
+                    background: washGradient(heroWashWidth),
                     opacity: heroWashIntensity / 100,
                   }}
                 />
@@ -1964,6 +1973,27 @@ function AdminTab() {
                     <span>Topo</span>
                     <span>Base</span>
                   </div>
+                </div>
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs font-semibold">
+                  <span>Alcance da névoa</span>
+                  <span className="text-brand">{heroWashWidth}%</span>
+                </div>
+                <Slider
+                  min={10}
+                  max={100}
+                  step={1}
+                  value={[heroWashWidth]}
+                  onValueChange={([v]) => {
+                    setHeroWashWidth(v);
+                    localStorage.setItem(HERO_WASH_WIDTH_KEY, String(v));
+                    window.dispatchEvent(new Event("vivicopa:logo-changed"));
+                  }}
+                />
+                <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
+                  <span>Mais curta</span>
+                  <span>Tela toda</span>
                 </div>
               </div>
               <div>
@@ -2857,6 +2887,9 @@ function Inicio({
   const [heroWashIntensityDisplay, setHeroWashIntensityDisplay] = useState(() =>
     typeof window !== "undefined" ? Number(localStorage.getItem(HERO_WASH_KEY) ?? 75) : 75,
   );
+  const [heroWashWidthDisplay, setHeroWashWidthDisplay] = useState(() =>
+    typeof window !== "undefined" ? Number(localStorage.getItem(HERO_WASH_WIDTH_KEY) ?? 50) : 50,
+  );
   const [theme, setTheme] = useState(readSiteTheme);
   const [classificacaoAberta, setClassificacaoAberta] = useState(false);
 
@@ -2867,6 +2900,7 @@ function Inicio({
       setSecondaryImage(localStorage.getItem(HOME_SECONDARY_IMAGE_KEY) ?? "");
       setSecondaryPos(parsePos(localStorage.getItem(HOME_SECONDARY_POS_KEY) ?? ""));
       setHeroWashIntensityDisplay(Number(localStorage.getItem(HERO_WASH_KEY) ?? 75));
+      setHeroWashWidthDisplay(Number(localStorage.getItem(HERO_WASH_WIDTH_KEY) ?? 50));
     };
     const syncTheme = () => setTheme(readSiteTheme());
     window.addEventListener("vivicopa:logo-changed", syncBrand);
@@ -2946,7 +2980,7 @@ function Inicio({
         )}
         <div
           className="editorial-hero-wash absolute inset-0"
-          style={{ opacity: heroWashIntensityDisplay / 100 }}
+          style={{ opacity: heroWashIntensityDisplay / 100, background: washGradient(heroWashWidthDisplay) }}
         />
         <div className="editorial-hero-copy relative z-10 flex flex-col justify-center items-start px-6 py-8 min-h-[420px] sm:min-h-[500px] sm:max-w-[48rem] sm:py-12 sm:px-10 lg:px-12">
           <div className="flex items-stretch gap-4 sm:gap-6">

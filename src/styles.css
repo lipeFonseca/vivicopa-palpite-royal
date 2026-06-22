@@ -266,14 +266,7 @@
 }
 
 .editorial-hero-wash {
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--site-surface) 98%, transparent) 0%,
-    color-mix(in srgb, var(--site-surface) 90%, transparent) 12%,
-    color-mix(in srgb, var(--site-surface) 52%, transparent) 22%,
-    color-mix(in srgb, var(--site-surface) 10%, transparent) 30%,
-    transparent 38%
-  );
+  /* gradient applied dynamically via inline style from washGradient() */
 }
 
 .editorial-hero.has-image::after,
@@ -415,17 +408,6 @@
       color-mix(in srgb, var(--site-surface) 96%, transparent) 0%,
       color-mix(in srgb, var(--site-surface) 90%, transparent) 58%,
       color-mix(in srgb, var(--site-surface) 45%, transparent) 100%
-    );
-  }
-
-  /* Mobile: diagonal wash — efeito editorial sem bleachar toda a imagem */
-  .editorial-hero.has-image .editorial-hero-wash {
-    background: linear-gradient(
-      155deg,
-      color-mix(in srgb, var(--site-surface) 88%, transparent) 0%,
-      color-mix(in srgb, var(--site-surface) 55%, transparent) 28%,
-      color-mix(in srgb, var(--site-surface) 12%, transparent) 45%,
-      transparent 60%
     );
   }
 
