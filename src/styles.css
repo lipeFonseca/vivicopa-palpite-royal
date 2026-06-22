@@ -149,7 +149,7 @@
 }
 
 .site-header-inner {
-  grid-template-columns: minmax(90px, auto) minmax(0, 1fr) minmax(48px, auto);
+  grid-template-columns: minmax(90px, 300px) minmax(0, 1fr) minmax(48px, auto);
 }
 
 .site-brand-mark {
