@@ -91,7 +91,7 @@ export function Header({
           {mobileCenter && <div className="flex-1">{mobileCenter}</div>}
         </div>
 
-        <div className="site-header-navigation min-w-0 pl-8 lg:pl-14">
+        <div className="site-header-navigation min-w-0 pl-3 lg:pl-6">
           <div className="hidden sm:block">{navigation}</div>
         </div>
 
