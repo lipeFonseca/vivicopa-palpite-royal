@@ -3207,6 +3207,9 @@ function mapearPartidasPorJogos<
   const usadosPorSlot = new Map<string, number>();
   const map = new Map<string, T>();
   const naoMapeadas: T[] = [];
+  const jogoTimestamp = (jogo: Jogo) => new Date(`${jogo.data}T${jogo.hora}:00-03:00`).getTime();
+  const isSameTeams = (jogo: Jogo, idA: string, idB: string) =>
+    (jogo.selecaoA === idA && jogo.selecaoB === idB) || (jogo.selecaoA === idB && jogo.selecaoB === idA);
 
   partidas
     .slice()
@@ -3244,9 +3247,26 @@ function mapearPartidasPorJogos<
       (j) =>
         !map.has(j.id) &&
         j.data === dataBrt &&
-        ((j.selecaoA === idA && j.selecaoB === idB) || (j.selecaoA === idB && j.selecaoB === idA)),
+        isSameTeams(j, idA, idB),
     );
     if (jogo) map.set(jogo.id, partida);
+  });
+
+  // Fallback final: match by teams only and choose the closest scheduled local game.
+  naoMapeadas.forEach((partida) => {
+    if ([...map.values()].includes(partida)) return;
+    if (!partida.time_a || !partida.time_b || !partida.inicia_em) return;
+
+    const idA = resolveTeamIdByName(partida.time_a);
+    const idB = resolveTeamIdByName(partida.time_b);
+    if (!idA || !idB) return;
+
+    const partidaTs = new Date(partida.inicia_em).getTime();
+    const candidatos = jogosOrdenados
+      .filter((jogo) => !map.has(jogo.id) && isSameTeams(jogo, idA, idB))
+      .sort((a, b) => Math.abs(jogoTimestamp(a) - partidaTs) - Math.abs(jogoTimestamp(b) - partidaTs));
+
+    if (candidatos[0]) map.set(candidatos[0].id, partida);
   });
 
   return map;
