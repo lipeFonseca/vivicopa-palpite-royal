@@ -3001,7 +3001,10 @@ function Inicio({
                 <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[var(--site-accent)] sm:text-[13px]">
                   EDIÇÃO ESPECIAL · COPA 2026
                 </p>
-                <p className="mt-2 site-display text-[26px] font-black uppercase leading-tight text-[var(--site-accent)] sm:text-[34px]">
+                <p
+                  className="mt-2 site-display text-[26px] font-black uppercase leading-tight text-[var(--site-accent)] sm:text-[34px]"
+                  style={{ textShadow: "2px 2px 0 rgba(0,0,0,0.45), 1px 1px 0 rgba(0,0,0,0.25)" }}
+                >
                   A Copa que nasceu para a resenha
                 </p>
                 <span className="mt-3 block h-[2px] w-10 bg-[var(--site-accent)]" />
