@@ -457,6 +457,7 @@ export function buildBrazilHighlights(
   const shotPct =
     totals.shotsTotal > 0 ? Math.round((totals.shotsOnTarget / totals.shotsTotal) * 100) : 0;
   const topScorers = pickBrazilLeaders(brazilPlayers, (player) => player.goals);
+  const topAssists = pickBrazilLeaders(brazilPlayers, (player) => player.assists);
   const topScorer = pickBrazilLeader(brazilPlayers, (player) => player.goals);
   const topAssist = pickBrazilLeader(brazilPlayers, (player) => player.assists);
 
@@ -546,11 +547,24 @@ export function buildBrazilHighlights(
   if (topAssist) {
     highlights.push({
       id: "brazil-top-assist",
-      title: "Mais assistencias do Brasil",
-      subject: topAssist.playerName,
+      title: topAssists.length > 1 ? "Lideres em assistencias do Brasil" : "Mais assistencias do Brasil",
+      subject: topAssists.length > 1 ? "Brasil" : topAssist.playerName,
       value: formatCount(topAssist.assists, "assistencia", "assistencias"),
-      detail: "Total de assistencias do lider brasileiro na Copa",
+      detail:
+        topAssists.length > 1
+          ? "Brasileiros empatados na lideranca de assistencias da Copa"
+          : "Total de assistencias do lider brasileiro na Copa",
       teamName,
+      ranking:
+        topAssists.length > 1
+          ? topAssists.map((player) => ({
+              teamName,
+              value: player.assists,
+              valueLabel: formatCount(player.assists, "assistencia", "assistencias"),
+              label: player.playerName,
+              rank: 1,
+            }))
+          : undefined,
     });
   }
 
