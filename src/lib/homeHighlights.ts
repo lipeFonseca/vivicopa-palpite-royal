@@ -523,7 +523,7 @@ export function buildBrazilHighlights(
     highlights.push({
       id: "brazil-top-scorer",
       title: topScorers.length > 1 ? "Artilheiros do Brasil" : "Artilheiro do Brasil",
-      subject: topScorer.playerName,
+      subject: topScorers.length > 1 ? "Brasil" : topScorer.playerName,
       value: formatCount(topScorer.goals, "gol", "gols"),
       detail:
         topScorers.length > 1
