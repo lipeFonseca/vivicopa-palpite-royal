@@ -2985,7 +2985,7 @@ function Inicio({
         <div className="editorial-hero-copy relative z-10 flex flex-col justify-center items-start px-6 py-8 min-h-[420px] sm:min-h-[500px] sm:max-w-[48rem] sm:py-12 sm:px-10 lg:px-12">
           <div className="flex items-stretch gap-4 sm:gap-6">
             <div className="w-[5px] sm:w-[7px] flex-shrink-0 bg-brand" />
-            <div className="flex flex-col">
+            <div className="flex flex-col" style={{ textShadow: "2px 2px 0 rgba(0,0,0,0.42), 1px 1px 0 rgba(0,0,0,0.22)" }}>
               <h1
                 className="site-display font-black uppercase leading-[0.86] text-brand"
                 style={{ letterSpacing: `${theme.titleTracking}em` }}
@@ -3001,10 +3001,7 @@ function Inicio({
                 <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[var(--site-accent)] sm:text-[13px]">
                   EDIÇÃO ESPECIAL · COPA 2026
                 </p>
-                <p
-                  className="mt-2 site-display text-[26px] font-black uppercase leading-tight text-[var(--site-accent)] sm:text-[34px]"
-                  style={{ textShadow: "2px 2px 0 rgba(0,0,0,0.45), 1px 1px 0 rgba(0,0,0,0.25)" }}
-                >
+                <p className="mt-2 site-display text-[26px] font-black uppercase leading-tight text-[var(--site-accent)] sm:text-[34px]">
                   A Copa que nasceu para a resenha
                 </p>
                 <span className="mt-3 block h-[2px] w-10 bg-[var(--site-accent)]" />
@@ -3012,7 +3009,7 @@ function Inicio({
               <p className="mt-4 max-w-xs text-[13px] leading-relaxed text-[var(--site-ink)]/70 sm:mt-5 sm:max-w-sm sm:text-sm">
                 {theme.subtitle}
               </p>
-              <div className="mt-7 flex flex-wrap gap-3 sm:mt-8">
+              <div className="mt-7 flex flex-wrap gap-3 sm:mt-8" style={{ textShadow: "none" }}>
                 <Button
                   onClick={onJogos}
                   className="h-10 min-w-36 rounded-none bg-brand px-6 text-[10px] font-black uppercase text-white hover:opacity-90"
