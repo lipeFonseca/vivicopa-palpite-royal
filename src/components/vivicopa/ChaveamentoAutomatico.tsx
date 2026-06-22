@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { usePartidasStore } from "@/store/partidasStore";
+import { usePartidasComPlacarAoVivo } from "@/hooks/usePartidas";
 import { flagAlt, flagUrl } from "@/lib/flags";
 import { getCanonicalTeamName, resolveTeamIdByName } from "@/lib/teamNames";
 
@@ -26,6 +26,11 @@ const FASE_LABEL: Record<string, string> = {
   SEMI_FINALS: "Semifinais",
   THIRD_PLACE: "Disputa do 3º lugar",
   FINAL: "Final",
+};
+
+type ChaveamentoAutomaticoProps = {
+  allowSimulation?: boolean;
+  previewMode?: boolean;
 };
 
 function faseLabel(fase: string) {
@@ -84,11 +89,14 @@ const PARTIDAS_SIMULADAS: PartidaMataMata[] = [
   status: "NS",
 }));
 
-export function ChaveamentoAutomatico() {
-  const { partidas: todasPartidas, loading: carregando } = usePartidasStore();
+export function ChaveamentoAutomatico({
+  allowSimulation = false,
+  previewMode = false,
+}: ChaveamentoAutomaticoProps) {
+  const { partidas: todasPartidas, loading: carregando } = usePartidasComPlacarAoVivo();
   const [simulando, setSimulando] = useState(() => {
     if (typeof window === "undefined") return false;
-    return localStorage.getItem(USAR_SIMULACAO_KEY) === "true";
+    return allowSimulation && localStorage.getItem(USAR_SIMULACAO_KEY) === "true";
   });
 
   const partidas = useMemo(
@@ -101,7 +109,7 @@ export function ChaveamentoAutomatico() {
 
   const porFase = useMemo(() => {
     const map = new Map<string, PartidaMataMata[]>();
-    const fonte = simulando ? PARTIDAS_SIMULADAS : partidas;
+    const fonte = allowSimulation && simulando ? PARTIDAS_SIMULADAS : partidas;
     fonte.forEach((partida) => {
       const fase = partida.fase ?? "INDEFINIDA";
       const lista = map.get(fase) ?? [];
@@ -122,30 +130,34 @@ export function ChaveamentoAutomatico() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-brand">Chaveamento automático</div>
-            <h2 className="mt-1 text-xl font-extrabold text-brand-dark">Mata-mata da Copa 2026</h2>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              O diagrama é preenchido pelo banco conforme a football-data.org atualiza os classificados e confrontos.
-              Enquanto nenhum time tiver avançado, os espaços ficam em branco como "A definir".
-            </p>
+      {!previewMode && (
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-brand">Chaveamento automático</div>
+              <h2 className="mt-1 text-xl font-extrabold text-brand-dark">Mata-mata da Copa 2026</h2>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                O diagrama é preenchido automaticamente conforme os confrontos e placares entram no sistema.
+                Enquanto nenhum time tiver avançado, os espaços ficam em branco como "A definir".
+              </p>
+            </div>
+            <Badge variant="outline">{carregando ? "Carregando..." : `${total}/31 confrontos definidos`}</Badge>
+            {allowSimulation && (
+              <button
+                type="button"
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-semibold text-brand-dark shadow-sm transition-colors hover:bg-brand-soft"
+                onClick={() => {
+                  const proximo = !simulando;
+                  setSimulando(proximo);
+                  localStorage.setItem(USAR_SIMULACAO_KEY, String(proximo));
+                }}
+              >
+                {simulando ? "Ver dados reais" : "Simular confrontos"}
+              </button>
+            )}
           </div>
-          <Badge variant="outline">{carregando ? "Carregando..." : `${total}/31 confrontos definidos`}</Badge>
-          <button
-            type="button"
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-semibold text-brand-dark shadow-sm transition-colors hover:bg-brand-soft"
-            onClick={() => {
-              const proximo = !simulando;
-              setSimulando(proximo);
-              localStorage.setItem(USAR_SIMULACAO_KEY, String(proximo));
-            }}
-          >
-            {simulando ? "Ver dados reais" : "Simular confrontos"}
-          </button>
         </div>
-      </div>
+      )}
 
       <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -176,29 +188,31 @@ export function ChaveamentoAutomatico() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-brand-dark">Disputa do 3º lugar</h3>
-              <p className="text-xs text-muted-foreground">Atualizada automaticamente pela API</p>
+      {!previewMode && (
+        <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-card">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-brand-dark">Disputa do 3º lugar</h3>
+                <p className="text-xs text-muted-foreground">Atualizada automaticamente pelo sistema</p>
+              </div>
+              <Badge variant="secondary">Extra</Badge>
             </div>
-            <Badge variant="secondary">Extra</Badge>
+            {terceiroLugar && confrontoDefinido(terceiroLugar) ? (
+              <ChaveCard partida={terceiroLugar} />
+            ) : (
+              <ChaveVazia fase="THIRD_PLACE" />
+            )}
           </div>
-          {terceiroLugar && confrontoDefinido(terceiroLugar) ? (
-            <ChaveCard partida={terceiroLugar} />
-          ) : (
-            <ChaveVazia fase="THIRD_PLACE" />
-          )}
+          <div className="rounded-2xl border border-border bg-brand-soft/60 p-4">
+            <h3 className="text-sm font-bold text-brand-dark">Como funciona</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Ninguém precisa preencher manualmente. Quando os confrontos e placares entram na base,
+              esta tela muda sozinha.
+            </p>
+          </div>
         </div>
-        <div className="rounded-2xl border border-border bg-brand-soft/60 p-4">
-          <h3 className="text-sm font-bold text-brand-dark">Como funciona</h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Ninguém precisa preencher manualmente. O cron sincroniza a tabela `partidas`; quando a API informar
-            os classificados do mata-mata, esta tela muda sozinha.
-          </p>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

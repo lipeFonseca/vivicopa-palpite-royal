@@ -122,6 +122,7 @@ const LOGO_HEADER_SIZE_KEY = "vivicopa:logo-header-size";
 const HEADER_BANNER_KEY = "vivicopa:header-banner-url";
 const HERO_BANNER_KEY = "vivicopa:hero-banner-url";
 const HERO_BANNER_POS_KEY = "vivicopa:hero-banner-pos";
+const HERO_WASH_KEY = "vivicopa:hero-wash-intensity";
 const HOME_SECONDARY_POS_KEY = "vivicopa:home-secondary-pos";
 const FAVICON_URL_KEY = "vivicopa:favicon-url";
 const LOGIN_BACKGROUND_KEY = "vivicopa:login-background-url";
@@ -204,6 +205,7 @@ function applyConfigToLocalStorage(cfg: Record<string, string>) {
     else localStorage.removeItem(HERO_BANNER_KEY);
   }
   if (cfg.hero_banner_position) localStorage.setItem(HERO_BANNER_POS_KEY, cfg.hero_banner_position);
+  if (cfg.hero_wash_intensity !== undefined) localStorage.setItem(HERO_WASH_KEY, String(cfg.hero_wash_intensity));
   if (cfg.home_secondary_image_position)
     localStorage.setItem(HOME_SECONDARY_POS_KEY, cfg.home_secondary_image_position);
   if (cfg.favicon_url !== undefined) {
@@ -984,6 +986,9 @@ function AdminTab() {
   const [heroBannerPos, setHeroBannerPos] = useState(() =>
     parsePos(localStorage.getItem(HERO_BANNER_POS_KEY) ?? ""),
   );
+  const [heroWashIntensity, setHeroWashIntensity] = useState(
+    () => Number(localStorage.getItem(HERO_WASH_KEY) ?? 75),
+  );
   const [homeSecondaryPos, setHomeSecondaryPos] = useState(() =>
     parsePos(localStorage.getItem(HOME_SECONDARY_POS_KEY) ?? ""),
   );
@@ -1102,6 +1107,7 @@ function AdminTab() {
         valor: formatPos(heroBannerPos.x, heroBannerPos.y),
         atualizado_em: new Date().toISOString(),
       },
+      { chave: "hero_wash_intensity", valor: String(heroWashIntensity), atualizado_em: new Date().toISOString() },
       {
         chave: "home_secondary_image_position",
         valor: formatPos(homeSecondaryPos.x, homeSecondaryPos.y),
@@ -1153,6 +1159,7 @@ function AdminTab() {
     if (heroBannerUrl) localStorage.setItem(HERO_BANNER_KEY, heroBannerUrl);
     else localStorage.removeItem(HERO_BANNER_KEY);
     localStorage.setItem(HERO_BANNER_POS_KEY, formatPos(heroBannerPos.x, heroBannerPos.y));
+    localStorage.setItem(HERO_WASH_KEY, String(heroWashIntensity));
     localStorage.setItem(HOME_SECONDARY_POS_KEY, formatPos(homeSecondaryPos.x, homeSecondaryPos.y));
     if (faviconUrl) localStorage.setItem(FAVICON_URL_KEY, faviconUrl);
     else localStorage.removeItem(FAVICON_URL_KEY);
@@ -1909,14 +1916,14 @@ function AdminTab() {
                   </div>
                   <Slider
                     min={0}
-                    max={100}
+                    max={200}
                     step={1}
                     value={[heroBannerPos.x]}
                     onValueChange={([v]) => setHeroBannerPos((p) => ({ ...p, x: v }))}
                   />
                   <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
                     <span>Esquerda</span>
-                    <span>Direita</span>
+                    <span>Direita (até 200%)</span>
                   </div>
                 </div>
                 <div>
@@ -1935,6 +1942,23 @@ function AdminTab() {
                     <span>Topo</span>
                     <span>Base</span>
                   </div>
+                </div>
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs font-semibold">
+                  <span>Intensidade da névoa</span>
+                  <span className="text-brand">{heroWashIntensity}%</span>
+                </div>
+                <Slider
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={[heroWashIntensity]}
+                  onValueChange={([v]) => setHeroWashIntensity(v)}
+                />
+                <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
+                  <span>Sem névoa</span>
+                  <span>Máxima</span>
                 </div>
               </div>
             </div>
@@ -2804,6 +2828,9 @@ function Inicio({
       ? parsePos(localStorage.getItem(HOME_SECONDARY_POS_KEY) ?? "")
       : { x: 50, y: 50 },
   );
+  const [heroWashIntensityDisplay, setHeroWashIntensityDisplay] = useState(() =>
+    typeof window !== "undefined" ? Number(localStorage.getItem(HERO_WASH_KEY) ?? 75) : 75,
+  );
   const [theme, setTheme] = useState(readSiteTheme);
   const [classificacaoAberta, setClassificacaoAberta] = useState(false);
 
@@ -2813,6 +2840,7 @@ function Inicio({
       setHeroBannerPos(parsePos(localStorage.getItem(HERO_BANNER_POS_KEY) ?? ""));
       setSecondaryImage(localStorage.getItem(HOME_SECONDARY_IMAGE_KEY) ?? "");
       setSecondaryPos(parsePos(localStorage.getItem(HOME_SECONDARY_POS_KEY) ?? ""));
+      setHeroWashIntensityDisplay(Number(localStorage.getItem(HERO_WASH_KEY) ?? 75));
     };
     const syncTheme = () => setTheme(readSiteTheme());
     window.addEventListener("vivicopa:logo-changed", syncBrand);
@@ -2883,7 +2911,10 @@ function Inicio({
             style={{ objectPosition: `${heroBannerPos.x}% ${heroBannerPos.y}%` }}
           />
         )}
-        <div className="editorial-hero-wash absolute inset-0" />
+        <div
+          className="editorial-hero-wash absolute inset-0"
+          style={{ opacity: heroWashIntensityDisplay / 100 }}
+        />
         <div className="editorial-hero-copy relative z-10 flex flex-col justify-center items-start px-6 py-8 min-h-[420px] sm:min-h-[500px] sm:max-w-[48rem] sm:py-12 sm:px-10 lg:px-12">
           <div className="flex items-stretch gap-4 sm:gap-6">
             <div className="w-[5px] sm:w-[7px] flex-shrink-0 bg-brand" />
