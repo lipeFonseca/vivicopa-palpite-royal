@@ -112,22 +112,48 @@
   }
 
   body {
-    background-color: var(--color-background);
+    background-color: #E8DCC8;
+    background-image: radial-gradient(
+      ellipse at center,
+      #EDE3CB 0%,
+      #E0D0B0 60%,
+      #C8B898 100%
+    );
+    min-height: 100vh;
     color: var(--color-foreground);
     font-family: Arial, Helvetica, sans-serif;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.18;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 180px 180px;
   }
 }
 
 /* Editorial system inspired by independent sports magazines. */
 :root {
-  --site-accent: #b8900a;
-  --site-surface: #e3d7be;
-  --site-ink: #1c2010;
+  --site-accent: #C9A84C;
+  --site-surface: #E8DCC8;
+  --site-ink: #1A1A1A;
   --site-blue: #174b66;
+  --site-green-dark: #1E3320;
+  --site-green-moss: #2C3828;
+  --site-gold: #C9A84C;
+  --site-gold-dark: #A87E2E;
 }
 
 .vivicopa-site {
-  background: var(--site-surface);
+  background: transparent;
   color: var(--site-ink);
 }
 
@@ -139,10 +165,10 @@
 .paper-surface,
 .site-tab-content,
 .site-header {
-  background-color: var(--site-surface);
+  background-color: #EDE3CB;
   background-image:
-    radial-gradient(circle at 20% 30%, rgb(50 45 30 / 0.035) 0 0.8px, transparent 0.9px),
-    radial-gradient(circle at 70% 65%, rgb(255 255 255 / 0.18) 0 0.7px, transparent 0.8px);
+    radial-gradient(circle at 20% 30%, rgb(60 45 20 / 0.04) 0 0.8px, transparent 0.9px),
+    radial-gradient(circle at 70% 65%, rgb(255 255 220 / 0.22) 0 0.7px, transparent 0.8px);
   background-size:
     7px 7px,
     9px 9px;
@@ -229,7 +255,7 @@
 
 .editorial-hero {
   border-radius: 0;
-  background-color: #c5b99e;
+  background-color: #D4C5A9;
 }
 
 .editorial-hero.is-empty {

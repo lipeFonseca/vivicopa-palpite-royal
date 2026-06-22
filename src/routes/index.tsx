@@ -3068,7 +3068,8 @@ function Inicio({
       </section>
 
       <section
-        className="overflow-hidden bg-brand py-3"
+        className="overflow-hidden py-3"
+        style={{ backgroundColor: '#2C3828' }}
         style={{
           maskImage: "linear-gradient(to right, transparent, black 10%, black 90%, transparent)",
           WebkitMaskImage:
