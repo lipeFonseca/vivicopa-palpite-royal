@@ -424,6 +424,25 @@ function pickBrazilLeader(
   return ordered[0] ?? null;
 }
 
+function pickBrazilLeaders(
+  players: BrazilPlayerTotalsSource[],
+  selectValue: (player: BrazilPlayerTotalsSource) => number,
+) {
+  const ordered = [...players]
+    .filter((player) => selectValue(player) > 0)
+    .sort((a, b) => {
+      const valueDiff = selectValue(b) - selectValue(a);
+      if (valueDiff !== 0) return valueDiff;
+      if (b.goals !== a.goals) return b.goals - a.goals;
+      if (b.assists !== a.assists) return b.assists - a.assists;
+      return a.playerName.localeCompare(b.playerName, "pt-BR");
+    });
+
+  if (!ordered.length) return [];
+  const leaderValue = selectValue(ordered[0]);
+  return ordered.filter((player) => selectValue(player) === leaderValue);
+}
+
 export function buildBrazilHighlights(
   partidas: HomeHighlightSource[],
   brazilPlayers: BrazilPlayerTotalsSource[] = [],
@@ -437,6 +456,7 @@ export function buildBrazilHighlights(
   const [teamName, totals] = brazilEntry;
   const shotPct =
     totals.shotsTotal > 0 ? Math.round((totals.shotsOnTarget / totals.shotsTotal) * 100) : 0;
+  const topScorers = pickBrazilLeaders(brazilPlayers, (player) => player.goals);
   const topScorer = pickBrazilLeader(brazilPlayers, (player) => player.goals);
   const topAssist = pickBrazilLeader(brazilPlayers, (player) => player.assists);
 
@@ -502,11 +522,24 @@ export function buildBrazilHighlights(
   if (topScorer) {
     highlights.push({
       id: "brazil-top-scorer",
-      title: "Artilheiro do Brasil",
+      title: topScorers.length > 1 ? "Artilheiros do Brasil" : "Artilheiro do Brasil",
       subject: topScorer.playerName,
       value: formatCount(topScorer.goals, "gol", "gols"),
-      detail: "Total de gols do principal goleador brasileiro na Copa",
+      detail:
+        topScorers.length > 1
+          ? "Brasileiros empatados na artilharia da Copa"
+          : "Total de gols do principal goleador brasileiro na Copa",
       teamName,
+      ranking:
+        topScorers.length > 1
+          ? topScorers.map((player) => ({
+              teamName,
+              value: player.goals,
+              valueLabel: formatCount(player.goals, "gol", "gols"),
+              label: player.playerName,
+              rank: 1,
+            }))
+          : undefined,
     });
   }
 
