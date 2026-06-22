@@ -120,9 +120,9 @@
 
 /* Editorial system inspired by independent sports magazines. */
 :root {
-  --site-accent: #c59a3a;
-  --site-surface: #eee9dc;
-  --site-ink: #25291f;
+  --site-accent: #b8900a;
+  --site-surface: #e3d7be;
+  --site-ink: #1c2010;
   --site-blue: #174b66;
 }
 
@@ -229,7 +229,7 @@
 
 .editorial-hero {
   border-radius: 0;
-  background-color: #d7d0bd;
+  background-color: #c5b99e;
 }
 
 .editorial-hero.is-empty {

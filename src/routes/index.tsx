@@ -577,7 +577,7 @@ function Vivicopa() {
             className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12"
           >
             <LazyTabPanel value="chaveamento" activeTab={aba}>
-              <ChaveamentoAutomatico />
+              <ChaveamentoAutomatico allowSimulation />
             </LazyTabPanel>
           </TabsContent>
 
@@ -2852,6 +2852,19 @@ function Inicio({
       })),
     [classificacaoPorGrupo],
   );
+  const mostrarChaveamentoNaHome = useMemo(
+    () =>
+      partidasComPlacarAoVivo.some(
+        (partida) =>
+          partida.fase &&
+          ["LAST_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", "FINAL", "THIRD_PLACE"].includes(
+            partida.fase,
+          ) &&
+          ((partida.time_a && partida.time_a !== "A definir") ||
+            (partida.time_b && partida.time_b !== "A definir")),
+      ),
+    [partidasComPlacarAoVivo],
+  );
 
   return (
     <div className="editorial-home">
@@ -2873,10 +2886,10 @@ function Inicio({
         <div className="editorial-hero-wash absolute inset-0" />
         <div className="editorial-hero-copy relative z-10 flex flex-col justify-center items-start px-6 py-8 min-h-[420px] sm:min-h-[500px] sm:max-w-[48rem] sm:py-12 sm:px-10 lg:px-12">
           <div className="flex items-stretch gap-4 sm:gap-6">
-            <div className="w-[5px] sm:w-[7px] flex-shrink-0 bg-[#FEDF00]" />
+            <div className="w-[5px] sm:w-[7px] flex-shrink-0 bg-brand" />
             <div className="flex flex-col">
               <h1
-                className="site-display font-black uppercase leading-[0.86] text-[#007D2F]"
+                className="site-display font-black uppercase leading-[0.86] text-brand"
                 style={{ letterSpacing: `${theme.titleTracking}em` }}
               >
                 <span className="block text-[4.5rem] sm:text-[6.5rem] lg:text-[9rem]">
@@ -2887,30 +2900,28 @@ function Inicio({
                 </span>
               </h1>
               <div className="mt-3 sm:mt-4">
-                <p className="text-[12px] font-black uppercase tracking-[0.28em] text-[#002776] sm:text-[14px]">
-                  Ed. Especial · Copa 2026
+                <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[var(--site-accent)] sm:text-[13px]">
+                  EDIÇÃO ESPECIAL · COPA 2026
                 </p>
-                <p
-                  className="mt-2 site-display text-[28px] font-light italic leading-tight text-[#bdaa20] sm:text-[38px]"
-                  style={{ WebkitTextStroke: "0.5px #000" }}
-                >
+                <p className="mt-2 site-display text-[26px] font-black uppercase leading-tight text-[var(--site-accent)] sm:text-[34px]">
                   A Copa que nasceu para a resenha
                 </p>
+                <span className="mt-3 block h-[2px] w-10 bg-[var(--site-accent)]" />
               </div>
-              <p className="mt-4 max-w-xs text-[13px] leading-relaxed text-foreground/60 sm:mt-5 sm:max-w-sm sm:text-sm">
+              <p className="mt-4 max-w-xs text-[13px] leading-relaxed text-[var(--site-ink)]/70 sm:mt-5 sm:max-w-sm sm:text-sm">
                 {theme.subtitle}
               </p>
               <div className="mt-7 flex flex-wrap gap-3 sm:mt-8">
                 <Button
                   onClick={onJogos}
-                  variant="outline"
-                  className="h-10 min-w-36 rounded-none border border-[#007D2F] bg-transparent px-6 text-[10px] font-black uppercase text-[#007D2F] hover:bg-[#007D2F] hover:text-white"
+                  className="h-10 min-w-36 rounded-none bg-brand px-6 text-[10px] font-black uppercase text-white hover:opacity-90"
                 >
-                  Ver jogos
+                  Ver jogos →
                 </Button>
                 <Button
                   onClick={() => onPalpite()}
-                  className="h-10 min-w-36 rounded-none bg-[#FEDF00] px-6 text-[10px] font-black uppercase text-[#002776] hover:opacity-85"
+                  variant="outline"
+                  className="h-10 min-w-36 rounded-none border border-[var(--site-accent)] bg-transparent px-6 text-[10px] font-black uppercase text-[var(--site-accent)] hover:bg-[var(--site-accent)] hover:text-white"
                 >
                   Fazer palpite
                 </Button>
@@ -2977,66 +2988,82 @@ function Inicio({
             </div>
           </div>
 
-          <button
-            type="button"
-            className="flex sm:hidden w-full items-center justify-between rounded-lg border border-black/10 bg-white/60 px-4 py-2.5"
-            onClick={() => setClassificacaoAberta((v) => !v)}
-          >
-            <span className="text-[11px] font-black uppercase text-brand-dark">
-              Classificação por Grupos
-            </span>
-            <ChevronDown
-              className={`h-4 w-4 text-brand transition-transform duration-200 ${classificacaoAberta ? "rotate-180" : ""}`}
-            />
-          </button>
-
-          <div
-            className={`grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 ${classificacaoAberta ? "grid" : "hidden sm:grid"}`}
-          >
-            {classificadosPorGrupo.map(({ grupo, classificados }) => (
-              <div key={grupo} className="rounded-xl border border-black/8 bg-white/70 px-4 py-3">
-                <div className="mb-2 flex items-center justify-between border-b border-black/10 pb-2">
-                  <span className="text-[11px] font-black uppercase text-brand-dark">
-                    Grupo {grupo}
-                  </span>
-                  <span className="text-[9px] font-bold uppercase text-muted-foreground">
-                    Top 2
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {classificados.map((time, index) => {
-                    const selecaoId = resolveTeamIdByName(time.nome) ?? "";
-                    const nome = getCanonicalTeamName(time.nome);
-                    return (
-                      <div
-                        key={`${grupo}-${time.nome}`}
-                        className="flex items-center justify-between rounded-lg bg-brand-soft/40 px-3 py-2"
-                      >
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="text-[10px] font-black text-brand">{index + 1}º</span>
-                          {selecaoId ? (
-                            <img
-                              src={flagUrl(selecaoId, 80)}
-                              alt={flagAlt(selecaoId)}
-                              className="h-4 w-6 rounded-sm object-cover shadow-sm"
-                            />
-                          ) : (
-                            <div className="h-4 w-6 rounded-sm border border-black/10 bg-brand-soft" />
-                          )}
-                          <span className="truncate text-[11px] font-black uppercase text-foreground">
-                            {nome}
-                          </span>
-                        </div>
-                        <span className="text-[11px] font-black text-brand-dark">
-                          {time.pts} pts
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+          {mostrarChaveamentoNaHome ? (
+            <div className="rounded-[28px] border border-black/8 bg-white/55 p-3 sm:p-4">
+              <div className="mb-3 flex items-center justify-between border-b border-black/10 pb-2">
+                <span className="text-[11px] font-black uppercase text-brand-dark">
+                  Mata-mata em destaque
+                </span>
+                <span className="text-[9px] font-bold uppercase text-muted-foreground">
+                  Atualização automática
+                </span>
               </div>
-            ))}
-          </div>
+              <ChaveamentoAutomatico previewMode />
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="flex sm:hidden w-full items-center justify-between rounded-lg border border-black/10 bg-white/60 px-4 py-2.5"
+                onClick={() => setClassificacaoAberta((v) => !v)}
+              >
+                <span className="text-[11px] font-black uppercase text-brand-dark">
+                  Classificação por Grupos
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 text-brand transition-transform duration-200 ${classificacaoAberta ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              <div
+                className={`grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 ${classificacaoAberta ? "grid" : "hidden sm:grid"}`}
+              >
+                {classificadosPorGrupo.map(({ grupo, classificados }) => (
+                  <div key={grupo} className="rounded-xl border border-black/8 bg-white/70 px-4 py-3">
+                    <div className="mb-2 flex items-center justify-between border-b border-black/10 pb-2">
+                      <span className="text-[11px] font-black uppercase text-brand-dark">
+                        Grupo {grupo}
+                      </span>
+                      <span className="text-[9px] font-bold uppercase text-muted-foreground">
+                        Top 2
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {classificados.map((time, index) => {
+                        const selecaoId = resolveTeamIdByName(time.nome) ?? "";
+                        const nome = getCanonicalTeamName(time.nome);
+                        return (
+                          <div
+                            key={`${grupo}-${time.nome}`}
+                            className="flex items-center justify-between rounded-lg bg-brand-soft/40 px-3 py-2"
+                          >
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="text-[10px] font-black text-brand">{index + 1}º</span>
+                              {selecaoId ? (
+                                <img
+                                  src={flagUrl(selecaoId, 80)}
+                                  alt={flagAlt(selecaoId)}
+                                  className="h-4 w-6 rounded-sm object-cover shadow-sm"
+                                />
+                              ) : (
+                                <div className="h-4 w-6 rounded-sm border border-black/10 bg-brand-soft" />
+                              )}
+                              <span className="truncate text-[11px] font-black uppercase text-foreground">
+                                {nome}
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-black text-brand-dark">
+                              {time.pts} pts
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </section>
 
