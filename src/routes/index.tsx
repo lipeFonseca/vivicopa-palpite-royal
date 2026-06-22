@@ -1875,19 +1875,27 @@ function AdminTab() {
           </div>
           {heroBannerUrl && (
             <div className="space-y-3">
-              <div
-                className="relative flex aspect-[16/7] items-start overflow-hidden border border-border p-6"
-                style={{
-                  backgroundImage: `url(${heroBannerUrl})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: `${heroBannerPos.x}% ${heroBannerPos.y}%`,
-                }}
-              >
+              <div className="relative flex aspect-[16/7] items-start overflow-hidden border border-border p-6">
+                <img
+                  src={heroBannerUrl}
+                  alt=""
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    width: "150%",
+                    height: "150%",
+                    maxWidth: "none",
+                    objectFit: "cover",
+                    top: `${-heroBannerPos.y * 0.5}%`,
+                    left: `${-heroBannerPos.x * 0.5}%`,
+                  }}
+                />
                 <div
                   className="absolute inset-0"
                   style={{
                     background:
                       "linear-gradient(90deg, rgba(238,233,220,0.96) 0%, rgba(238,233,220,0.75) 40%, transparent 72%)",
+                    opacity: heroWashIntensity / 100,
                   }}
                 />
                 <div className="relative z-10">
@@ -1916,14 +1924,14 @@ function AdminTab() {
                   </div>
                   <Slider
                     min={0}
-                    max={200}
+                    max={100}
                     step={1}
                     value={[heroBannerPos.x]}
                     onValueChange={([v]) => setHeroBannerPos((p) => ({ ...p, x: v }))}
                   />
                   <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
                     <span>Esquerda</span>
-                    <span>Direita (até 200%)</span>
+                    <span>Direita</span>
                   </div>
                 </div>
                 <div>
@@ -2907,8 +2915,15 @@ function Inicio({
             src={heroBannerUrl}
             alt=""
             aria-hidden="true"
-            className="editorial-hero-img absolute inset-0 h-full w-full object-cover"
-            style={{ objectPosition: `${heroBannerPos.x}% ${heroBannerPos.y}%` }}
+            className="editorial-hero-img absolute"
+            style={{
+              width: "150%",
+              height: "150%",
+              maxWidth: "none",
+              objectFit: "cover",
+              top: `${-heroBannerPos.y * 0.5}%`,
+              left: `${-heroBannerPos.x * 0.5}%`,
+            }}
           />
         )}
         <div
