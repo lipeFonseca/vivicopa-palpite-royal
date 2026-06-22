@@ -1894,7 +1894,7 @@ function AdminTab() {
                   className="absolute inset-0"
                   style={{
                     background:
-                      "linear-gradient(90deg, rgba(238,233,220,0.96) 0%, rgba(238,233,220,0.75) 40%, transparent 72%)",
+                      "linear-gradient(90deg, rgba(238,233,220,0.96) 0%, rgba(238,233,220,0.88) 12%, rgba(238,233,220,0.50) 22%, rgba(238,233,220,0.08) 30%, transparent 38%)",
                     opacity: heroWashIntensity / 100,
                   }}
                 />
@@ -1927,7 +1927,14 @@ function AdminTab() {
                     max={100}
                     step={1}
                     value={[heroBannerPos.x]}
-                    onValueChange={([v]) => setHeroBannerPos((p) => ({ ...p, x: v }))}
+                    onValueChange={([v]) => {
+                      setHeroBannerPos((p) => {
+                        const next = { ...p, x: v };
+                        localStorage.setItem(HERO_BANNER_POS_KEY, formatPos(next.x, next.y));
+                        window.dispatchEvent(new Event("vivicopa:logo-changed"));
+                        return next;
+                      });
+                    }}
                   />
                   <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
                     <span>Esquerda</span>
@@ -1944,7 +1951,14 @@ function AdminTab() {
                     max={100}
                     step={1}
                     value={[heroBannerPos.y]}
-                    onValueChange={([v]) => setHeroBannerPos((p) => ({ ...p, y: v }))}
+                    onValueChange={([v]) => {
+                      setHeroBannerPos((p) => {
+                        const next = { ...p, y: v };
+                        localStorage.setItem(HERO_BANNER_POS_KEY, formatPos(next.x, next.y));
+                        window.dispatchEvent(new Event("vivicopa:logo-changed"));
+                        return next;
+                      });
+                    }}
                   />
                   <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
                     <span>Topo</span>
@@ -1962,7 +1976,11 @@ function AdminTab() {
                   max={100}
                   step={1}
                   value={[heroWashIntensity]}
-                  onValueChange={([v]) => setHeroWashIntensity(v)}
+                  onValueChange={([v]) => {
+                    setHeroWashIntensity(v);
+                    localStorage.setItem(HERO_WASH_KEY, String(v));
+                    window.dispatchEvent(new Event("vivicopa:logo-changed"));
+                  }}
                 />
                 <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground">
                   <span>Sem névoa</span>
