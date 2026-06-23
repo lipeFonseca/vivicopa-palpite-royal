@@ -450,6 +450,7 @@ export function useJogosHojeStore() {
 
     const hoje = ps.filter((p) => {
       if (!p.inicia_em) return false;
+      if (idsAoVivo.has(p.id)) return false;
       const t = new Date(p.inicia_em).getTime();
       return t >= inicioHoje && t < fimHoje;
     });
