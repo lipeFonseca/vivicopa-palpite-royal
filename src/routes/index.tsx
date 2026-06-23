@@ -47,7 +47,10 @@ import { Header } from "@/components/vivicopa/Header";
 import { Footer } from "@/components/vivicopa/Footer";
 import { GameCard, type GameResult } from "@/components/vivicopa/GameCard";
 import { PredictionModal } from "@/components/vivicopa/PredictionModal";
-import { ChaveamentoAutomatico } from "@/components/vivicopa/ChaveamentoAutomatico";
+import {
+  ChaveamentoAutomatico,
+  USAR_SIMULACAO_KEY,
+} from "@/components/vivicopa/ChaveamentoAutomatico";
 import { AdminCommentsTab } from "@/components/vivicopa/AdminCommentsTab";
 import {
   AdminCronMonitorPanel,
@@ -514,6 +517,7 @@ function Vivicopa() {
             <Inicio
               palpites={palpites}
               winningPredictions={winningPredictions}
+              isAdmin={authProfile.role === "admin"}
               onDestaques={() => setAba("destaques")}
               onJogos={() => setAba("jogos")}
               onPalpite={(jogo) => (jogo ? abrirPalpite(jogo) : setAba("jogos"))}
@@ -584,7 +588,7 @@ function Vivicopa() {
             className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12"
           >
             <LazyTabPanel value="chaveamento" activeTab={aba}>
-              <ChaveamentoAutomatico allowSimulation />
+              <ChaveamentoAutomatico allowSimulation={authProfile.role === "admin"} />
             </LazyTabPanel>
           </TabsContent>
 
@@ -2856,6 +2860,7 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
 function Inicio({
   palpites,
   winningPredictions,
+  isAdmin,
   onDestaques,
   onJogos,
   onPalpite,
@@ -2863,6 +2868,7 @@ function Inicio({
 }: {
   palpites: Palpite[];
   winningPredictions: WinningPrediction[];
+  isAdmin: boolean;
   onDestaques: () => void;
   onJogos: () => void;
   onPalpite: (jogo?: Jogo) => void;
@@ -2892,6 +2898,11 @@ function Inicio({
   );
   const [theme, setTheme] = useState(readSiteTheme);
   const [classificacaoAberta, setClassificacaoAberta] = useState(false);
+  const [simulacaoMataMata, setSimulacaoMataMata] = useState(() =>
+    typeof window !== "undefined" && isAdmin
+      ? localStorage.getItem(USAR_SIMULACAO_KEY) === "true"
+      : false,
+  );
 
   useEffect(() => {
     const syncBrand = () => {
@@ -2910,6 +2921,14 @@ function Inicio({
       window.removeEventListener("vivicopa:theme-changed", syncTheme);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setSimulacaoMataMata(false);
+      return;
+    }
+    setSimulacaoMataMata(localStorage.getItem(USAR_SIMULACAO_KEY) === "true");
+  }, [isAdmin]);
 
   const { jogosAoVivo: _aoVivo, jogosHoje: _hoje, tituloSecao } = useJogosHojeStore();
   const { partidas: partidasComPlacarAoVivo } = usePartidasComPlacarAoVivo();
@@ -2940,9 +2959,9 @@ function Inicio({
       })),
     [classificacaoPorGrupo],
   );
-  const mostrarChaveamentoNaHome = useMemo(
-    () =>
-      partidasComPlacarAoVivo.some(
+  const mostrarChaveamentoNaHome = useMemo(() => {
+    if (simulacaoMataMata) return true;
+    return partidasComPlacarAoVivo.some(
         (partida) =>
           partida.fase &&
           ["LAST_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", "FINAL", "THIRD_PLACE"].includes(
@@ -2950,9 +2969,8 @@ function Inicio({
           ) &&
           ((partida.time_a && partida.time_a !== "A definir") ||
             (partida.time_b && partida.time_b !== "A definir")),
-      ),
-    [partidasComPlacarAoVivo],
-  );
+      );
+  }, [partidasComPlacarAoVivo, simulacaoMataMata]);
 
   return (
     <div className="editorial-home">
@@ -3088,15 +3106,42 @@ function Inicio({
 
           {mostrarChaveamentoNaHome ? (
             <div className="rounded-[28px] border border-black/8 bg-white/55 p-3 sm:p-4">
-              <div className="mb-3 flex items-center justify-between border-b border-black/10 pb-2">
-                <span className="text-[11px] font-black uppercase text-brand-dark">
-                  Mata-mata em destaque
-                </span>
-                <span className="text-[9px] font-bold uppercase text-muted-foreground">
-                  Atualização automática
-                </span>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-black/10 pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-black uppercase text-brand-dark">
+                    Mata-mata em destaque
+                  </span>
+                  {simulacaoMataMata && (
+                    <span className="rounded-full bg-brand px-2 py-0.5 text-[9px] font-black uppercase text-white">
+                      Simulação
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-bold uppercase text-muted-foreground">
+                    Atualização automática
+                  </span>
+                  {isAdmin && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-7 rounded-none border-black/10 bg-white/80 px-3 text-[9px] font-black uppercase tracking-wide"
+                      onClick={() => {
+                        const proximo = !simulacaoMataMata;
+                        localStorage.setItem(USAR_SIMULACAO_KEY, String(proximo));
+                        setSimulacaoMataMata(proximo);
+                      }}
+                    >
+                      {simulacaoMataMata ? "Ver dados reais" : "Simular mata-mata"}
+                    </Button>
+                  )}
+                </div>
               </div>
-              <ChaveamentoAutomatico previewMode />
+              <ChaveamentoAutomatico
+                previewMode
+                allowSimulation={isAdmin}
+                simulating={simulacaoMataMata}
+              />
             </div>
           ) : (
             <>
@@ -3112,6 +3157,21 @@ function Inicio({
                   className={`h-4 w-4 text-brand transition-transform duration-200 ${classificacaoAberta ? "rotate-180" : ""}`}
                 />
               </button>
+              {isAdmin && (
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-8 rounded-none border-black/10 bg-white/80 px-3 text-[9px] font-black uppercase tracking-wide"
+                    onClick={() => {
+                      localStorage.setItem(USAR_SIMULACAO_KEY, "true");
+                      setSimulacaoMataMata(true);
+                    }}
+                  >
+                    Simular mata-mata
+                  </Button>
+                </div>
+              )}
 
               <div
                 className={`grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 ${classificacaoAberta ? "grid" : "hidden sm:grid"}`}
@@ -3167,8 +3227,8 @@ function Inicio({
 
       <section
         className="overflow-hidden py-3"
-        style={{ backgroundColor: '#2C3828' }}
         style={{
+          backgroundColor: "#2C3828",
           maskImage: "linear-gradient(to right, transparent, black 10%, black 90%, transparent)",
           WebkitMaskImage:
             "linear-gradient(to right, transparent, black 10%, black 90%, transparent)",

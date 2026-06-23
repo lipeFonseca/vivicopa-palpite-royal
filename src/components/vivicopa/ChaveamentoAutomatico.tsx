@@ -17,7 +17,7 @@ type PartidaMataMata = {
 
 const MATA_MATA_FASES = ["LAST_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", "FINAL"];
 const AO_VIVO = new Set(["1H", "HT", "2H", "ET", "BT", "P", "LIVE"]);
-const USAR_SIMULACAO_KEY = "vivicopa:simular-chaveamento";
+export const USAR_SIMULACAO_KEY = "vivicopa:simular-chaveamento";
 
 const FASE_LABEL: Record<string, string> = {
   LAST_32: "16-avos de final",
@@ -31,6 +31,7 @@ const FASE_LABEL: Record<string, string> = {
 type ChaveamentoAutomaticoProps = {
   allowSimulation?: boolean;
   previewMode?: boolean;
+  simulating?: boolean;
 };
 
 function faseLabel(fase: string) {
@@ -92,12 +93,14 @@ const PARTIDAS_SIMULADAS: PartidaMataMata[] = [
 export function ChaveamentoAutomatico({
   allowSimulation = false,
   previewMode = false,
+  simulating,
 }: ChaveamentoAutomaticoProps) {
   const { partidas: todasPartidas, loading: carregando } = usePartidasComPlacarAoVivo();
   const [simulando, setSimulando] = useState(() => {
     if (typeof window === "undefined") return false;
     return allowSimulation && localStorage.getItem(USAR_SIMULACAO_KEY) === "true";
   });
+  const simulacaoAtiva = allowSimulation && (simulating ?? simulando);
 
   const partidas = useMemo(
     () =>
@@ -109,7 +112,7 @@ export function ChaveamentoAutomatico({
 
   const porFase = useMemo(() => {
     const map = new Map<string, PartidaMataMata[]>();
-    const fonte = allowSimulation && simulando ? PARTIDAS_SIMULADAS : partidas;
+    const fonte = simulacaoAtiva ? PARTIDAS_SIMULADAS : partidas;
     fonte.forEach((partida) => {
       const fase = partida.fase ?? "INDEFINIDA";
       const lista = map.get(fase) ?? [];
@@ -120,7 +123,7 @@ export function ChaveamentoAutomatico({
       if (!map.has(fase)) map.set(fase, []);
     });
     return map;
-  }, [partidas, simulando]);
+  }, [partidas, simulacaoAtiva]);
 
   const terceiroLugar = porFase.get("THIRD_PLACE")?.[0];
   const total = MATA_MATA_FASES.reduce(
@@ -142,7 +145,7 @@ export function ChaveamentoAutomatico({
               </p>
             </div>
             <Badge variant="outline">{carregando ? "Carregando..." : `${total}/31 confrontos definidos`}</Badge>
-            {allowSimulation && (
+            {allowSimulation && simulating === undefined && (
               <button
                 type="button"
                 className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-semibold text-brand-dark shadow-sm transition-colors hover:bg-brand-soft"
@@ -152,7 +155,7 @@ export function ChaveamentoAutomatico({
                   localStorage.setItem(USAR_SIMULACAO_KEY, String(proximo));
                 }}
               >
-                {simulando ? "Ver dados reais" : "Simular confrontos"}
+                {simulacaoAtiva ? "Ver dados reais" : "Simular confrontos"}
               </button>
             )}
           </div>
