@@ -3885,16 +3885,45 @@ function MeusPalpitesTab({
   loadingAllPalpites?: boolean;
 }) {
   const [visao, setVisao] = useState<"meus" | "todos">("meus");
-  const meus = palpites.filter((p) => p.usuarioId === usuario.id);
+  const [filtroGrupo, setFiltroGrupo] = useState("todos");
+
+  const grupos = useMemo(() => {
+    const gs = new Set<string>();
+    allPalpitesAdmin.forEach((p) => gs.add(p.grupo));
+    return Array.from(gs).sort();
+  }, [allPalpitesAdmin]);
+
+  const gruposMeus = useMemo(() => {
+    const gs = new Set<string>();
+    palpites.forEach((p) => {
+      const j = jogos.find((x) => x.id === p.jogoId);
+      if (j) gs.add(j.grupo);
+    });
+    return Array.from(gs).sort();
+  }, [palpites]);
+
+  const meus = useMemo(
+    () =>
+      palpites.filter((p) => {
+        if (p.usuarioId !== usuario.id) return false;
+        if (filtroGrupo !== "todos") {
+          const j = jogos.find((x) => x.id === p.jogoId);
+          if (!j || j.grupo !== filtroGrupo) return false;
+        }
+        return true;
+      }),
+    [palpites, usuario.id, filtroGrupo],
+  );
 
   const porUsuario = useMemo(() => {
+    const base = filtroGrupo === "todos" ? allPalpitesAdmin : allPalpitesAdmin.filter((p) => p.grupo === filtroGrupo);
     const m = new Map<string, { nome: string; palpites: AdminPalpite[] }>();
-    allPalpitesAdmin.forEach((p) => {
+    base.forEach((p) => {
       if (!m.has(p.usuarioId)) m.set(p.usuarioId, { nome: p.usuarioNome, palpites: [] });
       m.get(p.usuarioId)!.palpites.push(p);
     });
     return Array.from(m.values()).sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [allPalpitesAdmin]);
+  }, [allPalpitesAdmin, filtroGrupo]);
 
   return (
     <div className="space-y-4">
@@ -3904,10 +3933,34 @@ function MeusPalpitesTab({
             <button
               key={v}
               type="button"
-              onClick={() => setVisao(v)}
+              onClick={() => { setVisao(v); setFiltroGrupo("todos"); }}
               className={`rounded-full px-4 py-1.5 text-[11px] font-black uppercase transition ${visao === v ? "bg-brand text-white" : "bg-brand-soft text-brand-dark hover:bg-brand/20"}`}
             >
               {v === "meus" ? "Meus palpites" : `Todos os usuários (${allPalpitesAdmin.length})`}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {(visao === "todos" ? grupos : gruposMeus).length > 1 && (
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setFiltroGrupo("todos")}
+            className={`rounded-full px-3 py-1 text-[10px] font-black uppercase transition ${filtroGrupo === "todos" ? "bg-site-accent text-white" : "border border-border bg-card text-muted-foreground hover:border-brand/40 hover:text-brand"}`}
+            style={filtroGrupo === "todos" ? { background: "var(--site-accent)" } : undefined}
+          >
+            Todos
+          </button>
+          {(visao === "todos" ? grupos : gruposMeus).map((g) => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => setFiltroGrupo(g)}
+              className={`rounded-full px-3 py-1 text-[10px] font-black uppercase transition ${filtroGrupo === g ? "text-white" : "border border-border bg-card text-muted-foreground hover:border-brand/40 hover:text-brand"}`}
+              style={filtroGrupo === g ? { background: "var(--site-accent)" } : undefined}
+            >
+              Grupo {g}
             </button>
           ))}
         </div>
@@ -3982,7 +4035,9 @@ function MeusPalpitesTab({
       </div>
 
       {meus.length === 0 ? (
-        <div className="py-10 text-center text-muted-foreground">Você ainda não fez palpites.</div>
+        <div className="py-10 text-center text-muted-foreground">
+          {filtroGrupo !== "todos" ? `Nenhum palpite no Grupo ${filtroGrupo}.` : "Você ainda não fez palpites."}
+        </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {meus.map((p) => {
