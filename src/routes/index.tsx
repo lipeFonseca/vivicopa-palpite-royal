@@ -3520,6 +3520,21 @@ function JogosTab({
       .sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora));
   }, [filtroGrupo, filtroData, filtroSelecao, filtroStatus, palpitesPorJogo]);
 
+  const listaPorSlot = useMemo(() => {
+    const slots = new Map<string, Jogo[]>();
+    lista.forEach((j) => {
+      const key = `${j.data}T${j.hora}`;
+      if (!slots.has(key)) slots.set(key, []);
+      slots.get(key)!.push(j);
+    });
+    return Array.from(slots.entries()).map(([key, slotJogos]) => ({
+      key,
+      data: slotJogos[0].data,
+      hora: slotJogos[0].hora,
+      jogos: slotJogos,
+    }));
+  }, [lista]);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-3 shadow-card md:grid-cols-4">
@@ -3574,21 +3589,59 @@ function JogosTab({
         </div>
       </div>
 
-      <div className="games-grid grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        {lista.map((j) => (
-          <GameCard
-            key={j.id}
-            jogo={j}
-            qtdPalpites={palpitesPorJogo.get(j.id) ?? 0}
-            resultado={resultadosPorJogo.get(j.id)}
-            acertouNaMosca={meusAcertosPorJogo.has(j.id)}
-            acertadores={acertadoresPorJogo.get(j.id) ?? []}
-            onPalpitar={onPalpitar}
-            onComentarios={onComentarios}
-          />
-        ))}
+      <div className="space-y-5">
+        {listaPorSlot.map(({ key, data, hora, jogos: slotJogos }) => {
+          const [y, m, d] = data.split("-").map(Number);
+          const dataFmt = new Date(y, m - 1, d).toLocaleDateString("pt-BR", {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+          });
+          const abertosSemPalpite = slotJogos.filter(
+            (j) =>
+              !palpiteBloqueadoParaJogo(j, resultadosPorJogo.get(j.id)) &&
+              (palpitesPorJogo.get(j.id) ?? 0) === 0,
+          );
+          return (
+            <div key={key}>
+              <div className="mb-2 flex flex-wrap items-center gap-2 border-b border-border/60 pb-1.5">
+                <span className="text-[11px] font-black uppercase tracking-wide text-site-ink" style={{ color: "var(--site-ink)" }}>
+                  {hora}
+                </span>
+                <span className="text-[10px] text-muted-foreground">·</span>
+                <span className="text-[10px] text-muted-foreground capitalize">{dataFmt}</span>
+                {slotJogos.length > 1 && (
+                  <span className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide"
+                    style={{ background: "color-mix(in srgb, var(--site-ink) 8%, transparent)", color: "var(--site-ink)" }}>
+                    {slotJogos.length} simultâneos
+                  </span>
+                )}
+                {abertosSemPalpite.length > 0 && (
+                  <span className="rounded border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide"
+                    style={{ borderColor: "var(--site-accent)", color: "var(--site-accent)", background: "color-mix(in srgb, var(--site-accent) 10%, transparent)" }}>
+                    ⚠ {abertosSemPalpite.length === 1 ? "1 sem palpite" : `${abertosSemPalpite.length} sem palpite`}
+                  </span>
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {slotJogos.map((j) => (
+                  <GameCard
+                    key={j.id}
+                    jogo={j}
+                    qtdPalpites={palpitesPorJogo.get(j.id) ?? 0}
+                    resultado={resultadosPorJogo.get(j.id)}
+                    acertouNaMosca={meusAcertosPorJogo.has(j.id)}
+                    acertadores={acertadoresPorJogo.get(j.id) ?? []}
+                    onPalpitar={onPalpitar}
+                    onComentarios={onComentarios}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
         {lista.length === 0 && (
-          <div className="col-span-full py-10 text-center text-muted-foreground">
+          <div className="py-10 text-center text-muted-foreground">
             Nenhum jogo encontrado com esses filtros.
           </div>
         )}
