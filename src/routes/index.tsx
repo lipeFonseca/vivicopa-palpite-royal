@@ -3397,7 +3397,6 @@ function mapearPartidasPorJogos<
     jogosPorSlot.set(slot, [...(jogosPorSlot.get(slot) ?? []), jogo]);
   });
 
-  const usadosPorSlot = new Map<string, number>();
   const map = new Map<string, T>();
   const naoMapeadas: T[] = [];
   const jogoTimestamp = (jogo: Jogo) => new Date(`${jogo.data}T${jogo.hora}:00-03:00`).getTime();
@@ -3414,14 +3413,22 @@ function mapearPartidasPorJogos<
         naoMapeadas.push(partida);
         return;
       }
-      const index = usadosPorSlot.get(slot) ?? 0;
-      const jogo = candidatos[index];
+      // Prefer team-name match within the slot to avoid swapping simultaneous games
+      let jogo: Jogo | undefined;
+      if (partida.time_a && partida.time_b) {
+        const idA = resolveTeamIdByName(partida.time_a);
+        const idB = resolveTeamIdByName(partida.time_b);
+        if (idA && idB) {
+          jogo = candidatos.find((c) => !map.has(c.id) && isSameTeams(c, idA, idB));
+        }
+      }
+      // Fall back to next unmapped candidate in slot order
+      if (!jogo) jogo = candidatos.find((c) => !map.has(c.id));
       if (!jogo) {
         naoMapeadas.push(partida);
         return;
       }
       map.set(jogo.id, partida);
-      usadosPorSlot.set(slot, index + 1);
     });
 
   // Fallback: match by team names on the same BRT date (handles API time offsets)
