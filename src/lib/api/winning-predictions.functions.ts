@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { jogos } from "@/data/worldcup2026";
 import { isFinishedMatchStatus } from "@/lib/prediction-results";
+import { resolveTeamIdByName } from "@/lib/teamNames";
 
 export type WinningPrediction = {
   id: string;
@@ -40,6 +41,8 @@ export type AdminPalpite = {
 
 type PartidaResult = {
   id: string;
+  time_a: string | null;
+  time_b: string | null;
   placar_a: number | null;
   placar_b: number | null;
   status: string | null;
@@ -56,6 +59,13 @@ function partidaSlot(iniciaEm: string | null) {
   return brasilia.toISOString().slice(0, 16);
 }
 
+function isSameTeams(jogo: (typeof jogos)[0], idA: string, idB: string) {
+  return (
+    (jogo.selecaoA === idA && jogo.selecaoB === idB) ||
+    (jogo.selecaoA === idB && jogo.selecaoB === idA)
+  );
+}
+
 function mapearPartidasPorJogoId(partidas: PartidaResult[]) {
   const jogosPorSlot = new Map<string, typeof jogos>();
   [...jogos]
@@ -65,7 +75,6 @@ function mapearPartidasPorJogoId(partidas: PartidaResult[]) {
       jogosPorSlot.set(slot, [...(jogosPorSlot.get(slot) ?? []), jogo]);
     });
 
-  const usadosPorSlot = new Map<string, number>();
   const map = new Map<string, PartidaResult>();
 
   partidas
@@ -75,11 +84,20 @@ function mapearPartidasPorJogoId(partidas: PartidaResult[]) {
       const slot = partidaSlot(partida.inicia_em);
       const candidatos = jogosPorSlot.get(slot);
       if (!candidatos?.length) return;
-      const index = usadosPorSlot.get(slot) ?? 0;
-      const jogo = candidatos[index];
+
+      // Prefer team-name match to avoid swapping simultaneous games
+      let jogo: (typeof jogos)[0] | undefined;
+      if (partida.time_a && partida.time_b) {
+        const idA = resolveTeamIdByName(partida.time_a);
+        const idB = resolveTeamIdByName(partida.time_b);
+        if (idA && idB) {
+          jogo = candidatos.find((c) => !map.has(c.id) && isSameTeams(c, idA, idB));
+        }
+      }
+      // Fall back to next unmapped candidate in slot order
+      if (!jogo) jogo = candidatos.find((c) => !map.has(c.id));
       if (!jogo) return;
       map.set(jogo.id, partida);
-      usadosPorSlot.set(slot, index + 1);
     });
 
   return map;
@@ -88,7 +106,7 @@ function mapearPartidasPorJogoId(partidas: PartidaResult[]) {
 export async function getWinningPredictions(): Promise<WinningPrediction[]> {
   const { data: partidasData, error: partidasError } = await supabase
     .from("partidas" as never)
-    .select("id,placar_a,placar_b,status,inicia_em")
+    .select("id,time_a,time_b,placar_a,placar_b,status,inicia_em")
     .in("status" as never, ["FT", "AET", "PEN"])
     .order("inicia_em" as never, { ascending: false });
 
@@ -149,7 +167,7 @@ export async function getWinningPredictions(): Promise<WinningPrediction[]> {
 export async function getAllPalpitesAdmin(): Promise<AdminPalpite[]> {
   const { data: partidasData, error: partidasError } = await supabase
     .from("partidas" as never)
-    .select("id,placar_a,placar_b,status,inicia_em")
+    .select("id,time_a,time_b,placar_a,placar_b,status,inicia_em")
     .order("inicia_em" as never, { ascending: false });
 
   if (partidasError) return [];
