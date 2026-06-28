@@ -316,6 +316,34 @@ function Vivicopa() {
       ),
     [partidasResultados],
   );
+  const partidasPorId = useMemo(
+    () => new Map(partidasResultados.map((partida) => [partida.id, partida] as const)),
+    [partidasResultados],
+  );
+  const jogosPorId = useMemo(() => {
+    const map = new Map<string, Jogo>();
+    jogos.forEach((jogo) => map.set(jogo.id, jogo));
+    partidasResultados.forEach((partida) => {
+      if (map.has(partida.id)) return;
+      const jogoDinamico = construirJogoDinamicoDePartida(partida);
+      if (jogoDinamico) map.set(jogoDinamico.id, jogoDinamico);
+    });
+    return map;
+  }, [partidasResultados]);
+  const resultadosCatalogo = useMemo(() => {
+    const map = new Map<string, JogoResultado>();
+    resultadosPorJogo.forEach((resultado, jogoId) => map.set(jogoId, resultado));
+    partidasResultados.forEach((partida) => {
+      if (!map.has(partida.id)) {
+        map.set(partida.id, {
+          ...partida,
+          placar_a: partida.placar_a ?? 0,
+          placar_b: partida.placar_b ?? 0,
+        } as JogoResultado);
+      }
+    });
+    return map;
+  }, [resultadosPorJogo, partidasResultados]);
   const { data: palpites = [] } = useMeusPalpitesQuery(authProfile?.id);
   const isAdmin = authProfile?.role === "admin";
   const { data: allPalpitesAdmin = [], isLoading: loadingAllPalpites } = useAllPalpitesAdminQuery(isAdmin);
@@ -357,7 +385,7 @@ function Vivicopa() {
   }, [winningPredictions]);
 
   const abrirPalpite = (j: Jogo, p?: Palpite) => {
-    if (palpiteBloqueadoParaJogo(j, resultadosPorJogo.get(j.id))) {
+    if (palpiteBloqueadoParaJogo(j, resultadosCatalogo.get(j.id))) {
       toast.error("Palpites encerrados para este jogo.");
       return;
     }
@@ -367,7 +395,7 @@ function Vivicopa() {
   };
   const abrirComentarios = (j: Jogo) => setComentariosJogo(j);
   const abrirComentariosPorJogoId = (jogoId: string) => {
-    const jogo = jogos.find((item) => item.id === jogoId);
+    const jogo = jogosPorId.get(jogoId);
     if (jogo) setComentariosJogo(jogo);
   };
   const atualizarComentariosENotificacoes = async () => {
@@ -607,15 +635,16 @@ function Vivicopa() {
               <MeusPalpitesTab
                 usuario={authProfile}
                 palpites={palpites}
-                resultadosPorJogo={resultadosPorJogo}
+                resultadosPorJogo={resultadosCatalogo}
                 acertadoresPorJogo={acertadoresPorJogo}
+                jogosById={jogosPorId}
                 onEditar={(p) => {
-                  const j = jogos.find((x) => x.id === p.jogoId);
+                  const j = jogosPorId.get(p.jogoId);
                   if (j) abrirPalpite(j, p);
                 }}
                 onExcluir={async (p) => {
-                  const j = jogos.find((x) => x.id === p.jogoId);
-                  if (j && palpiteBloqueadoParaJogo(j, resultadosPorJogo.get(j.id))) {
+                  const j = jogosPorId.get(p.jogoId);
+                  if (j && palpiteBloqueadoParaJogo(j, resultadosCatalogo.get(j.id))) {
                     toast.error("Palpites encerrados para este jogo.");
                     return;
                   }
@@ -634,7 +663,7 @@ function Vivicopa() {
 
           <TabsContent value="tabela" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
             <LazyTabPanel value="tabela" activeTab={aba}>
-              <TabelaTab usuario={authProfile} palpites={palpites} />
+              <TabelaTab usuario={authProfile} palpites={palpites} jogosById={jogosPorId} />
             </LazyTabPanel>
           </TabsContent>
 
@@ -2595,8 +2624,10 @@ function AcertoMoscaBadge() {
 
 function PalpiteirosDoDiaSection({
   winningPredictions,
+  jogosById,
 }: {
   winningPredictions: WinningPrediction[];
+  jogosById: Map<string, Jogo>;
 }) {
   const cards = useMemo(() => {
     const grouped = new Map<string, WinningPrediction[]>();
@@ -2606,7 +2637,7 @@ function PalpiteirosDoDiaSection({
 
     return Array.from(grouped.entries())
       .map(([jogoId, winners]) => {
-        const jogo = jogos.find((item) => item.id === jogoId);
+        const jogo = jogosById.get(jogoId);
         if (!jogo || winners.length === 0) return null;
         const latestWinner = winners.reduce((latest, current) =>
           current.createdAt > latest.createdAt ? current : latest,
@@ -2620,7 +2651,7 @@ function PalpiteirosDoDiaSection({
           Boolean(item),
       )
       .sort((a, b) => (b.jogo.data + b.jogo.hora).localeCompare(a.jogo.data + a.jogo.hora));
-  }, [winningPredictions]);
+  }, [winningPredictions, jogosById]);
 
   if (cards.length === 0) return null;
 
@@ -2953,11 +2984,16 @@ function Inicio({
   const jogoLocalPorPartidaId = useMemo(() => {
     const map = new Map<string, Jogo>();
     partidasPorJogo.forEach((partida, jogoId) => {
-      const jogoLocal = jogos.find((item) => item.id === jogoId);
+      const jogoLocal = jogosPorId.get(jogoId);
+      if (jogoLocal) map.set(partida.id, jogoLocal);
+    });
+    jogosHome.forEach((partida) => {
+      if (map.has(partida.id)) return;
+      const jogoLocal = jogosPorId.get(partida.id) ?? construirJogoDinamicoDePartida(partida);
       if (jogoLocal) map.set(partida.id, jogoLocal);
     });
     return map;
-  }, [partidasPorJogo]);
+  }, [partidasPorJogo, jogosHome, jogosPorId]);
   const classificadosPorGrupo = useMemo(
     () =>
       grupos.map((grupo) => ({
@@ -3283,7 +3319,10 @@ function Inicio({
         </div>
       </section>
 
-      <PalpiteirosDoDiaSection winningPredictions={winningPredictions} />
+      <PalpiteirosDoDiaSection
+        winningPredictions={winningPredictions}
+        jogosById={jogosPorId}
+      />
 
       {jogosAoVivo.length > 0 && (
         <section className="editorial-section border-b border-red-200 bg-red-50 px-5 py-6 sm:px-8 lg:px-12">
@@ -3372,6 +3411,38 @@ function Inicio({
 
 function jogoSlot(jogo: Jogo) {
   return `${jogo.data}T${jogo.hora}`;
+}
+
+function construirJogoDinamicoDePartida(partida: {
+  id: string;
+  inicia_em: string | null;
+  time_a?: string;
+  time_b?: string;
+  grupo?: string | null;
+  fase?: string | null;
+}): Jogo | null {
+  if (!partida.time_a || !partida.time_b || !partida.inicia_em) return null;
+
+  const selecaoA = resolveTeamIdByName(partida.time_a);
+  const selecaoB = resolveTeamIdByName(partida.time_b);
+  if (!selecaoA || !selecaoB) return null;
+
+  const brasilia = new Date(new Date(partida.inicia_em).getTime() - 3 * 60 * 60 * 1000);
+  const data = brasilia.toISOString().slice(0, 10);
+  const hora = brasilia.toISOString().slice(11, 16);
+  const grupo = grupoApiParaLocal(partida.grupo) ?? "Mata-mata";
+
+  return {
+    id: partida.id,
+    rodada: 4,
+    grupo,
+    data,
+    hora,
+    estadio: "A definir",
+    cidade: "A definir",
+    selecaoA,
+    selecaoB,
+  };
 }
 
 function partidaSlot(iniciaEm: string | null) {
@@ -3929,6 +4000,7 @@ function MeusPalpitesTab({
   resultadosPorJogo,
   meusAcertosPorJogo,
   acertadoresPorJogo,
+  jogosById,
   isAdmin = false,
   allPalpitesAdmin = [],
   loadingAllPalpites = false,
@@ -3940,6 +4012,7 @@ function MeusPalpitesTab({
   resultadosPorJogo?: Map<string, JogoResultado>;
   meusAcertosPorJogo: Map<string, Palpite>;
   acertadoresPorJogo: Map<string, WinningPrediction[]>;
+  jogosById: Map<string, Jogo>;
   isAdmin?: boolean;
   allPalpitesAdmin?: AdminPalpite[];
   loadingAllPalpites?: boolean;
@@ -3956,23 +4029,23 @@ function MeusPalpitesTab({
   const gruposMeus = useMemo(() => {
     const gs = new Set<string>();
     palpites.forEach((p) => {
-      const j = jogos.find((x) => x.id === p.jogoId);
+      const j = jogosById.get(p.jogoId);
       if (j) gs.add(j.grupo);
     });
     return Array.from(gs).sort();
-  }, [palpites]);
+  }, [palpites, jogosById]);
 
   const meus = useMemo(
     () =>
       palpites.filter((p) => {
         if (p.usuarioId !== usuario.id) return false;
         if (filtroGrupo !== "todos") {
-          const j = jogos.find((x) => x.id === p.jogoId);
+          const j = jogosById.get(p.jogoId);
           if (!j || j.grupo !== filtroGrupo) return false;
         }
         return true;
       }),
-    [palpites, usuario.id, filtroGrupo],
+    [palpites, usuario.id, filtroGrupo, jogosById],
   );
 
   const porUsuario = useMemo(() => {
@@ -4101,7 +4174,7 @@ function MeusPalpitesTab({
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {meus.map((p) => {
-            const j = jogos.find((x) => x.id === p.jogoId);
+            const j = jogosById.get(p.jogoId);
             const a = getSelecao(p.selecaoA);
             const b = getSelecao(p.selecaoB);
             const bloqueado = j ? palpiteBloqueadoParaJogo(j, resultadosPorJogo?.get(j.id)) : true;
@@ -4202,7 +4275,15 @@ function MeusPalpitesTab({
 }
 
 // ---------- TABELA ----------
-function TabelaTab({ usuario, palpites }: { usuario: AuthProfile; palpites: Palpite[] }) {
+function TabelaTab({
+  usuario,
+  palpites,
+  jogosById,
+}: {
+  usuario: AuthProfile;
+  palpites: Palpite[];
+  jogosById: Map<string, Jogo>;
+}) {
   const [fGrupo, setFGrupo] = useState("todos");
   const [fSelecao, setFSelecao] = useState("todas");
   const [fJogo, setFJogo] = useState("todos");
@@ -4210,7 +4291,7 @@ function TabelaTab({ usuario, palpites }: { usuario: AuthProfile; palpites: Palp
   const lista = useMemo(() => {
     return palpites
       .filter((p) => {
-        const j = jogos.find((x) => x.id === p.jogoId);
+        const j = jogosById.get(p.jogoId);
         if (!j) return false;
         if (fGrupo !== "todos" && j.grupo !== fGrupo) return false;
         if (fSelecao !== "todas" && p.selecaoA !== fSelecao && p.selecaoB !== fSelecao)
@@ -4219,7 +4300,7 @@ function TabelaTab({ usuario, palpites }: { usuario: AuthProfile; palpites: Palp
         return true;
       })
       .sort((a, b) => b.dataCriacao.localeCompare(a.dataCriacao));
-  }, [palpites, fGrupo, fSelecao, fJogo]);
+  }, [palpites, fGrupo, fSelecao, fJogo, jogosById]);
 
   return (
     <div className="space-y-4">
@@ -4273,7 +4354,7 @@ function TabelaTab({ usuario, palpites }: { usuario: AuthProfile; palpites: Palp
             </SelectTrigger>
             <SelectContent className="max-h-72">
               <SelectItem value="todos">Todos</SelectItem>
-              {jogos.map((j) => {
+              {[...jogosById.values()].map((j) => {
                 const a = getSelecao(j.selecaoA);
                 const b = getSelecao(j.selecaoB);
                 return (
@@ -4300,7 +4381,7 @@ function TabelaTab({ usuario, palpites }: { usuario: AuthProfile; palpites: Palp
           </thead>
           <tbody>
             {lista.map((p) => {
-              const j = jogos.find((x) => x.id === p.jogoId);
+              const j = jogosById.get(p.jogoId);
               const a = getSelecao(p.selecaoA);
               const b = getSelecao(p.selecaoB);
               return (
