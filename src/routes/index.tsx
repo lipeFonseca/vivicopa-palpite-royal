@@ -550,6 +550,7 @@ function Vivicopa() {
               palpites={palpites}
               winningPredictions={winningPredictions}
               isAdmin={authProfile.role === "admin"}
+              jogosById={jogosPorId}
               onDestaques={() => setAba("destaques")}
               onJogos={() => setAba("jogos")}
               onPalpite={(jogo) => (jogo ? abrirPalpite(jogo) : setAba("jogos"))}
@@ -2899,6 +2900,7 @@ function Inicio({
   palpites,
   winningPredictions,
   isAdmin,
+  jogosById,
   onDestaques,
   onJogos,
   onPalpite,
@@ -2907,6 +2909,7 @@ function Inicio({
   palpites: Palpite[];
   winningPredictions: WinningPrediction[];
   isAdmin: boolean;
+  jogosById: Map<string, Jogo>;
   onDestaques: () => void;
   onJogos: () => void;
   onPalpite: (jogo?: Jogo) => void;
@@ -2984,16 +2987,16 @@ function Inicio({
   const jogoLocalPorPartidaId = useMemo(() => {
     const map = new Map<string, Jogo>();
     partidasPorJogo.forEach((partida, jogoId) => {
-      const jogoLocal = jogosPorId.get(jogoId);
+      const jogoLocal = jogosById.get(jogoId);
       if (jogoLocal) map.set(partida.id, jogoLocal);
     });
     jogosHome.forEach((partida) => {
       if (map.has(partida.id)) return;
-      const jogoLocal = jogosPorId.get(partida.id) ?? construirJogoDinamicoDePartida(partida);
+      const jogoLocal = jogosById.get(partida.id) ?? construirJogoDinamicoDePartida(partida);
       if (jogoLocal) map.set(partida.id, jogoLocal);
     });
     return map;
-  }, [partidasPorJogo, jogosHome, jogosPorId]);
+  }, [partidasPorJogo, jogosHome, jogosById]);
   const classificadosPorGrupo = useMemo(
     () =>
       grupos.map((grupo) => ({
