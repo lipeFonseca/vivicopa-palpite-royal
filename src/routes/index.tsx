@@ -3000,12 +3000,12 @@ function Inicio({
   const { partidas: partidasComPlacarAoVivo } = usePartidasComPlacarAoVivo();
   const { data: brazilPlayers = [] } = useEspnBrazilPlayerTotals();
   const abrirPalpiteMataMata = (partida: PartidaMataMata) => {
-    const jogo = partidaMataMataParaJogo(partida);
+    const jogo = partidaParaJogoDinamico(partida);
     if (!jogo) return;
     onPalpite(jogo);
   };
   const abrirComentariosMataMata = (partida: PartidaMataMata) => {
-    const jogo = partidaMataMataParaJogo(partida);
+    const jogo = partidaParaJogoDinamico(partida);
     if (!jogo) return;
     onComentarios(jogo);
   };
