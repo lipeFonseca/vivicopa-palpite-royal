@@ -39,7 +39,6 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
   const a = getSelecao(jogo.selecaoA);
   const b = getSelecao(jogo.selecaoB);
   const bloqueado = palpiteBloqueadoParaJogo(jogo);
-  const rotuloCompeticao = jogo.grupo === "Mata-mata" ? "Mata-mata" : `Grupo ${jogo.grupo}`;
 
   const handleSave = async () => {
     if (bloqueado) {
@@ -78,7 +77,7 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-brand-dark">
-            {editar ? "Editar palpite" : "Dar palpite"} — {rotuloCompeticao}
+            {editar ? "Editar palpite" : "Dar palpite"} — Grupo {jogo.grupo}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">

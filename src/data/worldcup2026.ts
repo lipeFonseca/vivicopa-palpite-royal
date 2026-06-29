@@ -9,7 +9,7 @@ export interface Selecao {
 
 export interface Jogo {
   id: string;
-  rodada: number;
+  rodada: 1 | 2 | 3;
   grupo: string;
   data: string; // YYYY-MM-DD (horário de Brasília)
   hora: string; // HH:MM (horário de Brasília)
