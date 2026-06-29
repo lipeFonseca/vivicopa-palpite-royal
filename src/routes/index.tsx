@@ -452,7 +452,7 @@ function Vivicopa() {
             setAba("inicio");
           }}
           navigation={
-            <TabsList className="site-nav flex h-auto w-full flex-nowrap justify-start gap-x-5 bg-transparent p-0">
+            <TabsList className="site-nav flex h-auto w-full flex-nowrap justify-start gap-x-3 bg-transparent p-0 lg:gap-x-4">
               <TabTrigger value="inicio" icon={<HomeIcon className="h-4 w-4" />}>
                 Início
               </TabTrigger>

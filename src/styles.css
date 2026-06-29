@@ -201,17 +201,19 @@
 }
 
 .site-nav [role="tab"] {
-  min-height: 38px;
+  min-height: 34px;
   flex: 0 0 auto;
   border-radius: 0 !important;
   border-bottom: 2px solid transparent;
-  padding: 6px 0 4px;
+  padding: 5px 0 3px;
   background: transparent !important;
   box-shadow: none !important;
   color: color-mix(in srgb, var(--site-ink) 86%, transparent) !important;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 900;
   text-transform: uppercase;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 .site-nav [role="tab"] svg {
@@ -221,6 +223,11 @@
 .site-nav [role="tab"][data-state="active"] {
   border-bottom-color: var(--site-accent);
   color: var(--site-ink) !important;
+}
+
+.site-nav [role="tab"] span {
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .site-user-button {
