@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import {
@@ -2739,21 +2740,31 @@ function PalpiteirosDoDiaSection({
                   </div>
                 </div>
               </div>
-              <div className="mt-3 rounded-xl bg-[#fff5d9] px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-wide text-[#8d6710]">
-                  Quem acertou
-                </div>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {winners.map((winner) => (
-                    <span
-                      key={winner.id}
-                      className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-brand-dark ring-1 ring-[#ead7a3]"
-                    >
-                      {winner.usuarioNome}
-                    </span>
-                  ))}
-                </div>
-              </div>
+              <Collapsible className="mt-3 rounded-xl bg-[#fff5d9]">
+                <CollapsibleTrigger className="group flex w-full items-center justify-between px-3 py-2 text-left">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-wide text-[#8d6710]">
+                      Quem acertou
+                    </div>
+                    <div className="text-[11px] font-semibold text-[#7b6a43]">
+                      {winners.length} {winners.length === 1 ? "palpite" : "palpites"}
+                    </div>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-[#8d6710] transition-transform group-data-[state=open]:rotate-180" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-3 pb-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {winners.map((winner) => (
+                      <span
+                        key={winner.id}
+                        className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-brand-dark ring-1 ring-[#ead7a3]"
+                      >
+                        {winner.usuarioNome}
+                      </span>
+                    ))}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             </div>
           );
         })}
