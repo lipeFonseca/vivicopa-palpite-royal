@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { Jogo } from "@/data/worldcup2026";
 import { getSelecao } from "@/data/worldcup2026";
 import { StylizedVersus } from "@/components/vivicopa/StylizedVersus";
+import { flagAlt, flagUrl } from "@/lib/flags";
 import { atualizarPalpite, salvarPalpite, type Palpite } from "@/lib/storage";
 import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
 
@@ -41,6 +42,18 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
   const bloqueado = palpiteBloqueadoParaJogo(jogo);
   const contextoPartida = jogo.grupo === "MATA_MATA" ? "Mata-mata" : `Grupo ${jogo.grupo}`;
 
+  const getSaveErrorMessage = (error: unknown) => {
+    if (typeof error === "object" && error != null) {
+      const code = "code" in error ? String(error.code ?? "") : "";
+      const message = "message" in error ? String(error.message ?? "") : "";
+      if (code === "23505" || /duplicate|duplic/i.test(message)) {
+        return "Voce ja tem um palpite para esse confronto. Reabra para editar.";
+      }
+      if (message) return message;
+    }
+    return "Erro ao salvar palpite. Tente novamente.";
+  };
+
   const handleSave = async () => {
     if (bloqueado) {
       toast.error("Palpites encerrados para este jogo.");
@@ -66,8 +79,8 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
       toast.success("Palpite registrado! Agora é torcer!");
       onSaved();
       onClose();
-    } catch {
-      toast.error("Erro ao salvar palpite. Tente novamente.");
+    } catch (error) {
+      toast.error(getSaveErrorMessage(error));
     } finally {
       setSalvando(false);
     }
@@ -87,8 +100,15 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
           </div>
           <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-3">
             <div>
-              <Label className="flex items-center gap-1">
-                <span>{a?.bandeiraEmoji}</span> {a?.nome}
+              <Label className="flex items-center gap-2">
+                {a && (
+                  <img
+                    src={flagUrl(a.id, 80)}
+                    alt={flagAlt(a.id)}
+                    className="h-4 w-6 rounded-[2px] border border-border object-cover shadow-sm"
+                  />
+                )}
+                <span>{a?.nome ?? jogo.selecaoA}</span>
               </Label>
               <Input type="number" min={0} value={placarA} disabled={bloqueado} onChange={(e) => setPlacarA(Number(e.target.value))} />
             </div>
@@ -96,8 +116,15 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
               <StylizedVersus compact />
             </div>
             <div>
-              <Label className="flex items-center gap-1">
-                <span>{b?.bandeiraEmoji}</span> {b?.nome}
+              <Label className="flex items-center gap-2">
+                {b && (
+                  <img
+                    src={flagUrl(b.id, 80)}
+                    alt={flagAlt(b.id)}
+                    className="h-4 w-6 rounded-[2px] border border-border object-cover shadow-sm"
+                  />
+                )}
+                <span>{b?.nome ?? jogo.selecaoB}</span>
               </Label>
               <Input type="number" min={0} value={placarB} disabled={bloqueado} onChange={(e) => setPlacarB(Number(e.target.value))} />
             </div>

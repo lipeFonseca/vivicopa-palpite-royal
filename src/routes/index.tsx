@@ -96,6 +96,7 @@ import {
 } from "@/lib/auth";
 import { excluirPalpite, type Palpite } from "@/lib/storage";
 import { flagUrl, flagAlt, flagUrlFromFifaCode } from "@/lib/flags";
+import { construirCatalogoJogos, isFaseMataMata, partidaParaJogoDinamico } from "@/lib/jogo-resolver";
 import { palpiteBloqueadoParaJogo } from "@/lib/matchLock";
 import { getCanonicalTeamName, resolveTeamIdByName } from "@/lib/teamNames";
 import {
@@ -247,37 +248,6 @@ function applyConfigToLocalStorage(cfg: Record<string, string>) {
   window.dispatchEvent(new CustomEvent("vivicopa:favicon-changed"));
 }
 
-function partidaMataMataParaJogo(partida: PartidaMataMata): Jogo | null {
-  const selecaoA = resolveTeamIdByName(partida.time_a);
-  const selecaoB = resolveTeamIdByName(partida.time_b);
-  if (!selecaoA || !selecaoB || !partida.inicia_em) return null;
-
-  const inicio = new Date(partida.inicia_em);
-  if (!Number.isFinite(inicio.getTime())) return null;
-
-  const data = [
-    inicio.getFullYear(),
-    String(inicio.getMonth() + 1).padStart(2, "0"),
-    String(inicio.getDate()).padStart(2, "0"),
-  ].join("-");
-  const hora = [
-    String(inicio.getHours()).padStart(2, "0"),
-    String(inicio.getMinutes()).padStart(2, "0"),
-  ].join(":");
-
-  return {
-    id: partida.id,
-    rodada: 1,
-    grupo: "MATA_MATA",
-    data,
-    hora,
-    estadio: "Mata-mata da Copa 2026",
-    cidade: "A definir",
-    selecaoA,
-    selecaoB,
-  };
-}
-
 function LazyTabPanel({
   value,
   activeTab,
@@ -337,18 +307,33 @@ function Vivicopa() {
   const [selecaoModal, setSelecaoModal] = useState<Selecao | null>(null);
   const [filtroGrupoInicial, setFiltroGrupoInicial] = useState<string>("todos");
   const { partidas: partidasResultados } = usePartidasResultados();
+  const jogosCatalogo = useMemo(() => construirCatalogoJogos(partidasResultados), [partidasResultados]);
   const resultadosPorJogo = useMemo(
-    () =>
-      mapearPartidasPorJogos(
+    () => {
+      const map = mapearPartidasPorJogos(
         partidasResultados.map((p) => ({
           ...p,
           placar_a: p.placar_a ?? 0,
           placar_b: p.placar_b ?? 0,
         })) as JogoResultado[],
-      ),
+      );
+      partidasResultados.forEach((partida) => {
+        if (!isFaseMataMata(partida.fase)) return;
+        map.set(partida.id, {
+          ...partida,
+          placar_a: partida.placar_a ?? 0,
+          placar_b: partida.placar_b ?? 0,
+        } as JogoResultado);
+      });
+      return map;
+    },
     [partidasResultados],
   );
   const { data: palpites = [] } = useMeusPalpitesQuery(authProfile?.id);
+  const meusPalpitesPorJogoId = useMemo(
+    () => new Map(palpites.map((palpite) => [palpite.jogoId, palpite])),
+    [palpites],
+  );
   const isAdmin = authProfile?.role === "admin";
   const { data: allPalpitesAdmin = [], isLoading: loadingAllPalpites } = useAllPalpitesAdminQuery(isAdmin);
   const { data: comentarios = [] } = useComentariosQuery(Boolean(authProfile?.id));
@@ -394,24 +379,24 @@ function Vivicopa() {
       return;
     }
     setJogoSel(j);
-    setEditar(p ?? null);
+    setEditar(p ?? meusPalpitesPorJogoId.get(j.id) ?? null);
     setModalOpen(true);
   };
   const abrirComentarios = (j: Jogo) => setComentariosJogo(j);
   const abrirComentariosPorJogoId = (jogoId: string) => {
-    const jogo = jogos.find((item) => item.id === jogoId);
+    const jogo = jogosCatalogo.get(jogoId);
     if (jogo) setComentariosJogo(jogo);
   };
   const abrirPalpiteMataMata = (partida: PartidaMataMata) => {
-    const jogo = partidaMataMataParaJogo(partida);
+    const jogo = partidaParaJogoDinamico(partida);
     if (!jogo) {
       toast.error("Confronto ainda nao esta totalmente definido para palpites.");
       return;
     }
-    abrirPalpite(jogo);
+    abrirPalpite(jogo, meusPalpitesPorJogoId.get(partida.id));
   };
   const abrirComentariosMataMata = (partida: PartidaMataMata) => {
-    const jogo = partidaMataMataParaJogo(partida);
+    const jogo = partidaParaJogoDinamico(partida);
     if (!jogo) {
       toast.error("Confronto ainda nao esta totalmente definido para comentarios.");
       return;
@@ -567,6 +552,7 @@ function Vivicopa() {
         <main className="site-main w-full flex-1">
           <TabsContent value="inicio" className="mt-0">
             <Inicio
+              jogosCatalogo={jogosCatalogo}
               palpites={palpites}
               winningPredictions={winningPredictions}
               isAdmin={authProfile.role === "admin"}
@@ -657,24 +643,33 @@ function Vivicopa() {
           <TabsContent value="meus" className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12">
             <LazyTabPanel value="meus" activeTab={aba}>
               <MeusPalpitesTab
+                jogosCatalogo={jogosCatalogo}
                 usuario={authProfile}
                 palpites={palpites}
                 resultadosPorJogo={resultadosPorJogo}
                 acertadoresPorJogo={acertadoresPorJogo}
                 onEditar={(p) => {
-                  const j = jogos.find((x) => x.id === p.jogoId);
+                  const j = jogosCatalogo.get(p.jogoId);
                   if (j) abrirPalpite(j, p);
                 }}
                 onExcluir={async (p) => {
-                  const j = jogos.find((x) => x.id === p.jogoId);
+                  const j = jogosCatalogo.get(p.jogoId);
                   if (j && palpiteBloqueadoParaJogo(j, resultadosPorJogo.get(j.id))) {
                     toast.error("Palpites encerrados para este jogo.");
                     return;
                   }
                   await excluirPalpite(p.id, authProfile.id);
-                  await queryClient.invalidateQueries({
-                    queryKey: vivicopaQueryKeys.meusPalpites(authProfile.id),
-                  });
+                  await Promise.all([
+                    queryClient.invalidateQueries({
+                      queryKey: vivicopaQueryKeys.meusPalpites(authProfile.id),
+                    }),
+                    queryClient.invalidateQueries({
+                      queryKey: [...vivicopaQueryKeys.winningPredictions, authProfile.id],
+                    }),
+                    queryClient.invalidateQueries({
+                      queryKey: vivicopaQueryKeys.allPalpitesAdmin,
+                    }),
+                  ]);
                 }}
                 meusAcertosPorJogo={meusAcertosPorJogo}
                 isAdmin={isAdmin}
@@ -728,9 +723,17 @@ function Vivicopa() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSaved={() => {
-          void queryClient.invalidateQueries({
-            queryKey: vivicopaQueryKeys.meusPalpites(authProfile.id),
-          });
+          void Promise.all([
+            queryClient.invalidateQueries({
+              queryKey: vivicopaQueryKeys.meusPalpites(authProfile.id),
+            }),
+            queryClient.invalidateQueries({
+              queryKey: [...vivicopaQueryKeys.winningPredictions, authProfile.id],
+            }),
+            queryClient.invalidateQueries({
+              queryKey: vivicopaQueryKeys.allPalpitesAdmin,
+            }),
+          ]);
         }}
         editar={editar}
         userId={authProfile.id}
@@ -2646,8 +2649,10 @@ function AcertoMoscaBadge() {
 }
 
 function PalpiteirosDoDiaSection({
+  jogosCatalogo,
   winningPredictions,
 }: {
+  jogosCatalogo: Map<string, Jogo>;
   winningPredictions: WinningPrediction[];
 }) {
   const cards = useMemo(() => {
@@ -2658,7 +2663,7 @@ function PalpiteirosDoDiaSection({
 
     return Array.from(grouped.entries())
       .map(([jogoId, winners]) => {
-        const jogo = jogos.find((item) => item.id === jogoId);
+        const jogo = jogosCatalogo.get(jogoId);
         if (!jogo || winners.length === 0) return null;
         const latestWinner = winners.reduce((latest, current) =>
           current.createdAt > latest.createdAt ? current : latest,
@@ -2672,7 +2677,7 @@ function PalpiteirosDoDiaSection({
           Boolean(item),
       )
       .sort((a, b) => (b.jogo.data + b.jogo.hora).localeCompare(a.jogo.data + a.jogo.hora));
-  }, [winningPredictions]);
+  }, [winningPredictions, jogosCatalogo]);
 
   if (cards.length === 0) return null;
 
@@ -2698,7 +2703,7 @@ function PalpiteirosDoDiaSection({
             >
               <div className="mb-3 flex items-start justify-between gap-2">
                 <Badge className="bg-[#c99a2d] text-white hover:bg-[#c99a2d]">
-                  Grupo {jogo.grupo}
+                  {jogo.grupo === "MATA_MATA" ? "Mata-mata" : `Grupo ${jogo.grupo}`}
                 </Badge>
                 <div className="text-right text-[11px] font-semibold text-[#7b6a43]">
                   {jogo.data}
@@ -2917,6 +2922,7 @@ function HeaderMobileWidget({ userId }: { userId: string }) {
 }
 
 function Inicio({
+  jogosCatalogo,
   palpites,
   winningPredictions,
   isAdmin,
@@ -2925,6 +2931,7 @@ function Inicio({
   onPalpite,
   onComentarios,
 }: {
+  jogosCatalogo: Map<string, Jogo>;
   palpites: Palpite[];
   winningPredictions: WinningPrediction[];
   isAdmin: boolean;
@@ -3005,6 +3012,10 @@ function Inicio({
   const jogosAoVivo = _aoVivo as PartidaDestaque[];
   const jogosHoje = _hoje as PartidaDestaque[];
   const flagMap = useSelecoesFlagMap();
+  const jogosCatalogoHome = useMemo(
+    () => construirCatalogoJogos(partidasComPlacarAoVivo),
+    [partidasComPlacarAoVivo],
+  );
   const { classificacaoPorGrupo } = useClassificacaoGrupos();
   const destaquesHome = useMemo(
     () => buildBrazilHighlights(partidasComPlacarAoVivo, brazilPlayers),
@@ -3015,11 +3026,16 @@ function Inicio({
   const jogoLocalPorPartidaId = useMemo(() => {
     const map = new Map<string, Jogo>();
     partidasPorJogo.forEach((partida, jogoId) => {
-      const jogoLocal = jogos.find((item) => item.id === jogoId);
+      const jogoLocal = jogosCatalogoHome.get(jogoId);
+      if (jogoLocal) map.set(partida.id, jogoLocal);
+    });
+    partidasComPlacarAoVivo.forEach((partida) => {
+      if (!isFaseMataMata(partida.fase)) return;
+      const jogoLocal = jogosCatalogoHome.get(partida.id);
       if (jogoLocal) map.set(partida.id, jogoLocal);
     });
     return map;
-  }, [partidasPorJogo]);
+  }, [partidasPorJogo, partidasComPlacarAoVivo, jogosCatalogoHome]);
   const classificadosPorGrupo = useMemo(
     () =>
       grupos.map((grupo) => ({
@@ -3347,7 +3363,10 @@ function Inicio({
         </div>
       </section>
 
-      <PalpiteirosDoDiaSection winningPredictions={winningPredictions} />
+      <PalpiteirosDoDiaSection
+        jogosCatalogo={jogosCatalogo}
+        winningPredictions={winningPredictions}
+      />
 
       {jogosAoVivo.length > 0 && (
         <section className="editorial-section border-b border-red-200 bg-red-50 px-5 py-6 sm:px-8 lg:px-12">
@@ -3986,6 +4005,7 @@ function GruposTab({ onVerJogos }: { onVerJogos: (grupo: string) => void }) {
 
 // ---------- MEUS PALPITES ----------
 function MeusPalpitesTab({
+  jogosCatalogo,
   usuario,
   palpites,
   onEditar,
@@ -3997,6 +4017,7 @@ function MeusPalpitesTab({
   allPalpitesAdmin = [],
   loadingAllPalpites = false,
 }: {
+  jogosCatalogo: Map<string, Jogo>;
   usuario: AuthProfile;
   palpites: Palpite[];
   onEditar: (p: Palpite) => void;
@@ -4020,23 +4041,23 @@ function MeusPalpitesTab({
   const gruposMeus = useMemo(() => {
     const gs = new Set<string>();
     palpites.forEach((p) => {
-      const j = jogos.find((x) => x.id === p.jogoId);
+      const j = jogosCatalogo.get(p.jogoId);
       if (j) gs.add(j.grupo);
     });
     return Array.from(gs).sort();
-  }, [palpites]);
+  }, [palpites, jogosCatalogo]);
 
   const meus = useMemo(
     () =>
       palpites.filter((p) => {
         if (p.usuarioId !== usuario.id) return false;
         if (filtroGrupo !== "todos") {
-          const j = jogos.find((x) => x.id === p.jogoId);
+          const j = jogosCatalogo.get(p.jogoId);
           if (!j || j.grupo !== filtroGrupo) return false;
         }
         return true;
       }),
-    [palpites, usuario.id, filtroGrupo],
+    [palpites, usuario.id, filtroGrupo, jogosCatalogo],
   );
 
   const porUsuario = useMemo(() => {
@@ -4165,7 +4186,7 @@ function MeusPalpitesTab({
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {meus.map((p) => {
-            const j = jogos.find((x) => x.id === p.jogoId);
+            const j = jogosCatalogo.get(p.jogoId);
             const a = getSelecao(p.selecaoA);
             const b = getSelecao(p.selecaoB);
             const bloqueado = j ? palpiteBloqueadoParaJogo(j, resultadosPorJogo?.get(j.id)) : true;
@@ -4181,7 +4202,7 @@ function MeusPalpitesTab({
               >
                 <div className="mb-2 flex items-center justify-between text-xs">
                   <Badge className="bg-brand-light text-brand-dark hover:bg-brand-light">
-                    Grupo {j?.grupo}
+                    {j?.grupo === "MATA_MATA" ? "Mata-mata" : `Grupo ${j?.grupo}`}
                   </Badge>
                   <div className="flex items-center gap-2">
                     {acertouNaMosca && <AcertoMoscaBadge />}

@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { jogos } from "@/data/worldcup2026";
+import { isFaseMataMata, partidaParaJogoDinamico } from "@/lib/jogo-resolver";
 import { isFinishedMatchStatus } from "@/lib/prediction-results";
 import { resolveTeamIdByName } from "@/lib/teamNames";
 
@@ -47,6 +48,7 @@ type PartidaResult = {
   placar_b: number | null;
   status: string | null;
   inicia_em: string | null;
+  fase?: string | null;
 };
 
 function jogoSlot(data: string, hora: string) {
@@ -81,6 +83,13 @@ function mapearPartidasPorJogoId(partidas: PartidaResult[]) {
     .slice()
     .sort((a, b) => String(a.inicia_em ?? "").localeCompare(String(b.inicia_em ?? "")))
     .forEach((partida) => {
+      if (isFaseMataMata(partida.fase)) {
+        const jogoDinamico = partidaParaJogoDinamico(partida);
+        if (jogoDinamico) {
+          map.set(jogoDinamico.id, partida);
+          return;
+        }
+      }
       const slot = partidaSlot(partida.inicia_em);
       const candidatos = jogosPorSlot.get(slot);
       if (!candidatos?.length) return;
@@ -106,7 +115,7 @@ function mapearPartidasPorJogoId(partidas: PartidaResult[]) {
 export async function getWinningPredictions(): Promise<WinningPrediction[]> {
   const { data: partidasData, error: partidasError } = await supabase
     .from("partidas" as never)
-    .select("id,time_a,time_b,placar_a,placar_b,status,inicia_em")
+    .select("id,time_a,time_b,placar_a,placar_b,status,inicia_em,fase")
     .in("status" as never, ["FT", "AET", "PEN"])
     .order("inicia_em" as never, { ascending: false });
 
@@ -131,8 +140,12 @@ export async function getWinningPredictions(): Promise<WinningPrediction[]> {
   }
   const results = ((palpitesData ?? []) as Array<Record<string, unknown>>)
     .map((row) => {
-      const jogo = jogos.find((item) => item.id === String(row.jogo_id));
       const resultado = resultadosPorJogo.get(String(row.jogo_id));
+      const jogo = resultado
+        ? (isFaseMataMata(resultado.fase)
+            ? partidaParaJogoDinamico(resultado)
+            : (jogos.find((item) => item.id === String(row.jogo_id)) ?? null))
+        : null;
       if (!jogo || !resultado || !isFinishedMatchStatus(resultado.status)) return null;
 
       const palpite = {
@@ -167,7 +180,7 @@ export async function getWinningPredictions(): Promise<WinningPrediction[]> {
 export async function getAllPalpitesAdmin(): Promise<AdminPalpite[]> {
   const { data: partidasData, error: partidasError } = await supabase
     .from("partidas" as never)
-    .select("id,time_a,time_b,placar_a,placar_b,status,inicia_em")
+    .select("id,time_a,time_b,placar_a,placar_b,status,inicia_em,fase")
     .order("inicia_em" as never, { ascending: false });
 
   if (partidasError) return [];
@@ -182,10 +195,14 @@ export async function getAllPalpitesAdmin(): Promise<AdminPalpite[]> {
 
   return ((palpitesData ?? []) as Array<Record<string, unknown>>)
     .map((row) => {
-      const jogo = jogos.find((item) => item.id === String(row.jogo_id));
+      const resultado = resultadosPorJogo.get(String(row.jogo_id));
+      const jogo = resultado
+        ? (isFaseMataMata(resultado.fase)
+            ? partidaParaJogoDinamico(resultado)
+            : (jogos.find((item) => item.id === String(row.jogo_id)) ?? null))
+        : null;
       if (!jogo) return null;
 
-      const resultado = resultadosPorJogo.get(String(row.jogo_id));
       const finalizado = isFinishedMatchStatus(resultado?.status);
       const palpite = { placarA: Number(row.placar_a ?? 0), placarB: Number(row.placar_b ?? 0) };
       const acertouNaMosca = finalizado &&
