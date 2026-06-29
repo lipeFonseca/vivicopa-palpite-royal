@@ -2656,6 +2656,7 @@ function PalpiteirosDoDiaSection({
   jogosCatalogo: Map<string, Jogo>;
   winningPredictions: WinningPrediction[];
 }) {
+  const [aberto, setAberto] = useState(false);
   const cards = useMemo(() => {
     const grouped = new Map<string, WinningPrediction[]>();
     winningPredictions.forEach((item) => {
@@ -2684,91 +2685,93 @@ function PalpiteirosDoDiaSection({
 
   return (
     <section className="editorial-section border-b border-[#e6cf90] bg-[#fff9ea] px-5 py-6 sm:px-8 lg:px-12">
-      <div className="mb-3 flex items-center justify-between border-b border-[#ead7a3] pb-2">
-        <div>
-          <h2 className="text-lg font-black uppercase text-[#8d6710]">Palpiteiros da Copa</h2>
-          <p className="mt-1 text-sm text-[#7b6a43]">
-            Quem cravou placares exatos nos jogos já finalizados.
-          </p>
+      <Collapsible open={aberto} onOpenChange={setAberto}>
+        <div className="mb-3 flex items-center justify-between border-b border-[#ead7a3] pb-2">
+          <CollapsibleTrigger className="group flex min-w-0 flex-1 items-center justify-between gap-3 text-left">
+            <div>
+              <h2 className="text-lg font-black uppercase text-[#8d6710]">Palpiteiros da Copa</h2>
+              <p className="mt-1 text-sm text-[#7b6a43]">
+                Quem cravou placares exatos nos jogos já finalizados.
+              </p>
+              <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-[#aa8530]">
+                {cards.length} {cards.length === 1 ? "jogo com acerto" : "jogos com acertos"}
+              </p>
+            </div>
+            <ChevronDown className="h-5 w-5 shrink-0 text-[#8d6710] transition-transform group-data-[state=open]:rotate-180" />
+          </CollapsibleTrigger>
+          <div className="ml-3 shrink-0">
+            <AcertoMoscaBadge />
+          </div>
         </div>
-        <AcertoMoscaBadge />
-      </div>
-      <div className="flex flex-wrap justify-center gap-3">
-        {cards.map(({ jogo, winners, latestWinner }) => {
-          const a = getSelecao(jogo.selecaoA);
-          const b = getSelecao(jogo.selecaoB);
-          return (
-            <div
-              key={jogo.id}
-              className="w-full max-w-xs rounded-2xl border border-[#e6cf90] bg-white/85 p-4 shadow-[0_10px_25px_rgba(201,154,45,0.08)] sm:w-72"
-            >
-              <div className="mb-3 flex items-start justify-between gap-2">
-                <Badge className="bg-[#c99a2d] text-white hover:bg-[#c99a2d]">
-                  {jogo.grupo === "MATA_MATA" ? "Mata-mata" : `Grupo ${jogo.grupo}`}
-                </Badge>
-                <div className="text-right text-[11px] font-semibold text-[#7b6a43]">
-                  {jogo.data}
-                </div>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0 text-center">
-                  <img
-                    src={flagUrl(jogo.selecaoA, 80)}
-                    alt={flagAlt(jogo.selecaoA)}
-                    className="mx-auto h-7 w-10 rounded-sm object-cover ring-1 ring-black/10"
-                  />
-                  <div className="mt-1 truncate text-[11px] font-black uppercase text-brand-dark">
-                    {a?.nome}
+        <CollapsibleContent>
+          <div className="flex flex-wrap justify-center gap-3">
+            {cards.map(({ jogo, winners, latestWinner }) => {
+              const a = getSelecao(jogo.selecaoA);
+              const b = getSelecao(jogo.selecaoB);
+              return (
+                <div
+                  key={jogo.id}
+                  className="w-full max-w-xs rounded-2xl border border-[#e6cf90] bg-white/85 p-4 shadow-[0_10px_25px_rgba(201,154,45,0.08)] sm:w-72"
+                >
+                  <div className="mb-3 flex items-start justify-between gap-2">
+                    <Badge className="bg-[#c99a2d] text-white hover:bg-[#c99a2d]">
+                      {jogo.grupo === "MATA_MATA" ? "Mata-mata" : `Grupo ${jogo.grupo}`}
+                    </Badge>
+                    <div className="text-right text-[11px] font-semibold text-[#7b6a43]">
+                      {jogo.data}
+                    </div>
                   </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-extrabold text-[#8d6710]">
-                    {latestWinner.resultadoA} – {latestWinner.resultadoB}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 text-center">
+                      <img
+                        src={flagUrl(jogo.selecaoA, 80)}
+                        alt={flagAlt(jogo.selecaoA)}
+                        className="mx-auto h-7 w-10 rounded-sm object-cover ring-1 ring-black/10"
+                      />
+                      <div className="mt-1 truncate text-[11px] font-black uppercase text-brand-dark">
+                        {a?.nome}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-extrabold text-[#8d6710]">
+                        {latestWinner.resultadoA} – {latestWinner.resultadoB}
+                      </div>
+                      <div className="text-[10px] font-bold uppercase text-[#aa8530]">
+                        Placar cravado
+                      </div>
+                    </div>
+                    <div className="min-w-0 text-center">
+                      <img
+                        src={flagUrl(jogo.selecaoB, 80)}
+                        alt={flagAlt(jogo.selecaoB)}
+                        className="mx-auto h-7 w-10 rounded-sm object-cover ring-1 ring-black/10"
+                      />
+                      <div className="mt-1 truncate text-[11px] font-black uppercase text-brand-dark">
+                        {b?.nome}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-[10px] font-bold uppercase text-[#aa8530]">
-                    Placar cravado
-                  </div>
-                </div>
-                <div className="min-w-0 text-center">
-                  <img
-                    src={flagUrl(jogo.selecaoB, 80)}
-                    alt={flagAlt(jogo.selecaoB)}
-                    className="mx-auto h-7 w-10 rounded-sm object-cover ring-1 ring-black/10"
-                  />
-                  <div className="mt-1 truncate text-[11px] font-black uppercase text-brand-dark">
-                    {b?.nome}
-                  </div>
-                </div>
-              </div>
-              <Collapsible className="mt-3 rounded-xl bg-[#fff5d9]">
-                <CollapsibleTrigger className="group flex w-full items-center justify-between px-3 py-2 text-left">
-                  <div>
+                  <div className="mt-3 rounded-xl bg-[#fff5d9] px-3 py-2">
                     <div className="text-[10px] font-black uppercase tracking-wide text-[#8d6710]">
                       Quem acertou
                     </div>
-                    <div className="text-[11px] font-semibold text-[#7b6a43]">
-                      {winners.length} {winners.length === 1 ? "palpite" : "palpites"}
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {winners.map((winner) => (
+                        <span
+                          key={winner.id}
+                          className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-brand-dark ring-1 ring-[#ead7a3]"
+                        >
+                          {winner.usuarioNome}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-[#8d6710] transition-transform group-data-[state=open]:rotate-180" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="px-3 pb-2">
-                  <div className="flex flex-wrap gap-1.5">
-                    {winners.map((winner) => (
-                      <span
-                        key={winner.id}
-                        className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-brand-dark ring-1 ring-[#ead7a3]"
-                      >
-                        {winner.usuarioNome}
-                      </span>
-                    ))}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            </div>
-          );
-        })}
-      </div>
+                </div>
+              );
+            })}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </section>
   );
 }
