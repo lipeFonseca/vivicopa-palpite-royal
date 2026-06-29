@@ -47,7 +47,7 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
       const code = "code" in error ? String(error.code ?? "") : "";
       const message = "message" in error ? String(error.message ?? "") : "";
       if (code === "23505" || /duplicate|duplic/i.test(message)) {
-        return "Voce ja tem um palpite para esse confronto. Reabra para editar.";
+        return "Opa, va ja palpitou! so e permitido um palpite por partida. Agora basta torcer!";
       }
       if (message) return message;
     }
@@ -100,32 +100,22 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
           </div>
           <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-3">
             <div>
-              <Label className="flex items-center gap-2">
-                {a && (
-                  <img
-                    src={flagUrl(a.id, 80)}
-                    alt={flagAlt(a.id)}
-                    className="h-4 w-6 rounded-[2px] border border-border object-cover shadow-sm"
-                  />
-                )}
-                <span>{a?.nome ?? jogo.selecaoA}</span>
-              </Label>
+              <PredictionTeamLabel
+                selecaoId={a?.id}
+                nome={a?.nome ?? jogo.selecaoA}
+                emoji={a?.bandeiraEmoji}
+              />
               <Input type="number" min={0} value={placarA} disabled={bloqueado} onChange={(e) => setPlacarA(Number(e.target.value))} />
             </div>
             <div className="flex items-center justify-center pb-2">
               <StylizedVersus compact />
             </div>
             <div>
-              <Label className="flex items-center gap-2">
-                {b && (
-                  <img
-                    src={flagUrl(b.id, 80)}
-                    alt={flagAlt(b.id)}
-                    className="h-4 w-6 rounded-[2px] border border-border object-cover shadow-sm"
-                  />
-                )}
-                <span>{b?.nome ?? jogo.selecaoB}</span>
-              </Label>
+              <PredictionTeamLabel
+                selecaoId={b?.id}
+                nome={b?.nome ?? jogo.selecaoB}
+                emoji={b?.bandeiraEmoji}
+              />
               <Input type="number" min={0} value={placarB} disabled={bloqueado} onChange={(e) => setPlacarB(Number(e.target.value))} />
             </div>
           </div>
@@ -143,5 +133,37 @@ export function PredictionModal({ jogo, open, onClose, onSaved, editar, userId, 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PredictionTeamLabel({
+  selecaoId,
+  nome,
+  emoji,
+}: {
+  selecaoId?: string;
+  nome: string;
+  emoji?: string;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const src = selecaoId ? flagUrl(selecaoId, 80) : "";
+
+  return (
+    <Label className="flex items-center gap-2">
+      {src && !imageFailed ? (
+        <img
+          src={src}
+          alt={selecaoId ? flagAlt(selecaoId) : nome}
+          className="h-4 w-6 shrink-0 rounded-[2px] border border-border object-cover shadow-sm"
+          loading="eager"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <span className="inline-flex h-4 w-6 shrink-0 items-center justify-center overflow-hidden rounded-[2px] border border-border bg-brand-soft text-[10px] leading-none">
+          {emoji ?? nome.slice(0, 2).toUpperCase()}
+        </span>
+      )}
+      <span>{nome}</span>
+    </Label>
   );
 }
