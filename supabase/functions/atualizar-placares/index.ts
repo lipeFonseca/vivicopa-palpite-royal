@@ -425,16 +425,10 @@ Deno.serve(async (req) => {
 
   // ── Phase 1: Scheduling update when nothing live/pre-match ──────────────
   // Only runs when the app is idle and there's rate budget to spare.
-  if (
-    liveRows.length === 0 &&
-    preMatchRows.length === 0 &&
-    startedPendingRows.length === 0 &&
-    canFetchScheduled &&
-    client.info().remaining > 2
-  ) {
+  if (canFetchScheduled && client.info().remaining > 2) {
     try {
-      const from = fmt(new Date(agora - 6 * 3_600_000));
-      const to = fmt(addDays(new Date(agora + 18 * 3_600_000), 1));
+      const from = fmt(addDays(new Date(agora), -1));
+      const to = fmt(addDays(new Date(agora), 21));
       const scheduledData = (await client.scheduled(COMP, from, to)) as Record<string, unknown>[];
       const changedScheduled = scheduledData.filter((m) =>
         changed(m, agora, storedById.get(String(m.id)), "scheduled"),

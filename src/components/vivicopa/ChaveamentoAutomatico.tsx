@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { usePartidasComPlacarAoVivo } from "@/hooks/usePartidas";
 import { flagAlt, flagUrl } from "@/lib/flags";
 import { getCanonicalTeamName, resolveTeamIdByName } from "@/lib/teamNames";
 
-type PartidaMataMata = {
+export type PartidaMataMata = {
   id: string;
   time_a: string;
   time_b: string;
@@ -32,6 +33,8 @@ type ChaveamentoAutomaticoProps = {
   allowSimulation?: boolean;
   previewMode?: boolean;
   simulating?: boolean;
+  onPalpitar?: (partida: PartidaMataMata) => void;
+  onComentarios?: (partida: PartidaMataMata) => void;
 };
 
 function faseLabel(fase: string) {
@@ -94,6 +97,8 @@ export function ChaveamentoAutomatico({
   allowSimulation = false,
   previewMode = false,
   simulating,
+  onPalpitar,
+  onComentarios,
 }: ChaveamentoAutomaticoProps) {
   const { partidas: todasPartidas, loading: carregando } = usePartidasComPlacarAoVivo();
   const [simulando, setSimulando] = useState(() => {
@@ -179,7 +184,13 @@ export function ChaveamentoAutomatico({
                 <div className="grid gap-2">
                   {lista.length ? (
                     lista.map((partida) => (
-                      <ChaveCard key={partida.id} partida={partida} destaque={fase === "FINAL"} />
+                      <ChaveCard
+                        key={partida.id}
+                        partida={partida}
+                        destaque={fase === "FINAL"}
+                        onPalpitar={onPalpitar}
+                        onComentarios={onComentarios}
+                      />
                     ))
                   ) : (
                     <ChaveVazia fase={fase} />
@@ -202,7 +213,11 @@ export function ChaveamentoAutomatico({
               <Badge variant="secondary">Extra</Badge>
             </div>
             {terceiroLugar && confrontoDefinido(terceiroLugar) ? (
-              <ChaveCard partida={terceiroLugar} />
+              <ChaveCard
+                partida={terceiroLugar}
+                onPalpitar={onPalpitar}
+                onComentarios={onComentarios}
+              />
             ) : (
               <ChaveVazia fase="THIRD_PLACE" />
             )}
@@ -229,10 +244,23 @@ function ChaveVazia({ fase }: { fase: string }) {
   );
 }
 
-function ChaveCard({ partida, destaque = false }: { partida: PartidaMataMata; destaque?: boolean }) {
+function ChaveCard({
+  partida,
+  destaque = false,
+  onPalpitar,
+  onComentarios,
+}: {
+  partida: PartidaMataMata;
+  destaque?: boolean;
+  onPalpitar?: (partida: PartidaMataMata) => void;
+  onComentarios?: (partida: PartidaMataMata) => void;
+}) {
   const finalizado = ["FT", "AET", "PEN"].includes(partida.status);
   const vencedorA = finalizado && partida.placar_a > partida.placar_b;
   const vencedorB = finalizado && partida.placar_b > partida.placar_a;
+  const confrontoResolvido = timeDefinido(partida.time_a) && timeDefinido(partida.time_b);
+  const podePalpitar = confrontoResolvido && partida.status === "NS";
+  const exibirAcoes = Boolean(onPalpitar || onComentarios);
 
   return (
     <div className={`rounded-lg border border-border bg-background p-2 shadow-sm ${destaque ? "ring-2 ring-brand/30" : ""}`}>
@@ -244,6 +272,29 @@ function ChaveCard({ partida, destaque = false }: { partida: PartidaMataMata; de
       </div>
       <EquipeLinha nome={partida.time_a} placar={partida.placar_a} vencedor={vencedorA} />
       <EquipeLinha nome={partida.time_b} placar={partida.placar_b} vencedor={vencedorB} />
+      {exibirAcoes && (
+        <div className="mt-2 grid grid-cols-2 gap-2 border-t border-border/70 pt-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-[11px] font-black uppercase"
+            disabled={!confrontoResolvido || !onComentarios}
+            onClick={() => onComentarios?.(partida)}
+          >
+            Comentar
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 bg-brand text-[11px] font-black uppercase text-white hover:opacity-90"
+            disabled={!podePalpitar || !onPalpitar}
+            onClick={() => onPalpitar?.(partida)}
+          >
+            {partida.status === "NS" ? "Palpitar" : "Encerrado"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

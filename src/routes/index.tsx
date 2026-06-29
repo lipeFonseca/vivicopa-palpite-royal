@@ -50,6 +50,7 @@ import { PredictionModal } from "@/components/vivicopa/PredictionModal";
 import {
   ChaveamentoAutomatico,
   USAR_SIMULACAO_KEY,
+  type PartidaMataMata,
 } from "@/components/vivicopa/ChaveamentoAutomatico";
 import { AdminCommentsTab } from "@/components/vivicopa/AdminCommentsTab";
 import {
@@ -246,6 +247,37 @@ function applyConfigToLocalStorage(cfg: Record<string, string>) {
   window.dispatchEvent(new CustomEvent("vivicopa:favicon-changed"));
 }
 
+function partidaMataMataParaJogo(partida: PartidaMataMata): Jogo | null {
+  const selecaoA = resolveTeamIdByName(partida.time_a);
+  const selecaoB = resolveTeamIdByName(partida.time_b);
+  if (!selecaoA || !selecaoB || !partida.inicia_em) return null;
+
+  const inicio = new Date(partida.inicia_em);
+  if (!Number.isFinite(inicio.getTime())) return null;
+
+  const data = [
+    inicio.getFullYear(),
+    String(inicio.getMonth() + 1).padStart(2, "0"),
+    String(inicio.getDate()).padStart(2, "0"),
+  ].join("-");
+  const hora = [
+    String(inicio.getHours()).padStart(2, "0"),
+    String(inicio.getMinutes()).padStart(2, "0"),
+  ].join(":");
+
+  return {
+    id: partida.id,
+    rodada: 1,
+    grupo: "MATA_MATA",
+    data,
+    hora,
+    estadio: "Mata-mata da Copa 2026",
+    cidade: "A definir",
+    selecaoA,
+    selecaoB,
+  };
+}
+
 function LazyTabPanel({
   value,
   activeTab,
@@ -369,6 +401,22 @@ function Vivicopa() {
   const abrirComentariosPorJogoId = (jogoId: string) => {
     const jogo = jogos.find((item) => item.id === jogoId);
     if (jogo) setComentariosJogo(jogo);
+  };
+  const abrirPalpiteMataMata = (partida: PartidaMataMata) => {
+    const jogo = partidaMataMataParaJogo(partida);
+    if (!jogo) {
+      toast.error("Confronto ainda nao esta totalmente definido para palpites.");
+      return;
+    }
+    abrirPalpite(jogo);
+  };
+  const abrirComentariosMataMata = (partida: PartidaMataMata) => {
+    const jogo = partidaMataMataParaJogo(partida);
+    if (!jogo) {
+      toast.error("Confronto ainda nao esta totalmente definido para comentarios.");
+      return;
+    }
+    abrirComentarios(jogo);
   };
   const atualizarComentariosENotificacoes = async () => {
     await Promise.all([
@@ -592,7 +640,11 @@ function Vivicopa() {
             className="site-tab-content mt-0 px-5 py-6 sm:px-8 lg:px-12"
           >
             <LazyTabPanel value="chaveamento" activeTab={aba}>
-              <ChaveamentoAutomatico allowSimulation={authProfile.role === "admin"} />
+              <ChaveamentoAutomatico
+                allowSimulation={authProfile.role === "admin"}
+                onPalpitar={abrirPalpiteMataMata}
+                onComentarios={abrirComentariosMataMata}
+              />
             </LazyTabPanel>
           </TabsContent>
 
@@ -2940,6 +2992,16 @@ function Inicio({
   const { jogosAoVivo: _aoVivo, jogosHoje: _hoje, tituloSecao } = useJogosHojeStore();
   const { partidas: partidasComPlacarAoVivo } = usePartidasComPlacarAoVivo();
   const { data: brazilPlayers = [] } = useEspnBrazilPlayerTotals();
+  const abrirPalpiteMataMata = (partida: PartidaMataMata) => {
+    const jogo = partidaMataMataParaJogo(partida);
+    if (!jogo) return;
+    onPalpite(jogo);
+  };
+  const abrirComentariosMataMata = (partida: PartidaMataMata) => {
+    const jogo = partidaMataMataParaJogo(partida);
+    if (!jogo) return;
+    onComentarios(jogo);
+  };
   const jogosAoVivo = _aoVivo as PartidaDestaque[];
   const jogosHoje = _hoje as PartidaDestaque[];
   const flagMap = useSelecoesFlagMap();
@@ -3148,6 +3210,8 @@ function Inicio({
                 previewMode
                 allowSimulation={isAdmin}
                 simulating={simulacaoMataMata}
+                onPalpitar={abrirPalpiteMataMata}
+                onComentarios={abrirComentariosMataMata}
               />
             </div>
           ) : (
