@@ -22,6 +22,9 @@ export interface EspnScore {
   status: string
   placarA: number
   placarB: number
+  placarPenaltisA: number | null
+  placarPenaltisB: number | null
+  resultadoPeriodo: 'REGULAR' | 'EXTRA_TIME' | 'PENALTIES' | null
   minuto: number | null
   acrescimos: number | null
 }
@@ -60,8 +63,12 @@ async function fetchEspnScores(): Promise<Map<string, EspnScore>> {
     let minuto: number | null = null
     let acrescimos: number | null = null
 
+    const lowerDetail = detail.toLowerCase()
+    const resultadoPeriodo =
+      lowerDetail.includes('pen') ? 'PENALTIES' : lowerDetail.includes('aet') || lowerDetail.includes('extra') ? 'EXTRA_TIME' : state === 'post' ? 'REGULAR' : null
+
     if (state === 'post') {
-      status = 'FT'
+      status = resultadoPeriodo === 'PENALTIES' ? 'PEN' : resultadoPeriodo === 'EXTRA_TIME' ? 'AET' : 'FT'
       minuto = 90
     } else if (detail === 'HT') {
       status = 'HT'
@@ -81,6 +88,9 @@ async function fetchEspnScores(): Promise<Map<string, EspnScore>> {
       status,
       placarA: parseInt(home.score ?? '0', 10),
       placarB: parseInt(away.score ?? '0', 10),
+      placarPenaltisA: Number.isFinite(Number(home.shootoutScore)) ? Number(home.shootoutScore) : null,
+      placarPenaltisB: Number.isFinite(Number(away.shootoutScore)) ? Number(away.shootoutScore) : null,
+      resultadoPeriodo,
       minuto,
       acrescimos,
     })

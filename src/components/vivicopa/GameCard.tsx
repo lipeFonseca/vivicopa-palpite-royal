@@ -3,6 +3,7 @@ import { Calendar, MapPin, MessageSquare, Clock, ChevronDown, Info } from "lucid
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StylizedVersus } from "@/components/vivicopa/StylizedVersus";
+import { MatchStatsDropdown, type MatchStats } from "@/components/vivicopa/MatchStatsDropdown";
 import type { Jogo } from "@/data/worldcup2026";
 import { getSelecao } from "@/data/worldcup2026";
 import { flagUrl, flagAlt } from "@/lib/flags";
@@ -12,6 +13,13 @@ import type { WinningPrediction } from "@/hooks/useVivicopaQueries";
 export type GameResult = {
   placar_a: number;
   placar_b: number;
+  placar_regulamentar_a?: number | null;
+  placar_regulamentar_b?: number | null;
+  placar_penaltis_a?: number | null;
+  placar_penaltis_b?: number | null;
+  resultado_periodo?: "REGULAR" | "EXTRA_TIME" | "PENALTIES" | null;
+  estatisticas_a?: MatchStats | null;
+  estatisticas_b?: MatchStats | null;
   status: string;
   inicia_em?: string | null;
   minuto?: number | null;
@@ -34,6 +42,11 @@ export function GameCard({ jogo, qtdPalpites, resultado, acertouNaMosca = false,
   const temPalpite = qtdPalpites > 0;
   const isLive = ["LIVE", "HT", "ET", "PEN_LIVE"].includes(resultado?.status ?? "");
   const isFinished = ["FT", "AET", "PEN"].includes(resultado?.status ?? "");
+  const decidedOnPenalties =
+    resultado?.status === "PEN" ||
+    resultado?.resultado_periodo === "PENALTIES" ||
+    resultado?.placar_penaltis_a != null ||
+    resultado?.placar_penaltis_b != null;
   const palpiteBloqueado = palpiteBloqueadoParaJogo(jogo, resultado);
   const mostrarPlacar = Boolean(resultado && (isLive || isFinished));
   const statusLabel =
@@ -92,6 +105,23 @@ export function GameCard({ jogo, qtdPalpites, resultado, acertouNaMosca = false,
               className={`mt-1 text-[10px] font-bold uppercase ${isLive ? "text-red-500" : "text-muted-foreground"}`}
             >
               {statusLabel}
+            </div>
+          )}
+          {decidedOnPenalties && resultado && (
+            <div className="mt-2 grid min-w-[8.75rem] grid-cols-2 overflow-hidden rounded-lg border border-brand/15 bg-white/85 text-[10px] shadow-sm">
+              <div className="border-r border-brand/10 px-2 py-1.5">
+                <div className="font-bold uppercase text-muted-foreground">Jogo</div>
+                <div className="mt-0.5 font-black tabular-nums text-brand-dark">
+                  {resultado.placar_regulamentar_a ?? resultado.placar_a} -{" "}
+                  {resultado.placar_regulamentar_b ?? resultado.placar_b}
+                </div>
+              </div>
+              <div className="px-2 py-1.5">
+                <div className="font-bold uppercase text-emerald-700">Pen.</div>
+                <div className="mt-0.5 font-black tabular-nums text-emerald-700">
+                  {resultado.placar_penaltis_a ?? "-"} - {resultado.placar_penaltis_b ?? "-"}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -157,6 +187,15 @@ export function GameCard({ jogo, qtdPalpites, resultado, acertouNaMosca = false,
               ))}
             </div>
           </div>
+        )}
+        {resultado && (isLive || isFinished) && (
+          <MatchStatsDropdown
+            teamA={a?.nome ?? jogo.selecaoA}
+            teamB={b?.nome ?? jogo.selecaoB}
+            statsA={resultado.estatisticas_a}
+            statsB={resultado.estatisticas_b}
+            live={isLive}
+          />
         )}
         <Button
           onClick={() => onPalpitar(jogo)}

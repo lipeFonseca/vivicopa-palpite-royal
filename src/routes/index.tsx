@@ -64,6 +64,7 @@ import {
   ComentariosJogo,
 } from "@/components/vivicopa/CommentsSection";
 import { StylizedVersus } from "@/components/vivicopa/StylizedVersus";
+import { MatchStatsDropdown, type MatchStats } from "@/components/vivicopa/MatchStatsDropdown";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthStore, type AuthProfile } from "@/store/authStore";
 import { useConfigStore } from "@/store/configStore";
@@ -2267,12 +2268,68 @@ type PartidaDestaque = {
   time_b: string;
   placar_a: number | null;
   placar_b: number | null;
+  placar_regulamentar_a?: number | null;
+  placar_regulamentar_b?: number | null;
+  placar_penaltis_a?: number | null;
+  placar_penaltis_b?: number | null;
+  resultado_periodo?: "REGULAR" | "EXTRA_TIME" | "PENALTIES" | null;
   status: string;
   inicia_em: string | null;
   minuto?: number | null;
   acrescimos?: number | null;
   gols?: GoalEvent[] | null;
+  estatisticas_a?: MatchStats | null;
+  estatisticas_b?: MatchStats | null;
 };
+
+function isDecididoNosPenaltis(jogo: {
+  status?: string | null;
+  resultado_periodo?: string | null;
+  placar_penaltis_a?: number | null;
+  placar_penaltis_b?: number | null;
+}) {
+  return (
+    jogo.status === "PEN" ||
+    jogo.resultado_periodo === "PENALTIES" ||
+    jogo.placar_penaltis_a != null ||
+    jogo.placar_penaltis_b != null
+  );
+}
+
+function PenaltyResultDetails({
+  jogo,
+  compact = false,
+}: {
+  jogo: Pick<
+    PartidaDestaque,
+    | "placar_a"
+    | "placar_b"
+    | "placar_regulamentar_a"
+    | "placar_regulamentar_b"
+    | "placar_penaltis_a"
+    | "placar_penaltis_b"
+  >;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`grid grid-cols-2 overflow-hidden rounded-lg border border-emerald-200 bg-white/85 text-emerald-950 shadow-sm ${compact ? "text-[9px]" : "text-[10px]"}`}
+    >
+      <div className={`${compact ? "px-2 py-1.5" : "px-3 py-2"} border-r border-emerald-100`}>
+        <div className="font-black uppercase tracking-wide text-muted-foreground">Jogo</div>
+        <div className="mt-0.5 font-black tabular-nums text-foreground">
+          {jogo.placar_regulamentar_a ?? jogo.placar_a ?? 0} - {jogo.placar_regulamentar_b ?? jogo.placar_b ?? 0}
+        </div>
+      </div>
+      <div className={compact ? "px-2 py-1.5" : "px-3 py-2"}>
+        <div className="font-black uppercase tracking-wide text-emerald-700">Pen.</div>
+        <div className="mt-0.5 font-black tabular-nums text-emerald-700">
+          {jogo.placar_penaltis_a ?? "-"} - {jogo.placar_penaltis_b ?? "-"}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // useJogosHoje substituído por useJogosHojeStore() + useSelecoesFlagMap() do store centralizado
 // Renders a flag/crest using CSS background-image so SVG and PNG images
@@ -2436,6 +2493,7 @@ function EditorialMatchRowLegacy({
       })
     : "";
   const hasScore = live || ["FT", "AET", "PEN", "HT", "ET"].includes(jogo.status);
+  const showPenaltyDetails = isDecididoNosPenaltis(jogo);
   const bloqueado = jogoLocal ? palpiteBloqueadoParaJogo(jogoLocal) : false;
   const ctaLabel = bloqueado ? "Ver comentários" : "Palpitar agora";
   return (
@@ -2481,7 +2539,8 @@ function EditorialMatchRowLegacy({
         />
       </div>
       {jogoLocal && (onPalpitar || onComentarios) && (
-        <div className="col-span-full flex justify-end">
+        <div className="col-span-full flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          {showPenaltyDetails ? <PenaltyResultDetails jogo={jogo} compact /> : <span />}
           <Button
             type="button"
             size="sm"
@@ -2548,6 +2607,7 @@ function EditorialMatchRow({
       })
     : "";
   const hasScore = live || ["FT", "AET", "PEN", "HT", "ET"].includes(jogo.status);
+  const showPenaltyDetails = isDecididoNosPenaltis(jogo);
   const bloqueado = jogoLocal ? palpiteBloqueadoParaJogo(jogoLocal) : false;
 
   return (
@@ -2637,6 +2697,23 @@ function EditorialMatchRow({
           </div>
         )}
       </div>
+      {showPenaltyDetails && (
+        <div className="px-2 pb-3 sm:px-3">
+          <PenaltyResultDetails jogo={jogo} />
+        </div>
+      )}
+      {(live || ["FT", "AET", "PEN"].includes(jogo.status)) && (
+        <div className="px-2 pb-3 sm:px-3">
+          <MatchStatsDropdown
+            teamA={getCanonicalTeamName(jogo.time_a)}
+            teamB={getCanonicalTeamName(jogo.time_b)}
+            statsA={jogo.estatisticas_a}
+            statsB={jogo.estatisticas_b}
+            live={live}
+            compact
+          />
+        </div>
+      )}
     </div>
   );
 }

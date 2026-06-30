@@ -19,6 +19,9 @@ export interface EspnScoreboardMatch {
   acrescimos: number | null;
   placarA: number;
   placarB: number;
+  placarPenaltisA: number | null;
+  placarPenaltisB: number | null;
+  resultadoPeriodo: "REGULAR" | "EXTRA_TIME" | "PENALTIES" | null;
   homeTeamId: string;
   homeTeamName: string;
   awayTeamId: string;
@@ -37,6 +40,8 @@ export interface EspnSummary {
   estatisticasB: MatchStats | null;
   placarParcialA: number | null;
   placarParcialB: number | null;
+  placarRegulamentarA: number | null;
+  placarRegulamentarB: number | null;
   artigo: EspnArtigo | null;
   noticias: EspnArtigo[];
 }
@@ -103,7 +108,14 @@ function mapStatus(
   detail: string,
   displayClock: string,
 ): { status: string; minuto: number | null; acrescimos: number | null } {
-  if (state === "post") return { status: "FT", minuto: 90, acrescimos: null };
+  if (state === "post") {
+    const lower = detail.toLowerCase();
+    if (lower.includes("pen")) return { status: "PEN", minuto: 120, acrescimos: null };
+    if (lower.includes("aet") || lower.includes("extra")) {
+      return { status: "AET", minuto: 120, acrescimos: null };
+    }
+    return { status: "FT", minuto: 90, acrescimos: null };
+  }
   if (state !== "in") return { status: "NS", minuto: null, acrescimos: null };
   if (detail === "HT") return { status: "HT", minuto: 45, acrescimos: null };
   if (detail.startsWith("ET") || detail.toLowerCase().includes("extra")) {
@@ -137,6 +149,15 @@ function parseScoreboardEvent(event: Record<string, unknown>): EspnScoreboardMat
 
   const homeTeam = home.team as Record<string, unknown>;
   const awayTeam = away.team as Record<string, unknown>;
+  const lowerDetail = detail.toLowerCase();
+  const resultadoPeriodo =
+    lowerDetail.includes("pen")
+      ? "PENALTIES"
+      : lowerDetail.includes("aet") || lowerDetail.includes("extra")
+        ? "EXTRA_TIME"
+        : state === "post"
+          ? "REGULAR"
+          : null;
 
   return {
     espnId: event.id as string,
@@ -145,6 +166,9 @@ function parseScoreboardEvent(event: Record<string, unknown>): EspnScoreboardMat
     acrescimos,
     placarA: parseInt((home.score as string) ?? "0", 10),
     placarB: parseInt((away.score as string) ?? "0", 10),
+    placarPenaltisA: parseOptionalInt(home.shootoutScore),
+    placarPenaltisB: parseOptionalInt(away.shootoutScore),
+    resultadoPeriodo,
     homeTeamId: homeTeam.id as string,
     homeTeamName: homeTeam.displayName as string,
     awayTeamId: awayTeam.id as string,
@@ -152,6 +176,11 @@ function parseScoreboardEvent(event: Record<string, unknown>): EspnScoreboardMat
     iniciaEm: comps.startDate as string,
     fasePolling: state === "post" ? "post" : state === "in" ? "live" : "pre",
   };
+}
+
+function parseOptionalInt(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 // ─── Summary parser ─────────────────────────────────────────────────────────
@@ -180,6 +209,7 @@ function parseSummary(data: Record<string, unknown>): EspnSummary {
     estatisticasA: mapStats(boxscoreTeams, "home"),
     estatisticasB: mapStats(boxscoreTeams, "away"),
     ...extractHalfTimeScore(keyEvents, homeTeamId),
+    ...extractRegularTimeScore(keyEvents, homeTeamId),
     artigo: mapArtigo(data.article as Record<string, unknown> | null),
     noticias: mapNoticias(
       (data.news as Record<string, unknown> | null)?.articles as
@@ -190,6 +220,28 @@ function parseSummary(data: Record<string, unknown>): EspnSummary {
 }
 
 // ─── Half-time score ────────────────────────────────────────────────────────
+
+function extractRegularTimeScore(
+  keyEvents: Record<string, unknown>[],
+  homeTeamId: string | undefined,
+): { placarRegulamentarA: number | null; placarRegulamentarB: number | null } {
+  let a = 0, b = 0, sawGoal = false;
+  const goalTypes = new Set(["goal", "penalty---scored", "own-goal"]);
+  for (const ev of keyEvents) {
+    if (!goalTypes.has((ev.type as Record<string, unknown>)?.type as string)) continue;
+    const { minuto } = parseClock((ev.clock as Record<string, unknown>)?.displayValue as string ?? "");
+    if (!minuto || minuto > 90) continue;
+    sawGoal = true;
+    const teamId = (ev.team as Record<string, unknown>)?.id as string;
+    const isOwn = (ev.type as Record<string, unknown>)?.type === "own-goal";
+    const scoredForHome = isOwn ? teamId !== homeTeamId : teamId === homeTeamId;
+    if (scoredForHome) a++;
+    else b++;
+  }
+  return sawGoal
+    ? { placarRegulamentarA: a, placarRegulamentarB: b }
+    : { placarRegulamentarA: null, placarRegulamentarB: null };
+}
 
 function extractHalfTimeScore(
   keyEvents: Record<string, unknown>[],

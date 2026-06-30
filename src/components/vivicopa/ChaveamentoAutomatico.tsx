@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MatchStatsDropdown, type MatchStats } from "@/components/vivicopa/MatchStatsDropdown";
 import { usePartidasComPlacarAoVivo } from "@/hooks/usePartidas";
 import { flagAlt, flagUrl } from "@/lib/flags";
 import { getCanonicalTeamName, resolveTeamIdByName } from "@/lib/teamNames";
@@ -11,6 +12,13 @@ export type PartidaMataMata = {
   time_b: string;
   placar_a: number;
   placar_b: number;
+  placar_regulamentar_a?: number | null;
+  placar_regulamentar_b?: number | null;
+  placar_penaltis_a?: number | null;
+  placar_penaltis_b?: number | null;
+  resultado_periodo?: "REGULAR" | "EXTRA_TIME" | "PENALTIES" | null;
+  estatisticas_a?: MatchStats | null;
+  estatisticas_b?: MatchStats | null;
   status: string;
   inicia_em: string | null;
   fase: string | null;
@@ -256,11 +264,29 @@ function ChaveCard({
   onComentarios?: (partida: PartidaMataMata) => void;
 }) {
   const finalizado = ["FT", "AET", "PEN"].includes(partida.status);
-  const vencedorA = finalizado && partida.placar_a > partida.placar_b;
-  const vencedorB = finalizado && partida.placar_b > partida.placar_a;
+  const decididoNosPenaltis =
+    partida.status === "PEN" ||
+    partida.resultado_periodo === "PENALTIES" ||
+    partida.placar_penaltis_a != null ||
+    partida.placar_penaltis_b != null;
+  const placarJogoA = numeroPreferido(partida.placar_regulamentar_a, partida.placar_a);
+  const placarJogoB = numeroPreferido(partida.placar_regulamentar_b, partida.placar_b);
+  const penaltisA = partida.placar_penaltis_a ?? null;
+  const penaltisB = partida.placar_penaltis_b ?? null;
+  const vencedorA = finalizado && (
+    decididoNosPenaltis && penaltisA != null && penaltisB != null
+      ? penaltisA > penaltisB
+      : partida.placar_a > partida.placar_b
+  );
+  const vencedorB = finalizado && (
+    decididoNosPenaltis && penaltisA != null && penaltisB != null
+      ? penaltisB > penaltisA
+      : partida.placar_b > partida.placar_a
+  );
   const confrontoResolvido = timeDefinido(partida.time_a) && timeDefinido(partida.time_b);
   const podePalpitar = confrontoResolvido && partida.status === "NS";
   const exibirAcoes = Boolean(onPalpitar || onComentarios);
+  const isLive = AO_VIVO.has(partida.status);
 
   return (
     <div className={`rounded-lg border border-border bg-background p-2 shadow-sm ${destaque ? "ring-2 ring-brand/30" : ""}`}>
@@ -270,8 +296,39 @@ function ChaveCard({
           {partida.status}
         </Badge>
       </div>
-      <EquipeLinha nome={partida.time_a} placar={partida.placar_a} vencedor={vencedorA} />
-      <EquipeLinha nome={partida.time_b} placar={partida.placar_b} vencedor={vencedorB} />
+      {decididoNosPenaltis && (
+        <div className="mb-1 grid grid-cols-[1fr_2.25rem_2.25rem] items-center px-2 text-[9px] font-black uppercase tracking-wide text-muted-foreground">
+          <span />
+          <span className="text-center">Jogo</span>
+          <span className="text-center text-emerald-700">Pen.</span>
+        </div>
+      )}
+      <EquipeLinha
+        nome={partida.time_a}
+        placar={decididoNosPenaltis ? placarJogoA : partida.placar_a}
+        placarPenaltis={decididoNosPenaltis ? penaltisA : null}
+        mostrarPenaltis={decididoNosPenaltis}
+        vencedor={vencedorA}
+      />
+      <EquipeLinha
+        nome={partida.time_b}
+        placar={decididoNosPenaltis ? placarJogoB : partida.placar_b}
+        placarPenaltis={decididoNosPenaltis ? penaltisB : null}
+        mostrarPenaltis={decididoNosPenaltis}
+        vencedor={vencedorB}
+      />
+      {confrontoResolvido && (isLive || finalizado) && (
+        <div className="mt-2">
+          <MatchStatsDropdown
+            teamA={getCanonicalTeamName(partida.time_a)}
+            teamB={getCanonicalTeamName(partida.time_b)}
+            statsA={partida.estatisticas_a}
+            statsB={partida.estatisticas_b}
+            live={isLive}
+            compact
+          />
+        </div>
+      )}
       {exibirAcoes && (
         <div className="mt-2 grid grid-cols-2 gap-2 border-t border-border/70 pt-2">
           <Button
@@ -299,14 +356,30 @@ function ChaveCard({
   );
 }
 
-function EquipeLinha({ nome, placar, vencedor }: { nome: string; placar: number; vencedor: boolean }) {
+function numeroPreferido(preferido: number | null | undefined, fallback: number) {
+  return typeof preferido === "number" ? preferido : fallback;
+}
+
+function EquipeLinha({
+  nome,
+  placar,
+  placarPenaltis,
+  mostrarPenaltis = false,
+  vencedor,
+}: {
+  nome: string;
+  placar: number;
+  placarPenaltis?: number | null;
+  mostrarPenaltis?: boolean;
+  vencedor: boolean;
+}) {
   const indefinido = !nome || nome === "A definir";
   const selecaoId = indefinido ? undefined : resolveTeamIdByName(nome);
   const bandeira = selecaoId ? flagUrl(selecaoId, 80) : "";
   const nomeExibido = indefinido ? "A definir" : getCanonicalTeamName(nome);
 
   return (
-    <div className={`mt-1 flex items-center justify-between rounded-md px-2 py-1.5 text-sm ${vencedor ? "bg-green-500/10 font-bold text-green-700" : "bg-muted/60"}`}>
+    <div className={`mt-1 grid items-center rounded-md px-2 py-1.5 text-sm ${mostrarPenaltis ? "grid-cols-[1fr_2.25rem_2.25rem]" : "grid-cols-[1fr_auto]"} ${vencedor ? "bg-green-500/10 font-bold text-green-700" : "bg-muted/60"}`}>
       <span className={`flex min-w-0 items-center gap-2 ${indefinido ? "text-muted-foreground" : ""}`}>
         {bandeira && (
           <img
@@ -318,7 +391,12 @@ function EquipeLinha({ nome, placar, vencedor }: { nome: string; placar: number;
         )}
         <span className="truncate">{nomeExibido}</span>
       </span>
-      <span className="font-extrabold tabular-nums">{placar}</span>
+      <span className="text-center font-extrabold tabular-nums">{placar}</span>
+      {mostrarPenaltis && (
+        <span className="text-center font-extrabold tabular-nums text-emerald-700">
+          {placarPenaltis ?? "-"}
+        </span>
+      )}
     </div>
   );
 }

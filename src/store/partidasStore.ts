@@ -8,6 +8,11 @@ export type Partida = {
   time_b: string;
   placar_a: number | null;
   placar_b: number | null;
+  placar_regulamentar_a?: number | null;
+  placar_regulamentar_b?: number | null;
+  placar_penaltis_a?: number | null;
+  placar_penaltis_b?: number | null;
+  resultado_periodo?: "REGULAR" | "EXTRA_TIME" | "PENALTIES" | null;
   status: string;
   inicia_em: string | null;
   minuto?: number | null;
@@ -44,8 +49,10 @@ const POLL_NORMAL_MS = 45_000;
 const POLL_LIVE_MS = 15_000;
 const STALE_MS = 20_000;
 
-const SELECT_COLS =
+const SELECT_BASE_COLS =
   "id,espn_id,time_a,time_b,placar_a,placar_b,status,inicia_em,minuto,acrescimos,gols,estatisticas_a,estatisticas_b,grupo,fase";
+const SELECT_COLS =
+  "id,espn_id,time_a,time_b,placar_a,placar_b,placar_regulamentar_a,placar_regulamentar_b,placar_penaltis_a,placar_penaltis_b,resultado_periodo,status,inicia_em,minuto,acrescimos,gols,estatisticas_a,estatisticas_b,grupo,fase";
 
 interface PartidasState {
   partidas: Partida[];
@@ -89,10 +96,18 @@ export const usePartidasStore = create<PartidasState>((set, get) => ({
     set({ loading: true });
     // Supabase typing here does not reflect the dynamic select shape used by the store.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
+    let { data, error } = await (supabase as any)
       .from("partidas")
       .select(SELECT_COLS)
       .order("inicia_em", { ascending: true });
+
+    if (error) {
+      const fallback = await (supabase as any)
+        .from("partidas")
+        .select(SELECT_BASE_COLS)
+        .order("inicia_em", { ascending: true });
+      data = fallback.data;
+    }
 
     const partidas = (data ?? []) as Partida[];
     set({ partidas, loading: false, lastFetch: Date.now() });

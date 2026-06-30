@@ -19,6 +19,9 @@ function overlayEspnScores(partidas: Partida[], espnScores: ReturnType<typeof us
       status: espn.status,
       placar_a: espn.placarA,
       placar_b: espn.placarB,
+      placar_penaltis_a: espn.placarPenaltisA ?? p.placar_penaltis_a,
+      placar_penaltis_b: espn.placarPenaltisB ?? p.placar_penaltis_b,
+      resultado_periodo: espn.resultadoPeriodo ?? p.resultado_periodo,
       minuto: espn.minuto ?? p.minuto,
       acrescimos: espn.acrescimos ?? p.acrescimos,
     };
@@ -38,6 +41,14 @@ type EspnSummaryOverlay = {
   estatisticas_a: EspnSummaryStats | null;
   estatisticas_b: EspnSummaryStats | null;
   gols: EspnGoalEvent[];
+  placar_a: number | null;
+  placar_b: number | null;
+  status: "FT" | "AET" | "PEN" | null;
+  placar_regulamentar_a: number | null;
+  placar_regulamentar_b: number | null;
+  placar_penaltis_a: number | null;
+  placar_penaltis_b: number | null;
+  resultado_periodo: "REGULAR" | "EXTRA_TIME" | "PENALTIES" | null;
 };
 export type EspnTournamentScorer = {
   playerName: string;
@@ -62,6 +73,34 @@ async function fetchEspnSummaryStats(espnId: string) {
   const data = await res.json();
   const teams = data?.boxscore?.teams ?? [];
   const keyEvents = Array.isArray(data?.keyEvents) ? data.keyEvents : [];
+  const homeTeamId = data?.header?.competitions?.[0]?.competitors?.find(
+    (c: any) => c?.homeAway === "home",
+  )?.team?.id;
+  const headerComp = data?.header?.competitions?.[0];
+  const headerCompetitors = Array.isArray(headerComp?.competitors) ? headerComp.competitors : [];
+  const homeCompetitor = headerCompetitors.find((c: any) => c?.homeAway === "home");
+  const awayCompetitor = headerCompetitors.find((c: any) => c?.homeAway === "away");
+  const statusDetail = String(headerComp?.status?.type?.detail ?? "").toLowerCase();
+  const resultadoPeriodo =
+    statusDetail.includes("pen")
+      ? "PENALTIES"
+      : statusDetail.includes("aet") || statusDetail.includes("extra")
+        ? "EXTRA_TIME"
+        : headerComp?.status?.type?.state === "post"
+          ? "REGULAR"
+          : null;
+  const status =
+    resultadoPeriodo === "PENALTIES"
+      ? "PEN"
+      : resultadoPeriodo === "EXTRA_TIME"
+        ? "AET"
+        : headerComp?.status?.type?.state === "post"
+          ? "FT"
+          : null;
+  const parseOptionalNumber = (value: unknown) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
 
   const mapStats = (team: any): EspnSummaryStats | null => {
     if (!team) return null;
@@ -115,11 +154,36 @@ async function fetchEspnSummaryStats(espnId: string) {
       } satisfies EspnGoalEvent;
     });
 
+  const regularScore = keyEvents.reduce(
+    (acc: { a: number; b: number }, event: any) => {
+      const type = event?.type?.type;
+      if (!["goal", "penalty---scored", "own-goal"].includes(type)) return acc;
+      const minute = parseClock(event?.clock?.displayValue).minuto;
+      if (!minute || minute > 90) return acc;
+      const isHome = String(event?.team?.id) === String(homeTeamId);
+      const isOwn = type === "own-goal";
+      if (isHome && !isOwn) acc.a++;
+      else if (!isHome && !isOwn) acc.b++;
+      else if (isHome && isOwn) acc.b++;
+      else acc.a++;
+      return acc;
+    },
+    { a: 0, b: 0 },
+  );
+
   return {
     espn_id: espnId,
     estatisticas_a: mapStats(teams.find((team: any) => team?.homeAway === "home") ?? teams[0]),
     estatisticas_b: mapStats(teams.find((team: any) => team?.homeAway === "away") ?? teams[1]),
     gols: goals,
+    placar_a: parseOptionalNumber(homeCompetitor?.score),
+    placar_b: parseOptionalNumber(awayCompetitor?.score),
+    status,
+    placar_regulamentar_a: regularScore.a,
+    placar_regulamentar_b: regularScore.b,
+    placar_penaltis_a: parseOptionalNumber(homeCompetitor?.shootoutScore),
+    placar_penaltis_b: parseOptionalNumber(awayCompetitor?.shootoutScore),
+    resultado_periodo: resultadoPeriodo,
   };
 }
 
@@ -226,6 +290,9 @@ function useEspnStartedDetails(partidas: Partida[]) {
     () => partidas.filter((partida) => partida.status !== "NS" && Boolean(partida.inicia_em)),
     [partidas],
   );
+  const hasLiveMatch = startedPartidas.some((partida) =>
+    ["LIVE", "HT", "ET", "PEN_LIVE", "1H", "2H", "BT", "P"].includes(partida.status),
+  );
 
   return useQuery({
     queryKey: [
@@ -261,7 +328,9 @@ function useEspnStartedDetails(partidas: Partida[]) {
       );
     },
     enabled: startedPartidas.length > 0,
-    staleTime: 60_000,
+    staleTime: hasLiveMatch ? 12_000 : 5 * 60_000,
+    refetchInterval: hasLiveMatch ? 15_000 : false,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -390,9 +459,17 @@ function overlayEspnSummaryStats(
     return {
       ...partida,
       espn_id: stats.espn_id ?? partida.espn_id ?? null,
+      status: stats.status ?? partida.status,
+      placar_a: stats.placar_a ?? partida.placar_a,
+      placar_b: stats.placar_b ?? partida.placar_b,
       estatisticas_a: stats.estatisticas_a ?? partida.estatisticas_a ?? null,
       estatisticas_b: stats.estatisticas_b ?? partida.estatisticas_b ?? null,
       gols: stats.gols.length > 0 ? stats.gols : (partida.gols ?? null),
+      placar_regulamentar_a: stats.placar_regulamentar_a ?? partida.placar_regulamentar_a ?? null,
+      placar_regulamentar_b: stats.placar_regulamentar_b ?? partida.placar_regulamentar_b ?? null,
+      placar_penaltis_a: stats.placar_penaltis_a ?? partida.placar_penaltis_a ?? null,
+      placar_penaltis_b: stats.placar_penaltis_b ?? partida.placar_penaltis_b ?? null,
+      resultado_periodo: stats.resultado_periodo ?? partida.resultado_periodo ?? null,
     };
   });
 }
@@ -426,7 +503,19 @@ export type PartidaResultado = Partida & { id: string; inicia_em: string | null 
 
 export function usePartidasResultados() {
   const { partidas, loading } = usePartidas();
-  return { partidas: partidas as PartidaResultado[], loading };
+  const espnScores = useEspnLiveScores();
+  const { data: espnSummaryStats } = useEspnStartedDetails(partidas);
+
+  return useMemo(
+    () => ({
+      partidas: overlayEspnSummaryStats(
+        overlayEspnScores(partidas, espnScores),
+        espnSummaryStats,
+      ) as PartidaResultado[],
+      loading,
+    }),
+    [partidas, espnScores, espnSummaryStats, loading],
+  );
 }
 
 // ---------- Jogos de Hoje / Ao Vivo (substitui useJogosHoje) ----------
@@ -436,10 +525,11 @@ const LIVE_STATUSES = ["LIVE", "HT", "ET", "PEN_LIVE", "1H", "2H", "BT", "P"];
 export function useJogosHojeStore() {
   const { partidas } = usePartidas();
   const espnScores = useEspnLiveScores();
+  const { data: espnSummaryStats } = useEspnStartedDetails(partidas);
 
   return useMemo(() => {
     // Overlay ESPN live scores (atualização a cada 10s, zero custo no banco)
-    const ps = overlayEspnScores(partidas, espnScores);
+    const ps = overlayEspnSummaryStats(overlayEspnScores(partidas, espnScores), espnSummaryStats);
 
     const aoVivo = ps.filter((p) => LIVE_STATUSES.includes(p.status));
     const idsAoVivo = new Set(aoVivo.map((p) => p.id));
@@ -471,7 +561,7 @@ export function useJogosHojeStore() {
       .slice(0, 3);
 
     return { jogosAoVivo: aoVivo, jogosHoje: proximos, tituloSecao: "Próximos Jogos" };
-  }, [partidas, espnScores]);
+  }, [partidas, espnScores, espnSummaryStats]);
 }
 
 // ---------- Classificação por Grupo (substitui useClassificacaoGrupos) ----------

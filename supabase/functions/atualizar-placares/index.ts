@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
           espnSummaryPairs.set(dbRow.id, { espnId: m.espnId, dbId: dbRow.id });
         }
 
-        if (dbRow.status === "FT" && m.status !== "FT") continue;
+        if (dbRow.status === "FT" && !["FT", "AET", "PEN"].includes(m.status)) continue;
 
         if (
           dbRow.status === m.status &&
@@ -233,6 +233,9 @@ Deno.serve(async (req) => {
           status: m.status,
           placar_a: m.placarA,
           placar_b: m.placarB,
+          placar_penaltis_a: m.placarPenaltisA,
+          placar_penaltis_b: m.placarPenaltisB,
+          resultado_periodo: m.resultadoPeriodo,
           minuto: m.minuto,
           acrescimos: m.acrescimos,
           fase_polling: m.fasePolling === "post" ? "finished" : "live",
@@ -241,7 +244,20 @@ Deno.serve(async (req) => {
       }
 
       if (scoreUpserts.length) {
-        await sb.from("partidas").upsert(scoreUpserts);
+        const { error } = await sb.from("partidas").upsert(scoreUpserts);
+        if (error) {
+          await sb.from("partidas").upsert(
+            scoreUpserts.map((item) => {
+              const {
+                placar_penaltis_a: _pa,
+                placar_penaltis_b: _pb,
+                resultado_periodo: _rp,
+                ...fallback
+              } = item;
+              return fallback;
+            }),
+          );
+        }
         summary.espn = scoreUpserts.length;
       }
     } catch (err) {
@@ -254,8 +270,7 @@ Deno.serve(async (req) => {
       try {
         const sum = await espnClient.summary(espnId);
 
-        await sb.from("partidas").upsert([
-          {
+        const detailPayload = {
             id: dbId,
             espn_id: espnId,
             gols: sum.gols,
@@ -267,9 +282,19 @@ Deno.serve(async (req) => {
             estatisticas_b: sum.estatisticasB,
             placar_parcial_a: sum.placarParcialA,
             placar_parcial_b: sum.placarParcialB,
+            placar_regulamentar_a: sum.placarRegulamentarA,
+            placar_regulamentar_b: sum.placarRegulamentarB,
             ultima_busca_api: new Date(agora).toISOString(),
-          },
-        ]);
+          };
+        const { error } = await sb.from("partidas").upsert([detailPayload]);
+        if (error) {
+          const {
+            placar_regulamentar_a: _ra,
+            placar_regulamentar_b: _rb,
+            ...fallbackDetail
+          } = detailPayload;
+          await sb.from("partidas").upsert([fallbackDetail]);
+        }
         espnDetail++;
 
         // Salva artigo e notícias relacionadas

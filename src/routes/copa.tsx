@@ -8,10 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { StylizedVersus } from "@/components/vivicopa/StylizedVersus";
+import { MatchStatsDropdown, type MatchStats } from "@/components/vivicopa/MatchStatsDropdown";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { useAuthStore } from "@/store/authStore";
-import { usePartidas } from "@/hooks/usePartidas";
+import { usePartidasComPlacarAoVivo } from "@/hooks/usePartidas";
 import { useCopaPalpitesQuery, useCopaRankingQuery, vivicopaQueryKeys } from "@/hooks/useVivicopaQueries";
 
 export const Route = createFileRoute("/copa")({
@@ -27,6 +28,13 @@ type Partida = {
   time_b: string;
   placar_a: number;
   placar_b: number;
+  placar_regulamentar_a?: number | null;
+  placar_regulamentar_b?: number | null;
+  placar_penaltis_a?: number | null;
+  placar_penaltis_b?: number | null;
+  resultado_periodo?: "REGULAR" | "EXTRA_TIME" | "PENALTIES" | null;
+  estatisticas_a?: MatchStats | null;
+  estatisticas_b?: MatchStats | null;
   status: string;
   inicia_em: string | null;
   fase: string | null;
@@ -133,7 +141,7 @@ function Jogos({ userId }: { userId: string }) {
   const [filtroGrupo, setFiltroGrupo] = useState("todos");
   const [busca, setBusca] = useState("");
   const queryClient = useQueryClient();
-  const { partidas: partidasRaw = [] } = usePartidas();
+  const { partidas: partidasRaw = [] } = usePartidasComPlacarAoVivo();
   const partidas = partidasRaw as unknown as Partida[];
   const { data: palpitesRows = [] } = useCopaPalpitesQuery(userId);
   const palpites = useMemo(() => {
@@ -408,7 +416,7 @@ const MATA_MATA_FASES = ["LAST_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", 
 
 function Chaveamento({ userId }: { userId: string }) {
   const queryClient = useQueryClient();
-  const { partidas: partidasRaw = [] } = usePartidas();
+  const { partidas: partidasRaw = [] } = usePartidasComPlacarAoVivo();
   const partidas = useMemo(
     () => (partidasRaw as unknown as Partida[]).filter((partida) => [...MATA_MATA_FASES, "THIRD_PLACE"].includes(partida.fase ?? "")),
     [partidasRaw]
@@ -551,9 +559,27 @@ function ChaveCard({
   onSalvo?: () => void;
 }) {
   const finalizado = ["FT", "AET", "PEN"].includes(partida.status);
-  const vencedorA = finalizado && partida.placar_a > partida.placar_b;
-  const vencedorB = finalizado && partida.placar_b > partida.placar_a;
+  const decididoNosPenaltis =
+    partida.status === "PEN" ||
+    partida.resultado_periodo === "PENALTIES" ||
+    partida.placar_penaltis_a != null ||
+    partida.placar_penaltis_b != null;
+  const placarJogoA = numeroPreferido(partida.placar_regulamentar_a, partida.placar_a);
+  const placarJogoB = numeroPreferido(partida.placar_regulamentar_b, partida.placar_b);
+  const penaltisA = partida.placar_penaltis_a ?? null;
+  const penaltisB = partida.placar_penaltis_b ?? null;
+  const vencedorA = finalizado && (
+    decididoNosPenaltis && penaltisA != null && penaltisB != null
+      ? penaltisA > penaltisB
+      : partida.placar_a > partida.placar_b
+  );
+  const vencedorB = finalizado && (
+    decididoNosPenaltis && penaltisA != null && penaltisB != null
+      ? penaltisB > penaltisA
+      : partida.placar_b > partida.placar_a
+  );
   const bloqueado = partidaBloqueadaParaPalpite(partida);
+  const isLive = AO_VIVO.has(partida.status);
   const indefinido =
     !partida.time_a || partida.time_a === "A definir" ||
     !partida.time_b || partida.time_b === "A definir";
@@ -595,8 +621,39 @@ function ChaveCard({
           {partida.status}
         </Badge>
       </div>
-      <EquipeLinha nome={partida.time_a} placar={partida.placar_a} vencedor={vencedorA} />
-      <EquipeLinha nome={partida.time_b} placar={partida.placar_b} vencedor={vencedorB} />
+      {decididoNosPenaltis && (
+        <div className="mb-1 grid grid-cols-[1fr_2.25rem_2.25rem] items-center px-2 text-[9px] font-black uppercase tracking-wide text-muted-foreground">
+          <span />
+          <span className="text-center">Jogo</span>
+          <span className="text-center text-emerald-700">Pen.</span>
+        </div>
+      )}
+      <EquipeLinha
+        nome={partida.time_a}
+        placar={decididoNosPenaltis ? placarJogoA : partida.placar_a}
+        placarPenaltis={decididoNosPenaltis ? penaltisA : null}
+        mostrarPenaltis={decididoNosPenaltis}
+        vencedor={vencedorA}
+      />
+      <EquipeLinha
+        nome={partida.time_b}
+        placar={decididoNosPenaltis ? placarJogoB : partida.placar_b}
+        placarPenaltis={decididoNosPenaltis ? penaltisB : null}
+        mostrarPenaltis={decididoNosPenaltis}
+        vencedor={vencedorB}
+      />
+      {!indefinido && (isLive || finalizado) && (
+        <div className="mt-2">
+          <MatchStatsDropdown
+            teamA={partida.time_a}
+            teamB={partida.time_b}
+            statsA={partida.estatisticas_a}
+            statsB={partida.estatisticas_b}
+            live={isLive}
+            compact
+          />
+        </div>
+      )}
       {userId && (
         <div className="mt-2 border-t pt-2">
           {indefinido ? (
@@ -640,12 +697,33 @@ function ChaveCard({
   );
 }
 
-function EquipeLinha({ nome, placar, vencedor }: { nome: string; placar: number; vencedor: boolean }) {
+function numeroPreferido(preferido: number | null | undefined, fallback: number) {
+  return typeof preferido === "number" ? preferido : fallback;
+}
+
+function EquipeLinha({
+  nome,
+  placar,
+  placarPenaltis,
+  mostrarPenaltis = false,
+  vencedor,
+}: {
+  nome: string;
+  placar: number;
+  placarPenaltis?: number | null;
+  mostrarPenaltis?: boolean;
+  vencedor: boolean;
+}) {
   const indefinido = !nome || nome === "A definir";
   return (
-    <div className={`mt-1 flex items-center justify-between rounded-md px-2 py-1.5 text-sm ${vencedor ? "bg-green-500/10 font-bold text-green-700" : "bg-muted/60"}`}>
+    <div className={`mt-1 grid items-center rounded-md px-2 py-1.5 text-sm ${mostrarPenaltis ? "grid-cols-[1fr_2.25rem_2.25rem]" : "grid-cols-[1fr_auto]"} ${vencedor ? "bg-green-500/10 font-bold text-green-700" : "bg-muted/60"}`}>
       <span className={indefinido ? "text-muted-foreground" : ""}>{indefinido ? "A definir" : nome}</span>
-      <span className="font-extrabold tabular-nums">{placar}</span>
+      <span className="text-center font-extrabold tabular-nums">{placar}</span>
+      {mostrarPenaltis && (
+        <span className="text-center font-extrabold tabular-nums text-emerald-700">
+          {placarPenaltis ?? "-"}
+        </span>
+      )}
     </div>
   );
 }
