@@ -22,6 +22,8 @@ function addDays(d: Date, days: number) {
 type ComparableStoredRow = {
   ultima_atualizacao_api: string | null;
   status?: string | null;
+  espn_id?: string | null;
+  resultado_periodo?: string | null;
   placar_a?: number | null;
   placar_b?: number | null;
   minuto?: number | null;
@@ -42,10 +44,20 @@ function changed(
   const nextStatus = (next.status as string | null) ?? null;
 
   if (
+    mode === "full" &&
+    stored?.resultado_periodo === "PENALTIES" &&
+    storedStatus &&
+    ["FT", "AET", "PEN"].includes(storedStatus) &&
+    nextStatus !== "PEN"
+  ) {
+    return false;
+  }
+
+  if (
     mode === "scheduled" &&
     storedStatus &&
     ["FT", "AET", "PEN"].includes(storedStatus) &&
-    nextStatus === "NS"
+    (nextStatus === "NS" || stored?.resultado_periodo === "PENALTIES")
   ) {
     return false;
   }
@@ -129,10 +141,18 @@ Deno.serve(async (req) => {
   if (url.searchParams.get("seed") === "true") {
     const apiMatches = await client.scheduled(COMP, "2026-06-01", "2026-07-20");
     const apiTeams = await client.teams(COMP);
+    const { data: existingRows } = await sb
+      .from("partidas")
+      .select("id,status,resultado_periodo");
+    const protectedIds = new Set(
+      ((existingRows ?? []) as { id: string; status: string | null; resultado_periodo: string | null }[])
+        .filter((row) => row.resultado_periodo === "PENALTIES" || row.status === "PEN")
+        .map((row) => row.id),
+    );
 
     const matchRows = (apiMatches as Record<string, unknown>[]).map((m) =>
       mapScheduledRow(m, agora),
-    );
+    ).filter((row) => !protectedIds.has(String(row.id)));
     if (matchRows.length) {
       const { error } = await sb.from("partidas").upsert(matchRows);
       if (error) throw error;
@@ -156,6 +176,8 @@ Deno.serve(async (req) => {
   type StoredRow = {
     id: string;
     status: string;
+    espn_id: string | null;
+    resultado_periodo: string | null;
     inicia_em: string | null;
     placar_a: number;
     placar_b: number;
@@ -169,7 +191,7 @@ Deno.serve(async (req) => {
   const { data: stored } = await sb
     .from("partidas")
     .select(
-      "id,status,inicia_em,placar_a,placar_b,minuto,acrescimos,time_a,time_b,ultima_atualizacao_api",
+      "id,status,espn_id,resultado_periodo,inicia_em,placar_a,placar_b,minuto,acrescimos,time_a,time_b,ultima_atualizacao_api",
     );
 
   const rows = (stored ?? []) as StoredRow[];
