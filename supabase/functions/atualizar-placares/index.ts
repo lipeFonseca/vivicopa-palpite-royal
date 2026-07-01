@@ -37,14 +37,25 @@ function changed(
   stored?: ComparableStoredRow,
   mode: "scheduled" | "full" = "full",
 ) {
+  const next = mode === "full" ? mapFullRow(apiMatch, agora) : mapScheduledRow(apiMatch, agora);
+  const storedStatus = stored?.status ?? null;
+  const nextStatus = (next.status as string | null) ?? null;
+
+  if (
+    mode === "scheduled" &&
+    storedStatus &&
+    ["FT", "AET", "PEN"].includes(storedStatus) &&
+    nextStatus === "NS"
+  ) {
+    return false;
+  }
+
   const apiLastUpdated = (apiMatch.lastUpdated as string | null) ?? null;
   if (!stored || !apiLastUpdated || stored.ultima_atualizacao_api !== apiLastUpdated) {
     return true;
   }
 
-  const next = mode === "full" ? mapFullRow(apiMatch, agora) : mapScheduledRow(apiMatch, agora);
-
-  if (stored.status !== ((next.status as string | null) ?? null)) return true;
+  if (stored.status !== nextStatus) return true;
   if (stored.placar_a !== ((next.placar_a as number | null) ?? null)) return true;
   if (stored.placar_b !== ((next.placar_b as number | null) ?? null)) return true;
   if (stored.inicia_em !== ((next.inicia_em as string | null) ?? null)) return true;
