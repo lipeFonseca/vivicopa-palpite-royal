@@ -615,9 +615,12 @@ function ChaveCard({
   return (
     <div className={`relative rounded-lg border bg-background p-2 shadow-sm ${destaque ? "ring-2 ring-primary/20" : ""}`}>
       {!destaque && <div className="absolute -right-3 top-1/2 hidden h-px w-3 bg-border md:block" />}
-      <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+      <div className="mb-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-[10px] text-muted-foreground">
         <span>{partida.inicia_em ? new Date(partida.inicia_em).toLocaleDateString("pt-BR") : "Data a definir"}</span>
-        <Badge variant={AO_VIVO.has(partida.status) ? "destructive" : "outline"} className="h-5 px-1.5 text-[10px]">
+        <span className="rounded-sm border border-primary/15 bg-white/70 px-1.5 py-0.5 font-black uppercase tabular-nums text-foreground">
+          {formatarHorarioBrasilia(partida.inicia_em)}
+        </span>
+        <Badge variant={AO_VIVO.has(partida.status) ? "destructive" : "outline"} className="h-5 justify-self-end px-1.5 text-[10px]">
           {partida.status}
         </Badge>
       </div>
@@ -699,6 +702,16 @@ function ChaveCard({
 
 function numeroPreferido(preferido: number | null | undefined, fallback: number) {
   return typeof preferido === "number" ? preferido : fallback;
+}
+
+function formatarHorarioBrasilia(iniciaEm: string | null) {
+  if (!iniciaEm) return "--:-- BRT";
+  return `${new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date(iniciaEm))} BRT`;
 }
 
 function EquipeLinha({
