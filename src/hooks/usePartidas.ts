@@ -154,12 +154,15 @@ async function fetchEspnSummaryStats(espnId: string) {
       } satisfies EspnGoalEvent;
     });
 
-  const regularScore = keyEvents.reduce(
-    (acc: { a: number; b: number }, event: any) => {
+  const scoreA = parseOptionalNumber(homeCompetitor?.score);
+  const scoreB = parseOptionalNumber(awayCompetitor?.score);
+  const eventScore = keyEvents.reduce(
+    (acc: { a: number; b: number; sawGoal: boolean }, event: any) => {
       const type = event?.type?.type;
       if (!["goal", "penalty---scored", "own-goal"].includes(type)) return acc;
       const minute = parseClock(event?.clock?.displayValue).minuto;
       if (!minute || minute > 90) return acc;
+      acc.sawGoal = true;
       const isHome = String(event?.team?.id) === String(homeTeamId);
       const isOwn = type === "own-goal";
       if (isHome && !isOwn) acc.a++;
@@ -168,16 +171,22 @@ async function fetchEspnSummaryStats(espnId: string) {
       else acc.a++;
       return acc;
     },
-    { a: 0, b: 0 },
+    { a: 0, b: 0, sawGoal: false },
   );
+  const regularScore =
+    eventScore.sawGoal
+      ? { a: eventScore.a, b: eventScore.b }
+      : resultadoPeriodo === "PENALTIES"
+        ? { a: scoreA, b: scoreB }
+        : { a: null, b: null };
 
   return {
     espn_id: espnId,
     estatisticas_a: mapStats(teams.find((team: any) => team?.homeAway === "home") ?? teams[0]),
     estatisticas_b: mapStats(teams.find((team: any) => team?.homeAway === "away") ?? teams[1]),
     gols: goals,
-    placar_a: parseOptionalNumber(homeCompetitor?.score),
-    placar_b: parseOptionalNumber(awayCompetitor?.score),
+    placar_a: scoreA,
+    placar_b: scoreB,
     status,
     placar_regulamentar_a: regularScore.a,
     placar_regulamentar_b: regularScore.b,

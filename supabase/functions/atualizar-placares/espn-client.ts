@@ -190,9 +190,21 @@ function parseSummary(data: Record<string, unknown>): EspnSummary {
   const headerComps = (header?.competitions as Record<string, unknown>[]) ?? [];
   const headerComp = headerComps[0] ?? {};
   const headerCompetitors = (headerComp.competitors as Record<string, unknown>[]) ?? [];
+  const statusType = (headerComp.status as Record<string, unknown> | undefined)?.type as
+    | Record<string, unknown>
+    | undefined;
+  const statusDetail = String(statusType?.detail ?? "").toLowerCase();
+  const homeCompetitor = headerCompetitors.find((c) => (c.homeAway as string) === "home");
+  const awayCompetitor = headerCompetitors.find((c) => (c.homeAway as string) === "away");
+  const penaltyFallback =
+    statusDetail.includes("pen")
+      ? {
+          a: parseOptionalInt(homeCompetitor?.score),
+          b: parseOptionalInt(awayCompetitor?.score),
+        }
+      : null;
   const homeTeamId = (
-    (headerCompetitors.find((c) => (c.homeAway as string) === "home")
-      ?.team as Record<string, unknown> | undefined)?.id as string | undefined
+    (homeCompetitor?.team as Record<string, unknown> | undefined)?.id as string | undefined
   );
 
   const keyEvents = (data.keyEvents as Record<string, unknown>[]) ?? [];
@@ -209,7 +221,7 @@ function parseSummary(data: Record<string, unknown>): EspnSummary {
     estatisticasA: mapStats(boxscoreTeams, "home"),
     estatisticasB: mapStats(boxscoreTeams, "away"),
     ...extractHalfTimeScore(keyEvents, homeTeamId),
-    ...extractRegularTimeScore(keyEvents, homeTeamId),
+    ...extractRegularTimeScore(keyEvents, homeTeamId, penaltyFallback),
     artigo: mapArtigo(data.article as Record<string, unknown> | null),
     noticias: mapNoticias(
       (data.news as Record<string, unknown> | null)?.articles as
@@ -224,6 +236,7 @@ function parseSummary(data: Record<string, unknown>): EspnSummary {
 function extractRegularTimeScore(
   keyEvents: Record<string, unknown>[],
   homeTeamId: string | undefined,
+  fallback: { a: number | null; b: number | null } | null = null,
 ): { placarRegulamentarA: number | null; placarRegulamentarB: number | null } {
   let a = 0, b = 0, sawGoal = false;
   const goalTypes = new Set(["goal", "penalty---scored", "own-goal"]);
@@ -240,7 +253,7 @@ function extractRegularTimeScore(
   }
   return sawGoal
     ? { placarRegulamentarA: a, placarRegulamentarB: b }
-    : { placarRegulamentarA: null, placarRegulamentarB: null };
+    : { placarRegulamentarA: fallback?.a ?? null, placarRegulamentarB: fallback?.b ?? null };
 }
 
 function extractHalfTimeScore(
