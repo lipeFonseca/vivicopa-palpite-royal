@@ -454,6 +454,8 @@ export function buildBrazilHighlights(
   if (!brazilEntry) return [];
 
   const [teamName, totals] = brazilEntry;
+  const possessionAverage =
+    totals.possessionMatches > 0 ? totals.possessionSum / totals.possessionMatches : 0;
   const shotPct =
     totals.shotsTotal > 0 ? Math.round((totals.shotsOnTarget / totals.shotsTotal) * 100) : 0;
   const topScorers = pickBrazilLeaders(brazilPlayers, (player) => player.goals);
@@ -472,10 +474,10 @@ export function buildBrazilHighlights(
     },
     {
       id: "brazil-possession",
-      title: "Posse do Brasil na Copa",
+      title: "Posse média do Brasil",
       subject: teamName,
-      value: formatPercent(totals.possessionSum),
-      detail: "Soma da posse do Brasil nas partidas com estatisticas",
+      value: formatPercent(possessionAverage),
+      detail: "Media de posse do Brasil nas partidas com estatisticas",
       teamName,
     },
     {
