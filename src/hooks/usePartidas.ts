@@ -38,6 +38,8 @@ type EspnGoalEvent = {
 };
 type EspnSummaryOverlay = {
   espn_id?: string | null;
+  home_team_name: string | null;
+  away_team_name: string | null;
   estatisticas_a: EspnSummaryStats | null;
   estatisticas_b: EspnSummaryStats | null;
   gols: EspnGoalEvent[];
@@ -182,6 +184,8 @@ async function fetchEspnSummaryStats(espnId: string) {
 
   return {
     espn_id: espnId,
+    home_team_name: homeCompetitor?.team?.displayName ?? null,
+    away_team_name: awayCompetitor?.team?.displayName ?? null,
     estatisticas_a: mapStats(teams.find((team: any) => team?.homeAway === "home") ?? teams[0]),
     estatisticas_b: mapStats(teams.find((team: any) => team?.homeAway === "away") ?? teams[1]),
     gols: goals,
@@ -221,7 +225,8 @@ async function resolveEspnEventIds(partidas: Partida[]) {
         return {
           espnId: String(event?.id ?? ""),
           date,
-          key: `${espnNorm(home?.team?.displayName ?? "")}|${espnNorm(away?.team?.displayName ?? "")}|${date}`,
+          homeKey: `${espnNorm(home?.team?.displayName ?? "")}|${espnNorm(away?.team?.displayName ?? "")}|${date}`,
+          awayKey: `${espnNorm(away?.team?.displayName ?? "")}|${espnNorm(home?.team?.displayName ?? "")}|${date}`,
         };
       });
     }),
@@ -229,7 +234,8 @@ async function resolveEspnEventIds(partidas: Partida[]) {
 
   const eventIdByKey = new Map<string, string>();
   scoreboardEntries.flat().forEach((entry) => {
-    if (entry.espnId && entry.key) eventIdByKey.set(entry.key, entry.espnId);
+    if (entry.espnId && entry.homeKey) eventIdByKey.set(entry.homeKey, entry.espnId);
+    if (entry.espnId && entry.awayKey) eventIdByKey.set(entry.awayKey, entry.espnId);
   });
 
   return new Map(
@@ -465,19 +471,40 @@ function overlayEspnSummaryStats(
   return partidas.map((partida) => {
     const stats = statsMap.get(partida.id);
     if (!stats) return partida;
+    const shouldSwap =
+      espnNorm(stats.home_team_name ?? "") === espnNorm(partida.time_b) &&
+      espnNorm(stats.away_team_name ?? "") === espnNorm(partida.time_a);
     return {
       ...partida,
       espn_id: stats.espn_id ?? partida.espn_id ?? null,
       status: stats.status ?? partida.status,
-      placar_a: stats.placar_a ?? partida.placar_a,
-      placar_b: stats.placar_b ?? partida.placar_b,
-      estatisticas_a: stats.estatisticas_a ?? partida.estatisticas_a ?? null,
-      estatisticas_b: stats.estatisticas_b ?? partida.estatisticas_b ?? null,
+      placar_a: (shouldSwap ? stats.placar_b : stats.placar_a) ?? partida.placar_a,
+      placar_b: (shouldSwap ? stats.placar_a : stats.placar_b) ?? partida.placar_b,
+      estatisticas_a:
+        (shouldSwap ? stats.estatisticas_b : stats.estatisticas_a) ??
+        partida.estatisticas_a ??
+        null,
+      estatisticas_b:
+        (shouldSwap ? stats.estatisticas_a : stats.estatisticas_b) ??
+        partida.estatisticas_b ??
+        null,
       gols: stats.gols.length > 0 ? stats.gols : (partida.gols ?? null),
-      placar_regulamentar_a: stats.placar_regulamentar_a ?? partida.placar_regulamentar_a ?? null,
-      placar_regulamentar_b: stats.placar_regulamentar_b ?? partida.placar_regulamentar_b ?? null,
-      placar_penaltis_a: stats.placar_penaltis_a ?? partida.placar_penaltis_a ?? null,
-      placar_penaltis_b: stats.placar_penaltis_b ?? partida.placar_penaltis_b ?? null,
+      placar_regulamentar_a:
+        (shouldSwap ? stats.placar_regulamentar_b : stats.placar_regulamentar_a) ??
+        partida.placar_regulamentar_a ??
+        null,
+      placar_regulamentar_b:
+        (shouldSwap ? stats.placar_regulamentar_a : stats.placar_regulamentar_b) ??
+        partida.placar_regulamentar_b ??
+        null,
+      placar_penaltis_a:
+        (shouldSwap ? stats.placar_penaltis_b : stats.placar_penaltis_a) ??
+        partida.placar_penaltis_a ??
+        null,
+      placar_penaltis_b:
+        (shouldSwap ? stats.placar_penaltis_a : stats.placar_penaltis_b) ??
+        partida.placar_penaltis_b ??
+        null,
       resultado_periodo: stats.resultado_periodo ?? partida.resultado_periodo ?? null,
     };
   });

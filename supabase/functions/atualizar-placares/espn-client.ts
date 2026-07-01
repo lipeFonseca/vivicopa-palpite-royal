@@ -62,15 +62,24 @@ const ESPN_NAME_ALIASES: Record<string, string> = {
   "czechia": "czech republic",
   "usa": "united states",
   "ir iran": "iran",
+  "côte d'ivoire": "côte d'ivoire",
+  "dr congo": "congo dr",
+  "cape verde": "cape verde islands",
+  "cabo verde": "cape verde islands",
+  "turkiye": "turkey",
+  "türkiye": "turkey",
+  "türkiye milli": "turkey",
   "ivory coast": "côte d'ivoire",
   "cote d'ivoire": "côte d'ivoire",
   "republic of ireland": "ireland",
-  "türkiye": "turkey",
-  "türkiye milli": "turkey",
 };
 
 export function espnNorm(name: string): string {
-  const lower = name.toLowerCase().trim();
+  const lower = name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
   return ESPN_NAME_ALIASES[lower] ?? lower;
 }
 
